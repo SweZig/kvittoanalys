@@ -1,0 +1,1708 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Kvittoanalys — Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,500;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --bg-primary:#0c0f14;--bg-secondary:#141820;--bg-card:#1a1f2b;--bg-card-hover:#1f2535;
+      --bg-input:#111520;--border:#2a3040;--border-light:#343d50;
+      --text-primary:#e8ecf4;--text-secondary:#8892a6;--text-muted:#5a6478;
+      --accent:#4a9eff;--accent-glow:rgba(74,158,255,0.15);
+      --accent-green:#34d399;--accent-amber:#fbbf24;--accent-rose:#fb7185;--accent-violet:#a78bfa;
+      --radius:12px;--radius-sm:8px;
+      --font:'DM Sans',-apple-system,sans-serif;--mono:'JetBrains Mono',monospace;
+      --transition:0.2s cubic-bezier(0.4,0,0.2,1);
+    }
+    html{font-size:15px}
+    body{font-family:var(--font);background:var(--bg-primary);color:var(--text-primary);min-height:100vh;line-height:1.6}
+    .app{display:grid;grid-template-columns:240px 1fr;grid-template-rows:auto 1fr;min-height:100vh}
+    .sidebar{grid-row:1/-1;background:var(--bg-secondary);border-right:1px solid var(--border);padding:1.5rem 1rem;display:flex;flex-direction:column;gap:0.5rem}
+    .logo{display:flex;align-items:center;gap:0.75rem;padding:0.5rem 0.75rem;margin-bottom:1.5rem}
+    .logo-icon{width:36px;height:36px;background:linear-gradient(135deg,var(--accent),var(--accent-violet));border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:700;color:#fff}
+    .logo-text{font-size:1.15rem;font-weight:700;letter-spacing:-0.3px}
+    .nav-item{display:flex;align-items:center;gap:0.75rem;padding:0.65rem 0.85rem;border-radius:var(--radius-sm);cursor:pointer;transition:all var(--transition);font-size:0.93rem;color:var(--text-secondary);font-weight:500;border:none;background:none;width:100%;text-align:left}
+    .nav-item:hover{background:var(--bg-card);color:var(--text-primary)}
+    .nav-item.active{background:var(--accent-glow);color:var(--accent)}
+    .nav-item svg{width:18px;height:18px;flex-shrink:0}
+    .sidebar-footer{margin-top:auto;padding:1rem 0.75rem 0;border-top:1px solid var(--border)}
+    .status-dot{width:8px;height:8px;border-radius:50%;background:var(--accent-green);display:inline-block;animation:pulse-dot 2s ease-in-out infinite}
+    @keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:0.4}}
+    .sidebar-footer span{font-size:0.8rem;color:var(--text-muted);margin-left:0.5rem}
+    .header{padding:1.25rem 2rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--bg-secondary)}
+    .header h1{font-size:1.3rem;font-weight:700;letter-spacing:-0.3px}
+    .main{padding:1.75rem 2rem;overflow-y:auto;max-height:calc(100vh - 60px)}
+    .view{display:none}.view.active{display:block;animation:fadeIn 0.3s ease}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+    .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:2rem}
+    .stat-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem 1.5rem;transition:all var(--transition);position:relative;overflow:hidden}
+    .stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:var(--radius) var(--radius) 0 0}
+    .stat-card:nth-child(1)::before{background:var(--accent)}.stat-card:nth-child(2)::before{background:var(--accent-green)}
+    .stat-card:nth-child(3)::before{background:var(--accent-amber)}.stat-card:nth-child(4)::before{background:var(--accent-violet)}
+    .stat-card:hover{border-color:var(--border-light);transform:translateY(-2px)}
+    .stat-label{font-size:0.8rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:500;margin-bottom:0.5rem}
+    .stat-value{font-size:1.75rem;font-weight:700;letter-spacing:-0.5px;font-family:var(--mono)}
+    .stat-sub{font-size:0.8rem;color:var(--text-secondary);margin-top:0.25rem}
+    .toolbar{display:flex;gap:0.75rem;margin-bottom:1.25rem;flex-wrap:wrap;align-items:center}
+    .search-box{flex:1;min-width:240px;position:relative}
+    .search-box svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--text-muted)}
+    input,select,textarea{background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);padding:0.6rem 0.85rem;font-family:var(--font);font-size:0.9rem;transition:border-color var(--transition);outline:none}
+    input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+    textarea{resize:vertical;min-height:60px}
+    .search-box input{width:100%;padding-left:2.25rem}
+    select{cursor:pointer;min-width:140px}
+    .btn{display:inline-flex;align-items:center;gap:0.5rem;padding:0.6rem 1.15rem;border-radius:var(--radius-sm);font-family:var(--font);font-size:0.9rem;font-weight:600;cursor:pointer;transition:all var(--transition);border:1px solid transparent;text-decoration:none}
+    .btn svg{width:16px;height:16px}
+    .btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{background:#3b8be8}
+    .btn-secondary{background:var(--bg-card);border-color:var(--border);color:var(--text-primary)}.btn-secondary:hover{border-color:var(--border-light);background:var(--bg-card-hover)}
+    .btn-ghost{background:none;color:var(--text-secondary)}.btn-ghost:hover{color:var(--text-primary);background:var(--bg-card)}
+    .btn-danger{background:none;border-color:var(--border);color:var(--accent-rose)}.btn-danger:hover{background:rgba(251,113,133,0.1);border-color:var(--accent-rose)}
+    .btn-success{background:var(--accent-green);color:#0c0f14;border:none}.btn-success:hover{opacity:0.9}
+    .btn-sm{padding:0.35rem 0.75rem;font-size:0.82rem}
+    .btn:disabled{opacity:0.5;cursor:not-allowed}
+    .table-wrapper{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+    table{width:100%;border-collapse:collapse}
+    thead{background:var(--bg-secondary)}
+    th{text-align:left;padding:0.75rem 1rem;font-size:0.78rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--border)}
+    td{padding:0.85rem 1rem;font-size:0.9rem;border-bottom:1px solid var(--border);vertical-align:middle}
+    tr:last-child td{border-bottom:none}
+    tbody tr{transition:background var(--transition)}
+    tbody tr:hover{background:var(--bg-card-hover)}
+    .type-badge{display:inline-block;padding:0.2rem 0.65rem;border-radius:99px;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.3px}
+    .type-invoice{background:rgba(74,158,255,0.12);color:var(--accent)}.type-receipt{background:rgba(52,211,153,0.12);color:var(--accent-green)}
+    .type-contract{background:rgba(167,139,250,0.12);color:var(--accent-violet)}.type-image{background:rgba(251,191,36,0.12);color:var(--accent-amber)}
+    .type-other{background:rgba(90,100,120,0.2);color:var(--text-secondary)}
+    .amount{font-family:var(--mono);font-weight:600;font-size:0.88rem}
+    .text-muted{color:var(--text-muted)}.text-secondary{color:var(--text-secondary)}
+    .pagination{display:flex;align-items:center;justify-content:space-between;padding:0.75rem 1rem;border-top:1px solid var(--border)}
+    .pagination span{font-size:0.85rem;color:var(--text-secondary)}
+    .detail-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:2rem}
+    .detail-title{font-size:1.6rem;font-weight:700;letter-spacing:-0.4px;margin-bottom:0.25rem}
+    .detail-meta{display:flex;gap:1.5rem;margin-top:0.5rem;flex-wrap:wrap}
+    .detail-meta span{font-size:0.85rem;color:var(--text-secondary);display:flex;align-items:center;gap:0.35rem}
+    .detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.25rem;margin-bottom:2rem}
+    .detail-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem 1.5rem}
+    .detail-card h3{font-size:0.82rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:1rem;display:flex;align-items:center;gap:0.5rem}
+    .field-row{display:flex;justify-content:space-between;align-items:baseline;padding:0.45rem 0;border-bottom:1px solid rgba(42,48,64,0.5)}
+    .field-row:last-child{border-bottom:none}
+    .field-label{font-size:0.85rem;color:var(--text-secondary)}.field-value{font-size:0.9rem;font-weight:500;text-align:right;max-width:60%;word-break:break-word}
+    .line-items-table th{font-size:0.75rem;padding:0.5rem 0.75rem;background:var(--bg-secondary)}
+    .line-items-table td{font-size:0.85rem;padding:0.6rem 0.75rem}
+    .raw-text{background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);padding:1rem;font-size:0.85rem;line-height:1.7;color:var(--text-secondary);max-height:400px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;font-family:var(--mono)}
+    .upload-zone{border:2px dashed var(--border);border-radius:var(--radius);padding:3rem 2rem;text-align:center;cursor:pointer;transition:all var(--transition);background:var(--bg-card);margin-bottom:1.5rem}
+    .upload-zone:hover,.upload-zone.dragover{border-color:var(--accent);background:var(--accent-glow)}
+    .upload-zone svg{width:48px;height:48px;color:var(--text-muted);margin-bottom:1rem}
+    .upload-zone h3{font-size:1.1rem;margin-bottom:0.5rem}
+    .upload-zone p{color:var(--text-muted);font-size:0.9rem}
+    .upload-options{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:1.5rem;margin-bottom:1.5rem}
+    .upload-options h3{font-size:0.95rem;margin-bottom:1rem}
+    .form-row{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem}
+    .form-group label{display:block;font-size:0.82rem;color:var(--text-secondary);margin-bottom:0.35rem;font-weight:500}
+    .form-group input,.form-group select,.form-group textarea{width:100%}
+    .upload-result{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:1.5rem;display:none}
+    .upload-result.visible{display:block;animation:fadeIn 0.3s ease}
+    .upload-result pre{background:var(--bg-input);border-radius:var(--radius-sm);padding:1rem;overflow-x:auto;font-family:var(--mono);font-size:0.82rem;color:var(--accent-green);max-height:400px;overflow-y:auto;line-height:1.6}
+    .rule-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem 1.5rem;margin-bottom:0.75rem;transition:all var(--transition)}.rule-card:hover{border-color:var(--border-light)}.rule-card.inactive{opacity:0.55}
+    .rule-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;gap:0.5rem;flex-wrap:wrap}
+    .rule-name{font-weight:600;font-size:0.95rem;display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap}
+    .rule-actions{display:flex;gap:0.5rem;align-items:center}
+    .rule-desc{font-size:0.85rem;color:var(--text-secondary);margin-bottom:0.75rem}
+    .rule-details{display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;font-size:0.82rem}
+    .rule-detail-box{background:var(--bg-input);border-radius:var(--radius-sm);padding:0.6rem 0.85rem}
+    .rule-detail-label{color:var(--text-muted);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.3px;margin-bottom:0.25rem}
+    .rule-detail-value{color:var(--text-primary);font-family:var(--mono);font-size:0.82rem;word-break:break-all}
+    .rule-badge{font-size:0.7rem;padding:0.15rem 0.5rem;border-radius:99px;font-weight:600;text-transform:uppercase;white-space:nowrap}
+    .rule-badge.auto{background:rgba(167,139,250,0.15);color:var(--accent-violet)}.rule-badge.manual{background:rgba(74,158,255,0.15);color:var(--accent)}
+    .rule-badge.scope-doc{background:rgba(74,158,255,0.12);color:var(--accent)}.rule-badge.scope-line{background:rgba(251,191,36,0.12);color:var(--accent-amber)}
+    .rule-badge.active-badge{background:rgba(52,211,153,0.15);color:var(--accent-green)}.rule-badge.inactive-badge{background:rgba(90,100,120,0.2);color:var(--text-muted)}
+    .rule-applied{font-size:0.78rem;color:var(--text-muted);font-family:var(--mono)}
+    .filter-chip{padding:0.4rem 0.9rem;border-radius:99px;border:1px solid var(--border);background:none;color:var(--text-secondary);font-size:0.82rem;font-weight:500;cursor:pointer;font-family:var(--font);transition:all var(--transition)}
+    .filter-chip:hover{border-color:var(--border-light);color:var(--text-primary)}
+    .filter-chip.active{background:var(--accent-glow);border-color:var(--accent);color:var(--accent)}
+    .toggle{position:relative;width:40px;height:22px;cursor:pointer}.toggle input{opacity:0;width:0;height:0}
+    .toggle-slider{position:absolute;inset:0;background:var(--border);border-radius:22px;transition:var(--transition)}
+    .toggle-slider::before{content:'';position:absolute;width:16px;height:16px;left:3px;top:3px;background:var(--text-muted);border-radius:50%;transition:var(--transition)}
+    .toggle input:checked+.toggle-slider{background:var(--accent)}.toggle input:checked+.toggle-slider::before{transform:translateX(18px);background:#fff}
+    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:100;display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+    .modal-overlay.open{display:flex}
+    .modal{background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);padding:2rem;width:100%;max-width:600px;max-height:90vh;overflow-y:auto}
+    .modal h2{font-size:1.15rem;margin-bottom:1.5rem}
+    .modal-actions{display:flex;gap:0.75rem;justify-content:flex-end;margin-top:1.5rem}
+    .scope-tabs{display:flex;gap:0;margin-bottom:1.25rem;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden}
+    .scope-tab{flex:1;padding:0.55rem 1rem;background:var(--bg-input);border:none;color:var(--text-secondary);font-family:var(--font);font-size:0.88rem;font-weight:600;cursor:pointer;transition:all var(--transition);text-align:center}
+    .scope-tab:first-child{border-right:1px solid var(--border)}.scope-tab.active{background:var(--accent-glow);color:var(--accent)}
+    .section-label{font-size:0.82rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin:1.25rem 0 0.75rem;font-weight:600}
+    .vendor-list{display:flex;flex-direction:column;gap:0.5rem}
+    .vendor-row{display:flex;align-items:center;justify-content:space-between;padding:0.6rem 0;border-bottom:1px solid rgba(42,48,64,0.5)}.vendor-row:last-child{border-bottom:none}
+    .vendor-name{font-weight:500;font-size:0.9rem}.vendor-count{font-family:var(--mono);font-size:0.82rem;color:var(--text-muted);background:var(--bg-input);padding:0.15rem 0.6rem;border-radius:99px}
+    .loading{display:flex;align-items:center;justify-content:center;padding:3rem;color:var(--text-muted);gap:0.75rem}
+    .spinner{width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .empty-state{text-align:center;padding:3rem 2rem;color:var(--text-muted)}
+    .toast{position:fixed;bottom:2rem;right:2rem;background:var(--bg-card);border:1px solid var(--accent-green);color:var(--accent-green);padding:0.75rem 1.25rem;border-radius:var(--radius-sm);font-size:0.9rem;font-weight:500;z-index:200;animation:fadeIn 0.3s ease;display:none}
+    .toast.show{display:block}.toast.error{border-color:var(--accent-rose);color:var(--accent-rose)}
+    .cat-badge{display:inline-block;padding:0.15rem 0.5rem;border-radius:99px;font-size:0.72rem;font-weight:600;background:rgba(167,139,250,0.12);color:var(--accent-violet);cursor:pointer;transition:all var(--transition);position:relative}
+    .cat-badge:hover{background:rgba(167,139,250,0.25);transform:scale(1.05)}
+    .cat-badge.no-cat{background:rgba(138,138,138,0.12);color:var(--text-muted);border:1px dashed var(--border-light)}
+    .prod-link{color:var(--text-primary);text-decoration:none;transition:color var(--transition)}
+    .prod-link:hover{color:var(--accent);text-decoration:underline}
+    .prod-docs-list{display:flex;flex-direction:column;gap:0.5rem;max-height:400px;overflow-y:auto}
+    .prod-doc-card{display:flex;align-items:center;justify-content:space-between;padding:0.75rem 1rem;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;transition:all var(--transition)}
+    .prod-doc-card:hover{border-color:var(--accent);background:rgba(99,102,241,0.05)}
+    .prod-doc-info{display:flex;flex-direction:column;gap:0.15rem}
+    .prod-doc-vendor{font-weight:600;font-size:0.9rem}
+    .prod-doc-meta{font-size:0.78rem;color:var(--text-muted)}
+    .vendor-cell{cursor:pointer;padding:0.25rem 0.5rem;border-radius:var(--radius);transition:all var(--transition);min-width:60px;display:inline-block}
+    .vendor-cell:hover{background:rgba(99,102,241,0.1)}
+    .vendor-cell.empty{color:var(--text-muted);font-style:italic;border:1px dashed var(--border-light);font-size:0.82rem}
+    .vendor-cell-edit{background:var(--bg-primary);border:1px solid var(--accent);border-radius:var(--radius);padding:0.25rem 0.5rem;font-size:inherit;color:var(--text-primary);outline:none;width:100%;font-family:inherit}
+    .chain-badge{display:inline-block;padding:0.15rem 0.5rem;border-radius:99px;font-size:0.75rem;font-weight:600}
+    .chain-ica{background:rgba(239,68,68,0.12);color:#ef4444}
+    .chain-coop{background:rgba(34,197,94,0.12);color:#22c55e}
+    .chain-hemköp{background:rgba(234,179,8,0.12);color:#ca8a04}
+    .chain-willys{background:rgba(239,68,68,0.12);color:#dc2626}
+    .chain-lidl{background:rgba(59,130,246,0.12);color:#2563eb}
+    .chain-other{background:rgba(148,163,184,0.12);color:var(--text-secondary)}
+    .analytics-filter-bar{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1rem;padding:0.6rem 0.8rem;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);flex-wrap:wrap}
+    .filter-group{display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap}
+    .analytics-filter-bar select{padding:0.35rem 0.6rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-primary);color:var(--text-primary);font-size:0.82rem;font-family:var(--font)}
+    .filter-tag{display:inline-flex;align-items:center;gap:0.3rem;padding:0.2rem 0.6rem;border-radius:99px;font-size:0.75rem;font-weight:500;background:var(--accent-glow);color:var(--accent);border:1px solid rgba(99,102,241,0.2)}
+    .filter-tag-vendor{background:rgba(34,197,94,0.1);color:var(--accent-green);border-color:rgba(34,197,94,0.2)}
+    .cat-dropdown{position:fixed;z-index:9999;background:var(--bg-card);border:1px solid var(--border-light);border-radius:var(--radius-sm);box-shadow:0 8px 32px rgba(0,0,0,0.5);min-width:180px;max-height:280px;overflow-y:auto;padding:0.3rem 0}
+    .cat-dropdown-item{display:block;width:100%;padding:0.4rem 0.75rem;border:none;background:none;color:var(--text-primary);font-size:0.8rem;text-align:left;cursor:pointer;font-family:var(--font);transition:background var(--transition)}
+    .cat-dropdown-item:hover{background:var(--accent-glow);color:var(--accent)}
+    .cat-dropdown-item.active{color:var(--accent-violet);font-weight:600}
+    .cat-dropdown-search{width:calc(100% - 0.6rem);margin:0.2rem 0.3rem 0.3rem;padding:0.35rem 0.5rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-input);color:var(--text-primary);font-size:0.78rem;font-family:var(--font);outline:none}
+    .cat-dropdown-search:focus{border-color:var(--accent)}
+    .cat-saved{animation:catPulse 0.6s ease}
+    @keyframes catPulse{0%{transform:scale(1)}50%{transform:scale(1.15);background:rgba(52,211,153,0.25);color:var(--accent-green)}100%{transform:scale(1)}}
+    .vc-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem;margin-bottom:1rem}
+    .vc-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem}
+    .vc-title{font-weight:600;font-size:0.95rem}
+    .vc-save{font-family:var(--mono);font-size:0.82rem;font-weight:600;padding:0.2rem 0.6rem;border-radius:99px}
+    .vc-save.positive{background:rgba(52,211,153,0.15);color:var(--accent-green)}
+    .vc-save.zero{background:rgba(138,138,138,0.1);color:var(--text-muted)}
+    .vc-bar-row{display:flex;align-items:center;gap:0.75rem;padding:0.4rem 0;font-size:0.85rem}
+    .vc-vendor{min-width:140px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .vc-bar-track{flex:1;height:22px;background:var(--bg-input);border-radius:4px;overflow:hidden}
+    .vc-bar-fill{height:100%;border-radius:4px;display:flex;align-items:center;padding:0 0.5rem;font-size:0.72rem;font-weight:600;color:#fff;white-space:nowrap;transition:width 0.4s ease}
+    .vc-price{min-width:80px;text-align:right;font-family:var(--mono);font-size:0.82rem}
+    .vc-cheapest{color:var(--accent-green);font-weight:700}
+    .vc-expensive{color:var(--accent-rose)}
+    .pt-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem;margin-bottom:1rem}
+    .pt-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem}
+    .pt-change{font-family:var(--mono);font-size:0.82rem;font-weight:600;padding:0.2rem 0.6rem;border-radius:99px}
+    .pt-change.up{background:rgba(251,113,133,0.15);color:var(--accent-rose)}
+    .pt-change.down{background:rgba(52,211,153,0.15);color:var(--accent-green)}
+    .pt-change.flat{background:rgba(138,138,138,0.1);color:var(--text-muted)}
+    .merge-bar{display:flex;align-items:center;gap:0.75rem;padding:0.6rem 1rem;background:var(--accent-glow);border:1px solid rgba(74,158,255,0.3);border-radius:var(--radius-sm);margin-bottom:0.75rem;font-size:0.85rem;font-weight:500;color:var(--accent)}
+    .queue-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border-radius:99px;background:var(--accent);color:#fff;font-size:0.65rem;font-weight:700;margin-left:0.4rem;padding:0 4px}
+    .queue-item{display:flex;align-items:center;gap:1rem;padding:0.75rem 1rem;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:0.5rem}
+    .queue-item .qi-name{flex:1;font-weight:500;font-size:0.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .queue-item .qi-size{font-size:0.78rem;color:var(--text-muted);font-family:var(--mono);min-width:60px}
+    .queue-item .qi-status{font-size:0.78rem;font-weight:600;min-width:90px;text-align:right}
+    .qi-status.pending{color:var(--text-muted)}
+    .qi-status.processing{color:var(--accent)}
+    .qi-status.done{color:var(--accent-green)}
+    .qi-status.error{color:var(--accent-rose)}
+    .qi-spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;margin-right:0.3rem;vertical-align:middle}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .qi-progress{width:100px;height:4px;background:var(--bg-input);border-radius:2px;overflow:hidden;margin-right:0.5rem}
+    .qi-progress-fill{height:100%;background:var(--accent);border-radius:2px;transition:width 0.3s ease}
+    .cat-bar-row{display:flex;align-items:center;gap:0.75rem;padding:0.5rem 0;cursor:pointer;border-bottom:1px solid rgba(42,48,64,0.3)}.cat-bar-row:last-child{border-bottom:none}.cat-bar-row:hover{opacity:0.85}
+    .cat-bar-label{min-width:110px;font-size:0.85rem;font-weight:500}
+    .cat-bar-track{flex:1;height:24px;background:var(--bg-input);border-radius:4px;overflow:hidden}
+    .cat-bar-fill{height:100%;border-radius:4px;transition:width 0.6s ease;display:flex;align-items:center;padding:0 0.5rem;font-size:0.72rem;font-weight:600;color:#fff;white-space:nowrap}
+    .cat-bar-value{min-width:80px;text-align:right;font-family:var(--mono);font-size:0.82rem;color:var(--text-secondary)}
+    .cat-bar-count{min-width:40px;text-align:right;font-family:var(--mono);font-size:0.78rem;color:var(--text-muted)}
+    .chart-container{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:1.5rem;margin-top:1.5rem}
+    .chart-container h3{font-size:0.95rem;margin-bottom:1rem}
+    .chart-svg{width:100%;overflow:visible}
+    /* Campaigns */
+    .camp-chain-group{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:0.8rem;overflow:hidden}
+    .camp-chain-header{display:flex;justify-content:space-between;align-items:center;padding:0.7rem 1rem;cursor:pointer;transition:background 0.15s}
+    .camp-chain-header:hover{background:rgba(139,92,246,0.04)}
+    .camp-toggle{color:var(--text-muted);transition:transform 0.2s}
+    .camp-chain-group.collapsed .camp-chain-body{display:none}
+    .camp-chain-group.collapsed .camp-toggle{transform:rotate(-90deg)}
+    .camp-chain-body{padding:0 0.8rem 0.8rem}
+    .camp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:0.6rem}
+    .camp-card{background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:0.7rem;font-size:0.82rem;transition:border-color 0.15s}
+    .camp-card:hover{border-color:var(--accent)}
+    .camp-card.camp-match{border-left:3px solid var(--accent-green,#22c55e);background:rgba(34,197,94,0.03)}
+    .camp-product{font-weight:600;margin-bottom:0.15rem;line-height:1.3}
+    .camp-brand{font-size:0.75rem;color:var(--text-muted);margin-bottom:0.4rem}
+    .camp-prices{display:flex;align-items:baseline;gap:0.5rem;margin-bottom:0.3rem}
+    .camp-price{font-weight:700;color:var(--accent);font-size:0.95rem}
+    .camp-regular{text-decoration:line-through;color:var(--text-muted);font-size:0.78rem}
+    .camp-savings{background:rgba(239,68,68,0.1);color:#ef4444;padding:0.1rem 0.4rem;border-radius:99px;font-size:0.7rem;font-weight:600}
+    .camp-compare{font-size:0.72rem;color:var(--text-muted);margin-bottom:0.3rem}
+    .camp-condition{font-size:0.72rem;color:var(--text-secondary);font-style:italic;margin-bottom:0.3rem}
+    .camp-meta{display:flex;flex-wrap:wrap;gap:0.3rem;font-size:0.7rem}
+    .camp-cat{background:rgba(139,92,246,0.08);color:var(--accent);padding:0.1rem 0.4rem;border-radius:99px}
+    .camp-valid{color:var(--text-muted)}
+    .camp-member{font-size:0.68rem}
+    .camp-match-badge{margin-top:0.35rem;font-size:0.7rem;color:var(--accent-green,#22c55e);font-weight:600}
+    @media(max-width:768px){.app{grid-template-columns:1fr}.sidebar{display:none}.main{padding:1rem}.stats-grid{grid-template-columns:1fr 1fr}.form-row{grid-template-columns:1fr}.camp-grid{grid-template-columns:1fr}}
+    ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+    .hidden{display:none!important}
+    .cat-bar-compare{height:6px;border-radius:2px;margin-top:2px;opacity:0.4}
+    .cat-bar-total{border-top:1px solid var(--border);padding-top:0.75rem;margin-top:0.75rem}
+
+    /* ── Auth overlay ────────────────────────── */
+    #login-screen{position:fixed;inset:0;z-index:9999;background:var(--bg-primary);display:flex;align-items:center;justify-content:center;font-family:var(--font)}
+    .login-box{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:2.5rem;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+    .login-box h2{font-size:1.5rem;color:var(--text-primary);margin-bottom:0.3rem;display:flex;align-items:center;gap:0.6rem}
+    .login-box .sub{color:var(--text-secondary);font-size:0.85rem;margin-bottom:1.5rem}
+    .login-box label{display:block;font-size:0.82rem;color:var(--text-secondary);margin-bottom:0.3rem;font-weight:500}
+    .login-box input{width:100%;padding:0.6rem 0.8rem;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:0.9rem;margin-bottom:0.9rem;outline:none;font-family:var(--font)}
+    .login-box input:focus{border-color:var(--accent)}
+    .login-box .btn-login{width:100%;padding:0.7rem;background:var(--accent);color:#000;border:none;border-radius:var(--radius-sm);font-weight:700;font-size:0.95rem;cursor:pointer;margin-top:0.5rem;font-family:var(--font)}
+    .login-box .btn-login:hover{filter:brightness(1.1)}
+    .login-box .link{color:var(--accent);cursor:pointer;font-size:0.82rem;text-decoration:underline}
+    .login-box .link:hover{filter:brightness(1.2)}
+    .login-box .toggle-row{display:flex;justify-content:space-between;margin-top:0.8rem}
+    .login-box .error-msg{color:var(--accent-rose);font-size:0.82rem;margin-bottom:0.5rem;display:none}
+    .login-box .success-msg{color:var(--accent-green);font-size:0.82rem;margin-bottom:0.5rem;display:none}
+    .login-box select{width:100%;padding:0.6rem 0.8rem;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:0.9rem;margin-bottom:0.9rem;font-family:var(--font)}
+
+    /* ── User management ─────────────────────── */
+    .user-row{display:grid;grid-template-columns:1fr 120px 100px 80px 100px;align-items:center;gap:0.5rem;padding:0.6rem 0.8rem;border-bottom:1px solid var(--border);font-size:0.85rem}
+    .user-row:hover{background:var(--bg-card-hover)}
+    .user-row .email{color:var(--text-primary);font-weight:500}
+    .user-row .role-badge{padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:600;text-transform:uppercase}
+    .role-admin{background:rgba(239,68,68,.2);color:#ef4444}
+    .role-superuser{background:rgba(251,191,36,.2);color:#fbbf24}
+    .role-user{background:rgba(74,158,255,.2);color:#4a9eff}
+    .user-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem}
+    .suggestion-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:1rem;margin-bottom:0.6rem}
+    .suggestion-card .meta{font-size:0.8rem;color:var(--text-secondary);margin-top:0.3rem}
+    .user-info-bar{display:flex;align-items:center;gap:1rem;margin-left:auto;font-size:0.85rem;color:var(--text-secondary)}
+    .user-info-bar .user-name{color:var(--text-primary);font-weight:500}
+    .user-info-bar .logout-btn{background:none;border:1px solid var(--border);color:var(--text-secondary);padding:3px 10px;border-radius:var(--radius-sm);cursor:pointer;font-size:0.8rem;font-family:var(--font)}
+    .user-info-bar .logout-btn:hover{color:var(--accent-rose);border-color:var(--accent-rose)}
+  </style>
+</head>
+<body>
+
+<!-- ── Login/Register screen ── -->
+<div id="login-screen">
+  <div class="login-box">
+    <div id="login-form">
+      <h2><svg viewBox="0 0 80 100" style="width:28px;height:35px;vertical-align:middle"><defs><linearGradient id="lg1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#4A9EFF"/><stop offset="100%" style="stop-color:#34D399"/></linearGradient><linearGradient id="lb1" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" style="stop-color:#4A9EFF"/><stop offset="100%" style="stop-color:#6DB8FF"/></linearGradient><linearGradient id="lb2" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" style="stop-color:#34D399"/><stop offset="100%" style="stop-color:#5EEDB8"/></linearGradient></defs><path d="M4 6C4 2.7 6.7 0 10 0L70 0C73.3 0 76 2.7 76 6L76 88 66 80 56 88 46 80 36 88 26 80 16 88 4 80Z" fill="url(#lg1)" opacity=".15" stroke="url(#lg1)" stroke-width="2"/><rect x="16" y="28" width="12" height="40" rx="3" fill="url(#lb1)"/><rect x="34" y="16" width="12" height="52" rx="3" fill="url(#lb2)"/><rect x="52" y="36" width="12" height="32" rx="3" fill="url(#lb1)" opacity=".75"/><line x1="14" y1="12" x2="66" y2="12" stroke="url(#lg1)" stroke-width="1.5" opacity=".35"/><line x1="14" y1="74" x2="66" y2="74" stroke="url(#lg1)" stroke-width="1.5" opacity=".35"/></svg> Logga in</h2>
+      <p class="sub">Logga in på ditt Kvittoanalys-konto</p>
+      <div id="login-error" class="error-msg"></div>
+      <label>E-postadress</label>
+      <input type="email" id="login-email" placeholder="namn@exempel.se" autocomplete="email">
+      <label>Lösenord</label>
+      <input type="password" id="login-password" placeholder="••••••" autocomplete="current-password">
+      <button class="btn-login" onclick="doLogin()">Logga in</button>
+      <div class="toggle-row">
+        <span class="link" onclick="showAuthForm('register')">Skapa konto</span>
+        <span class="link" onclick="showAuthForm('forgot')">Glömt lösenord?</span>
+      </div>
+    </div>
+
+    <div id="register-form" style="display:none">
+      <h2><svg viewBox="0 0 80 100" style="width:28px;height:35px;vertical-align:middle"><defs><linearGradient id="lg2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#4A9EFF"/><stop offset="100%" style="stop-color:#34D399"/></linearGradient></defs><path d="M4 6C4 2.7 6.7 0 10 0L70 0C73.3 0 76 2.7 76 6L76 88 66 80 56 88 46 80 36 88 26 80 16 88 4 80Z" fill="url(#lg2)" opacity=".15" stroke="url(#lg2)" stroke-width="2"/><rect x="16" y="28" width="12" height="40" rx="3" fill="#4A9EFF"/><rect x="34" y="16" width="12" height="52" rx="3" fill="#34D399"/><rect x="52" y="36" width="12" height="32" rx="3" fill="#4A9EFF" opacity=".75"/></svg> Skapa konto</h2>
+      <p class="sub">Registrera dig för att börja spåra utgifter</p>
+      <div id="reg-error" class="error-msg"></div>
+      <div id="reg-success" class="success-msg"></div>
+      <label>Visningsnamn</label>
+      <input type="text" id="reg-name" placeholder="Ditt namn">
+      <label>E-postadress</label>
+      <input type="email" id="reg-email" placeholder="namn@exempel.se" autocomplete="email">
+      <label>Lösenord (minst 6 tecken)</label>
+      <input type="password" id="reg-password" placeholder="••••••">
+      <label>Välj ort (för kampanjer)</label>
+      <select id="reg-city">
+        <option value="">— Välj ort —</option>
+        <option value="Stockholm">Stockholm</option>
+        <option value="Göteborg">Göteborg</option>
+        <option value="Malmö">Malmö</option>
+        <option value="Uppsala">Uppsala</option>
+        <option value="Linköping">Linköping</option>
+        <option value="Örebro">Örebro</option>
+        <option value="Västerås">Västerås</option>
+        <option value="Norrköping">Norrköping</option>
+        <option value="Helsingborg">Helsingborg</option>
+        <option value="Jönköping">Jönköping</option>
+        <option value="Umeå">Umeå</option>
+        <option value="Lund">Lund</option>
+        <option value="Karlstad">Karlstad</option>
+        <option value="Gävle">Gävle</option>
+        <option value="Sundsvall">Sundsvall</option>
+      </select>
+      <button class="btn-login" onclick="doRegister()">Skapa konto</button>
+      <div class="toggle-row">
+        <span class="link" onclick="showAuthForm('login')">← Tillbaka till inloggning</span>
+      </div>
+    </div>
+
+    <div id="forgot-form" style="display:none">
+      <h2>Återställ lösenord</h2>
+      <p class="sub">Ange din e-postadress för att få en återställningslänk</p>
+      <div id="forgot-error" class="error-msg"></div>
+      <div id="forgot-success" class="success-msg"></div>
+      <label>E-postadress</label>
+      <input type="email" id="forgot-email" placeholder="namn@exempel.se">
+      <button class="btn-login" onclick="doForgotPassword()">Skicka återställningslänk</button>
+      <div class="toggle-row">
+        <span class="link" onclick="showAuthForm('login')">← Tillbaka till inloggning</span>
+      </div>
+    </div>
+
+    <div id="reset-form" style="display:none">
+      <h2>Nytt lösenord</h2>
+      <p class="sub">Ange ditt nya lösenord</p>
+      <div id="reset-error" class="error-msg"></div>
+      <div id="reset-success" class="success-msg"></div>
+      <label>Nytt lösenord (minst 6 tecken)</label>
+      <input type="password" id="reset-password" placeholder="••••••">
+      <label>Bekräfta lösenord</label>
+      <input type="password" id="reset-password2" placeholder="••••••">
+      <button class="btn-login" onclick="doResetPassword()">Spara lösenord</button>
+    </div>
+  </div>
+</div>
+
+<div class="app" id="app-main" style="display:none">
+  <nav class="sidebar">
+    <div class="logo"><div class="logo-icon" style="background:transparent;padding:0;width:auto;height:auto"><svg viewBox="0 0 80 100" style="width:24px;height:30px"><defs><linearGradient id="sl1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#4A9EFF"/><stop offset="100%" style="stop-color:#34D399"/></linearGradient></defs><path d="M4 6C4 2.7 6.7 0 10 0L70 0C73.3 0 76 2.7 76 6L76 88 66 80 56 88 46 80 36 88 26 80 16 88 4 80Z" fill="url(#sl1)" opacity=".15" stroke="url(#sl1)" stroke-width="2"/><rect x="16" y="28" width="12" height="40" rx="3" fill="#4A9EFF"/><rect x="34" y="16" width="12" height="52" rx="3" fill="#34D399"/><rect x="52" y="36" width="12" height="32" rx="3" fill="#4A9EFF" opacity=".75"/></svg></div><div class="logo-text">Kvittoanalys</div></div>
+    <button class="nav-item active" data-view="dashboard" onclick="showView('dashboard')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Dashboard</button>
+    <button class="nav-item" data-view="analytics" onclick="showView('analytics')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>Analys</button>
+    <button class="nav-item" data-view="campaigns" onclick="showView('campaigns')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>Kampanjer <span style="font-size:0.6rem;background:var(--accent);color:#000;padding:1px 5px;border-radius:3px;margin-left:4px;font-weight:700;vertical-align:middle;">BETA</span></button>
+    <button class="nav-item" data-view="documents" onclick="showView('documents')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Dokument</button>
+    <button class="nav-item" data-view="rules" onclick="showView('rules')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>Regler</button>
+    <button class="nav-item" data-view="upload" onclick="showView('upload')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Ladda upp<span id="queue-badge" class="queue-badge" style="display:none">0</span></button>
+    <button class="nav-item admin-only" data-view="users" onclick="showView('users')" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Användare</button>
+    <div class="sidebar-footer"><span class="status-dot"></span><span>API ansluten</span></div>
+  </nav>
+  <header class="header"><h1 id="header-title">Dashboard</h1><div style="display:flex;align-items:center;gap:1rem"><div class="user-info-bar"><span class="user-name" id="user-display-name"></span><span id="user-role-badge" class="role-badge"></span><button class="logout-btn" onclick="doLogout()">Logga ut</button></div><button class="btn btn-primary" onclick="showView('upload')">+ Nytt dokument</button></div></header>
+
+  <main class="main">
+    <!-- Dashboard -->
+    <div id="view-dashboard" class="view active">
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label">Dokument</div><div class="stat-value" id="stat-total">—</div></div>
+        <div class="stat-card"><div class="stat-label">Totalt belopp</div><div class="stat-value" id="stat-amount">—</div><div class="stat-sub" id="stat-currency"></div></div>
+        <div class="stat-card"><div class="stat-label">Produktrader</div><div class="stat-value" id="stat-lines">—</div></div>
+        <div class="stat-card"><div class="stat-label">Kategorier</div><div class="stat-value" id="stat-cats">—</div></div>
+      </div>
+      <div class="detail-grid">
+        <div class="detail-card"><h3>Topp-leverantörer</h3><div id="vendors-breakdown" class="vendor-list"></div></div>
+        <div class="detail-card"><h3>Per dokumenttyp</h3><div id="types-breakdown" class="vendor-list"></div></div>
+      </div>
+      <h3 style="margin-bottom:1rem;font-size:1rem;">Senaste dokument</h3>
+      <div id="recent-docs"></div>
+    </div>
+
+    <!-- Analytics -->
+    <div id="view-analytics" class="view">
+      <!-- Period filter -->
+      <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem;flex-wrap:wrap;">
+        <div style="display:flex;gap:0.25rem;" id="period-tabs">
+          <button class="filter-chip" onclick="setPeriod('week',this)">Vecka</button>
+          <button class="filter-chip" onclick="setPeriod('month',this)">Månad</button>
+          <button class="filter-chip" onclick="setPeriod('quarter',this)">Kvartal</button>
+          <button class="filter-chip" onclick="setPeriod('year',this)">År</button>
+          <button class="filter-chip active" onclick="setPeriod('all',this)">Totalt</button>
+        </div>
+        <div id="period-nav" style="display:none;align-items:center;gap:0.4rem;">
+          <button class="btn btn-ghost btn-sm" onclick="shiftPeriod(-1)">←</button>
+          <span id="period-label" style="font-size:0.9rem;font-weight:500;min-width:120px;text-align:center;"></span>
+          <button class="btn btn-ghost btn-sm" onclick="shiftPeriod(1)">→</button>
+        </div>
+        <label style="display:flex;align-items:center;gap:0.35rem;font-size:0.82rem;color:var(--text-secondary);cursor:pointer;margin-left:auto;" id="compare-toggle-wrap" class="hidden">
+          <input type="checkbox" id="compare-toggle" onchange="loadCatChart()"> Jämför med föregående
+        </label>
+      </div>
+      <div id="cat-chart" class="detail-card" style="margin-bottom:1rem;padding:1.5rem;"></div>
+      <div id="migrate-btn-wrap" style="margin-bottom:1rem;display:none;"><button class="btn btn-ghost btn-sm" onclick="migrateCategories()" id="migrate-btn">🔄 Migrera kategorier till ny struktur</button></div>
+      <div id="discount-cleanup-wrap" style="margin-bottom:1rem;"><button class="btn btn-ghost btn-sm" onclick="cleanupDiscounts()" id="discount-btn" title="Koppla ihop rabattrader (t.ex. Willys plus:nötfärs) med rätt produkt och ta bort dubbletter">🔗 Länka rabattrader till produkter</button></div>
+
+      <!-- Global filter bar -->
+      <div class="analytics-filter-bar">
+        <div class="filter-group">
+          <select id="global-cat-filter" onchange="setGlobalCategory(this.value)"><option value="">Alla kategorier</option></select>
+          <select id="global-vendor-filter" onchange="setGlobalVendor(this.value)"><option value="">Alla leverantörer</option></select>
+        </div>
+        <div class="filter-group">
+          <div id="active-filters" style="display:none;">
+            <span id="active-filter-tags"></span>
+            <button class="btn btn-ghost btn-sm" onclick="resetFilters()" title="Rensa filter">✕ Rensa</button>
+          </div>
+          <select id="page-size-select" onchange="changePageSize(+this.value)" style="width:auto;min-width:70px;">
+            <option value="20">20</option><option value="40">40</option><option value="60">60</option><option value="0">Alla</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Sub-tabs -->
+      <div style="display:flex;gap:0.5rem;margin-bottom:1rem;">
+        <button class="filter-chip active" onclick="switchAnalyticsTab(this,'products')">📦 Produkter</button>
+        <button class="filter-chip" onclick="switchAnalyticsTab(this,'vendors')">🏪 Leverantörer</button>
+        <button class="filter-chip" onclick="switchAnalyticsTab(this,'vendor-compare')">⚖️ Prisjämförelse</button>
+        <button class="filter-chip" onclick="switchAnalyticsTab(this,'price-trends')">📈 Prisutveckling</button>
+      </div>
+
+      <!-- Products tab -->
+      <div id="analytics-products">
+        <div class="toolbar">
+          <div class="search-box" style="max-width:300px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" id="prod-search" placeholder="Sök produkt…" oninput="debounceProducts()"></div>
+        </div>
+        <div id="merge-bar" class="merge-bar" style="display:none;">
+          <span id="merge-count">0 valda</span>
+          <button class="btn btn-primary btn-sm" onclick="openMergeModal()">🔗 Slå ihop</button>
+          <button class="btn btn-ghost btn-sm" onclick="clearMergeSelection()">Avmarkera</button>
+        </div>
+        <div class="table-wrapper" style="margin-bottom:1.5rem;">
+          <table><thead><tr><th style="width:30px"><input type="checkbox" id="prod-select-all" onchange="toggleAllProducts(this.checked)"></th><th>Produkt</th><th>Kategori</th><th>Köp</th><th>Antal</th><th>Spenderat</th><th>Snittpris</th><th>Min</th><th>Max</th><th></th></tr></thead>
+          <tbody id="prod-tbody"></tbody></table>
+          <div class="pagination"><span id="prod-pag">—</span><div style="display:flex;gap:0.5rem;"><button class="btn btn-ghost btn-sm" id="prod-prev" onclick="prodPage--;loadProducts()" disabled>←</button><button class="btn btn-ghost btn-sm" id="prod-next" onclick="prodPage++;loadProducts()">→</button></div></div>
+        </div>
+        <div id="price-section" style="display:none;">
+          <div class="chart-container">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+              <h3 id="price-title" style="margin:0;">Prisutveckling</h3>
+              <button class="btn btn-ghost btn-sm" onclick="document.getElementById('price-section').style.display='none'">✕ Stäng</button>
+            </div>
+            <div id="price-chart"></div>
+            <div id="price-table" style="margin-top:1rem;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Vendors tab -->
+      <div id="analytics-vendors" style="display:none;">
+        <div id="vendor-merge-bar" class="merge-bar" style="display:none;">
+          <span id="vendor-merge-count">0 valda</span>
+          <button class="btn btn-primary btn-sm" onclick="openVendorMergeModal()">🔗 Slå ihop</button>
+          <button class="btn btn-ghost btn-sm" onclick="clearVendorSelection()">Avmarkera</button>
+        </div>
+        <div class="table-wrapper">
+          <table><thead><tr><th style="width:30px"><input type="checkbox" id="vendor-select-all" onchange="toggleAllVendors(this.checked)"></th><th>Butik</th><th>Kedja</th><th>Format</th><th>Ort</th><th>Kvitton</th><th>Totalt</th></tr></thead>
+          <tbody id="vendor-tbody"></tbody></table>
+        </div>
+      </div>
+
+      <!-- Vendor Compare tab -->
+      <div id="analytics-vendor-compare" style="display:none;">
+        <div class="toolbar">
+          <div class="search-box" style="max-width:300px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" id="vc-search" placeholder="Sök produkt…" oninput="debounceVC()"></div>
+        </div>
+        <div id="vc-content"></div>
+      </div>
+
+      <!-- Price Trends tab -->
+      <div id="analytics-price-trends" style="display:none;">
+        <div class="toolbar">
+          <div class="search-box" style="max-width:300px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" id="pt-search" placeholder="Sök produkt…" oninput="debouncePT()"></div>
+        </div>
+        <div id="pt-content"></div>
+      </div>
+    </div>
+
+    <!-- Campaigns (own view) -->
+    <div id="view-campaigns" class="view">
+      <div class="toolbar" style="flex-wrap:wrap;">
+        <div class="filter-group" style="gap:0.5rem;">
+          <select id="camp-city" style="padding:0.4rem 0.6rem;border-radius:var(--radius);border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:0.82rem;">
+            <option value="">Välj ort…</option>
+          </select>
+          <select id="camp-chain-filter" style="padding:0.4rem 0.6rem;border-radius:var(--radius);border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:0.82rem;">
+            <option value="">Alla kedjor</option>
+          </select>
+          <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.82rem;color:var(--text-secondary);cursor:pointer;">
+            <input type="checkbox" id="camp-match-only" onchange="renderCampaigns()"> Bara mina varor
+          </label>
+        </div>
+        <div class="search-box" style="max-width:250px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" id="camp-search" placeholder="Sök kampanj…" oninput="renderCampaigns()"></div>
+      </div>
+      <div id="camp-summary" style="margin:0.8rem 0;font-size:0.82rem;color:var(--text-secondary);"></div>
+      <div id="camp-content"></div>
+    </div>
+
+    <!-- Documents -->
+    <div id="view-documents" class="view">
+      <div class="toolbar">
+        <div class="search-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" id="search-input" placeholder="Sök filnamn, leverantör, fakturanummer…" oninput="debounceSearch()"></div>
+        <select id="filter-type" onchange="loadDocuments()"><option value="">Alla typer</option><option value="invoice">Faktura</option><option value="receipt">Kvitto</option><option value="contract">Kontrakt</option></select>
+        <button class="btn btn-secondary" onclick="loadDocuments()">Uppdatera</button>
+      </div>
+      <div class="table-wrapper"><table><thead><tr><th>Filnamn</th><th>Typ</th><th>Leverantör</th><th>Belopp</th><th>Fakturanr</th><th>Datum</th><th>Skapad</th></tr></thead><tbody id="docs-tbody"></tbody></table>
+      <div class="pagination"><span id="pagination-info">—</span><div style="display:flex;gap:0.5rem;"><button class="btn btn-ghost btn-sm" id="btn-prev" onclick="prevPage()" disabled>←</button><button class="btn btn-ghost btn-sm" id="btn-next" onclick="nextPage()">→</button></div></div></div>
+    </div>
+
+    <!-- Detail -->
+    <div id="view-detail" class="view"><button class="btn btn-ghost" onclick="showView('documents')" style="margin-bottom:1rem;">← Tillbaka</button><div id="detail-content"></div></div>
+
+    <!-- Rules -->
+    <div id="view-rules" class="view">
+      <div class="toolbar"><div class="search-box" style="max-width:300px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" id="rule-search" placeholder="Sök regel…" oninput="debounceRuleSearch()"></div>
+      <button class="btn btn-success" onclick="applyAllRules(this)">Kör alla regler</button><button class="btn btn-primary" onclick="openRuleModal()">Ny regel</button></div>
+      <div style="display:flex;gap:0.5rem;margin-bottom:1rem;"><button class="filter-chip active" onclick="filterRules(this,'')">Alla</button><button class="filter-chip" onclick="filterRules(this,'document')">Dokumentnivå</button><button class="filter-chip" onclick="filterRules(this,'line_item')">Radnivå</button></div>
+      <div id="rules-list"></div>
+    </div>
+
+    <!-- Upload -->
+    <div id="view-upload" class="view">
+      <div class="upload-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <h3>Dra och släpp filer här</h3><p>PDF, DOCX, PNG, JPG, GIF, WEBP — välj flera samtidigt</p>
+        <input type="file" id="file-input" hidden multiple accept=".pdf,.docx,.doc,.png,.jpg,.jpeg,.gif,.webp,.bmp,.tiff" onchange="handleFileSelect(event)">
+      </div>
+      <div class="upload-options"><h3>Inställningar</h3>
+        <div class="form-row"><div class="form-group"><label>Analystyp</label><select id="upload-type"><option value="extract-structured">Strukturerad extraktion</option><option value="analyze">Full analys</option><option value="extract-text">OCR / text</option><option value="describe">Bildbeskrivning</option></select></div><div class="form-group"><label>Språk</label><select id="upload-lang"><option value="swedish">Svenska</option><option value="english">Engelska</option></select></div></div>
+      </div>
+      <!-- Queue -->
+      <div id="queue-section" style="display:none;">
+        <div class="toolbar" style="margin-bottom:0.75rem;">
+          <h3 style="margin:0;font-size:1rem;">Kö <span id="queue-status" class="text-muted" style="font-weight:400;font-size:0.85rem;"></span></h3>
+          <div style="display:flex;gap:0.5rem;">
+            <button class="btn btn-ghost btn-sm" onclick="clearFinished()">Rensa klara</button>
+          </div>
+        </div>
+        <div id="queue-list"></div>
+      </div>
+    </div>
+
+    <!-- Users (admin only) -->
+    <div id="view-users" class="view">
+      <div class="user-header">
+        <h3 style="color:var(--text-primary)">Användarhantering</h3>
+        <div style="display:flex;gap:0.5rem">
+          <button class="btn btn-ghost filter-chip active" onclick="showUsersTab('users',this)">Användare</button>
+          <button class="btn btn-ghost filter-chip" onclick="showUsersTab('suggestions',this)">Kategoriförslag <span id="suggestion-count" style="background:var(--accent-rose);color:#fff;border-radius:50%;padding:0 6px;font-size:0.7rem;margin-left:4px;display:none">0</span></button>
+        </div>
+      </div>
+      <div id="users-tab">
+        <div id="pending-users" style="margin-bottom:1.5rem;display:none">
+          <h4 style="color:var(--accent-amber);margin-bottom:0.5rem">⏳ Väntande godkännande</h4>
+          <div id="pending-users-list"></div>
+        </div>
+        <div style="border-bottom:2px solid var(--border);padding:0.4rem 0.8rem;font-size:0.75rem;color:var(--text-muted);display:grid;grid-template-columns:1fr 120px 100px 80px 100px;gap:0.5rem">
+          <span>E-post</span><span>Namn</span><span>Roll</span><span>Status</span><span>Åtgärd</span>
+        </div>
+        <div id="users-list"></div>
+      </div>
+      <div id="suggestions-tab" style="display:none">
+        <div id="suggestions-list"></div>
+        <div id="no-suggestions" style="color:var(--text-secondary);text-align:center;padding:2rem;display:none">Inga väntande kategoriförslag</div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Rule Modal -->
+<div class="modal-overlay" id="rule-modal">
+  <div class="modal">
+    <h2 id="modal-title">Ny regel</h2><input type="hidden" id="rule-edit-id">
+    <div class="scope-tabs"><button class="scope-tab active" onclick="setRuleScope('document',this)">📄 Dokumentnivå</button><button class="scope-tab" onclick="setRuleScope('line_item',this)">📋 Radnivå</button></div>
+    <input type="hidden" id="rule-scope" value="document">
+    <div class="form-group" style="margin-bottom:1rem;"><label>Namn</label><input type="text" id="rule-name"></div>
+    <div class="form-group" style="margin-bottom:1rem;"><label>Beskrivning</label><textarea id="rule-desc"></textarea></div>
+    <div class="form-row"><div class="form-group"><label>Regeltyp</label><select id="rule-type"></select></div><div class="form-group"><label>Aktiv</label><div style="padding-top:0.35rem"><label class="toggle"><input type="checkbox" id="rule-active" checked><span class="toggle-slider"></span></label></div></div></div>
+    <div class="section-label">Villkor</div>
+    <div class="form-row"><div class="form-group"><label>Fält</label><select id="rule-cond-field"></select></div><div class="form-group"><label>Operator</label><select id="rule-cond-op"><option value="contains">Innehåller</option><option value="equals">Lika med</option><option value="starts_with">Börjar med</option><option value="ends_with">Slutar med</option><option value="regex">Regex</option><option value="greater_than">Större än</option><option value="less_than">Mindre än</option><option value="always">Alltid</option></select></div></div>
+    <div class="form-group" style="margin-bottom:1rem;"><label>Värde</label><input type="text" id="rule-cond-value"></div>
+    <div class="section-label">Åtgärd</div>
+    <div class="form-row"><div class="form-group"><label>Målfält</label><select id="rule-target"></select></div><div class="form-group"><label>Åtgärd</label><select id="rule-action"><option value="set">Sätt värde</option><option value="set_if_empty">Sätt om tomt</option><option value="replace">Ersätt (gammal|||ny)</option><option value="strip_chars">Ta bort tecken</option><option value="format_number">Formatera nummer</option><option value="multiply">Multiplicera</option><option value="recalculate">Räkna om</option></select></div></div>
+    <div class="form-group"><label>Nytt värde</label><input type="text" id="rule-action-value"></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeRuleModal()">Avbryt</button><button class="btn btn-primary" onclick="saveRule()">Spara</button></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<!-- Merge modal -->
+<div class="modal-overlay" id="merge-modal">
+  <div class="modal">
+    <h2>Slå ihop produkter</h2>
+    <p style="color:var(--text-secondary);margin-bottom:1rem;font-size:0.9rem;">Alla rader med de valda namnen uppdateras till det kanoniska namnet. En regel skapas så framtida kvitton normaliseras automatiskt.</p>
+    <div class="form-group" style="margin-bottom:1rem;"><label>Valda produkter</label><div id="merge-sources" style="display:flex;flex-wrap:wrap;gap:0.4rem;padding:0.5rem 0;"></div></div>
+    <div class="form-group" style="margin-bottom:1rem;"><label>Kanoniskt namn (behåll eller skriv eget)</label><input type="text" id="merge-target"></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeMergeModal()">Avbryt</button><button class="btn btn-primary" onclick="doMerge()">Slå ihop</button></div>
+  </div>
+</div>
+
+<!-- Product documents modal -->
+<div class="modal-overlay" id="prod-docs-modal">
+  <div class="modal" style="max-width:700px">
+    <h2 id="prod-docs-title">Kvitton</h2>
+    <div id="prod-docs-content"><div class="loading"><div class="spinner"></div></div></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeProdDocsModal()">Stäng</button></div>
+  </div>
+</div>
+
+<!-- Vendor merge modal -->
+<div class="modal-overlay" id="vendor-merge-modal">
+  <div class="modal">
+    <h2>Slå ihop leverantörer</h2>
+    <p style="color:var(--text-secondary);margin-bottom:1rem;font-size:0.9rem;">Alla dokument från de valda leverantörerna flyttas till målleverantören. Övriga raderas.</p>
+    <div class="form-group" style="margin-bottom:1rem;"><label>Valda leverantörer</label><div id="vendor-merge-sources" style="display:flex;flex-wrap:wrap;gap:0.4rem;padding:0.5rem 0;"></div></div>
+    <div class="form-group" style="margin-bottom:1rem;"><label>Behåll som målleverantör</label><select id="vendor-merge-target" style="width:100%;padding:0.5rem;border-radius:var(--radius);border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary)"></select></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeVendorMergeModal()">Avbryt</button><button class="btn btn-primary" onclick="doVendorMerge()">Slå ihop</button></div>
+  </div>
+</div>
+
+<script>
+/* ── Auth state ──────────────────────────────────────────────── */
+let authToken = localStorage.getItem('ka_token');
+let currentUser = null;
+
+function authHeaders(){
+  const h={'Content-Type':'application/json'};
+  if(authToken) h['Authorization']=`Bearer ${authToken}`;
+  return h;
+}
+
+async function authFetch(url, opts={}){
+  if(authToken){
+    opts.headers = opts.headers || {};
+    opts.headers['Authorization'] = `Bearer ${authToken}`;
+  }
+  const r = await fetch(url, opts);
+  if(r.status===401){doLogout(); throw new Error('Sessionen har gått ut');}
+  return r;
+}
+
+function showAuthForm(form){
+  ['login-form','register-form','forgot-form','reset-form'].forEach(id=>{
+    document.getElementById(id).style.display='none';
+  });
+  document.getElementById(form+'-form').style.display='block';
+  ['login-error','reg-error','reg-success','forgot-error','forgot-success','reset-error','reset-success'].forEach(id=>{
+    const el=document.getElementById(id); if(el){el.style.display='none';el.textContent='';}
+  });
+}
+
+async function doLogin(){
+  const email=document.getElementById('login-email').value.trim();
+  const password=document.getElementById('login-password').value;
+  const errEl=document.getElementById('login-error');
+  errEl.style.display='none';
+  try{
+    const r=await fetch('/api/v1/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
+    const d=await r.json();
+    if(!r.ok){errEl.textContent=d.detail||'Inloggning misslyckades';errEl.style.display='block';return;}
+    authToken=d.token;localStorage.setItem('ka_token',authToken);currentUser=d.user;
+    enterApp();
+  }catch(e){errEl.textContent='Kunde inte ansluta till servern';errEl.style.display='block';}
+}
+
+async function doRegister(){
+  const name=document.getElementById('reg-name').value.trim();
+  const email=document.getElementById('reg-email').value.trim();
+  const password=document.getElementById('reg-password').value;
+  const city=document.getElementById('reg-city').value;
+  const errEl=document.getElementById('reg-error');
+  const okEl=document.getElementById('reg-success');
+  errEl.style.display='none'; okEl.style.display='none';
+  try{
+    const r=await fetch('/api/v1/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({email,password,display_name:name,city})});
+    const d=await r.json();
+    if(!r.ok){errEl.textContent=d.detail||'Registrering misslyckades';errEl.style.display='block';return;}
+    if(d.token){
+      authToken=d.token;localStorage.setItem('ka_token',authToken);currentUser=d.user;enterApp();
+    }else{
+      okEl.textContent=d.message||'Konto skapat! Väntar på godkännande av admin.';okEl.style.display='block';
+    }
+  }catch(e){errEl.textContent='Kunde inte ansluta till servern';errEl.style.display='block';}
+}
+
+async function doForgotPassword(){
+  const email=document.getElementById('forgot-email').value.trim();
+  const errEl=document.getElementById('forgot-error');
+  const okEl=document.getElementById('forgot-success');
+  errEl.style.display='none'; okEl.style.display='none';
+  try{
+    const r=await fetch('/api/v1/auth/forgot-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
+    const d=await r.json();
+    okEl.textContent=d.message||'Kontrollera din e-post';okEl.style.display='block';
+  }catch(e){errEl.textContent='Kunde inte skicka';errEl.style.display='block';}
+}
+
+async function doResetPassword(){
+  const pw1=document.getElementById('reset-password').value;
+  const pw2=document.getElementById('reset-password2').value;
+  const errEl=document.getElementById('reset-error');
+  const okEl=document.getElementById('reset-success');
+  errEl.style.display='none'; okEl.style.display='none';
+  if(pw1!==pw2){errEl.textContent='Lösenorden matchar inte';errEl.style.display='block';return;}
+  const params=new URLSearchParams(window.location.search);
+  const token=params.get('token');
+  if(!token){errEl.textContent='Återställningslänken är ogiltig';errEl.style.display='block';return;}
+  try{
+    const r=await fetch('/api/v1/auth/reset-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,new_password:pw1})});
+    const d=await r.json();
+    if(!r.ok){errEl.textContent=d.detail||'Misslyckades';errEl.style.display='block';return;}
+    okEl.textContent='Lösenordet har ändrats! Du kan nu logga in.';okEl.style.display='block';
+    setTimeout(()=>showAuthForm('login'),2000);
+  }catch(e){errEl.textContent='Kunde inte ansluta';errEl.style.display='block';}
+}
+
+function doLogout(){
+  authToken=null;currentUser=null;localStorage.removeItem('ka_token');
+  document.getElementById('login-screen').style.display='flex';
+  document.getElementById('app-main').style.display='none';
+  showAuthForm('login');
+}
+
+async function enterApp(){
+  try{
+    if(!currentUser){
+      const r=await authFetch('/api/v1/auth/me');
+      if(!r.ok){doLogout();return;}
+      currentUser=(await r.json()).user;
+    }
+    document.getElementById('login-screen').style.display='none';
+    document.getElementById('app-main').style.display='grid';
+    document.getElementById('user-display-name').textContent=currentUser.display_name||currentUser.email;
+    const rb=document.getElementById('user-role-badge');
+    rb.textContent=currentUser.role;
+    rb.className=`role-badge role-${currentUser.role}`;
+    applyRoleVisibility();
+    showView('dashboard');
+  }catch(e){doLogout();}
+}
+
+function applyRoleVisibility(){
+  const role=currentUser?.role||'user';
+  document.querySelectorAll('.admin-only').forEach(el=>{el.style.display=role==='admin'?'':'none';});
+  // Hide rules nav for regular users
+  const rulesNav=document.querySelector('.nav-item[data-view="rules"]');
+  if(rulesNav) rulesNav.style.display=(role==='admin'||role==='superuser')?'':'none';
+}
+
+/* ── User management (admin) ─────────────────────────────────── */
+function showUsersTab(tab,btn){
+  document.getElementById('users-tab').style.display=tab==='users'?'':'none';
+  document.getElementById('suggestions-tab').style.display=tab==='suggestions'?'':'none';
+  document.querySelectorAll('#view-users .filter-chip').forEach(c=>c.classList.remove('active'));
+  btn?.classList.add('active');
+  if(tab==='users') loadUsers(); else loadSuggestions();
+}
+
+async function loadUsers(){
+  try{
+    const d=await(await authFetch('/api/v1/auth/users')).json();
+    const users=d.users||[];
+    const pending=users.filter(u=>!u.is_approved);
+    const active=users.filter(u=>u.is_approved);
+    const pendDiv=document.getElementById('pending-users');
+    const pendList=document.getElementById('pending-users-list');
+    if(pending.length){
+      pendDiv.style.display='block';
+      pendList.innerHTML=pending.map(u=>`<div class="user-row">
+        <span class="email">${esc(u.email)}</span><span>${esc(u.display_name||'')}</span>
+        <span class="role-badge role-${u.role}">${u.role}</span><span style="color:var(--accent-amber)">Väntande</span>
+        <button class="btn btn-ghost" style="font-size:0.8rem;padding:2px 8px" onclick="approveUser(${u.id})">✓ Godkänn</button>
+      </div>`).join('');
+    }else{pendDiv.style.display='none';}
+    document.getElementById('users-list').innerHTML=active.map(u=>`<div class="user-row">
+      <span class="email">${esc(u.email)}</span><span>${esc(u.display_name||'')}</span>
+      <span class="role-badge role-${u.role}">${u.role}</span>
+      <span style="color:${u.is_active?'var(--accent-green)':'var(--accent-rose)'}">${u.is_active?'Aktiv':'Inaktiv'}</span>
+      <span style="display:flex;gap:4px">
+        <select onchange="changeRole(${u.id},this.value)" style="font-size:0.75rem;padding:1px 4px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text-primary)">
+          ${['user','superuser','admin'].map(r=>`<option value="${r}"${u.role===r?' selected':''}>${r}</option>`).join('')}
+        </select>
+        <button class="btn btn-ghost" style="font-size:0.75rem;padding:1px 6px" onclick="toggleActive(${u.id})">${u.is_active?'🚫':'✓'}</button>
+      </span>
+    </div>`).join('');
+  }catch(e){console.error('loadUsers',e);}
+}
+
+async function approveUser(id){
+  await authFetch(`/api/v1/auth/users/${id}/approve`,{method:'PUT'});
+  showToast('Användare godkänd');loadUsers();
+}
+async function changeRole(id,role){
+  await authFetch(`/api/v1/auth/users/${id}/role`,{method:'PUT',headers:authHeaders(),body:JSON.stringify({role})});
+  showToast(`Roll ändrad till ${role}`);loadUsers();
+}
+async function toggleActive(id){
+  await authFetch(`/api/v1/auth/users/${id}/toggle-active`,{method:'PUT'});
+  showToast('Status ändrad');loadUsers();
+}
+
+async function loadSuggestions(){
+  try{
+    const d=await(await authFetch('/api/v1/auth/suggestions?status=pending')).json();
+    const items=d.suggestions||[];
+    const countEl=document.getElementById('suggestion-count');
+    if(items.length){countEl.textContent=items.length;countEl.style.display='inline';}else{countEl.style.display='none';}
+    if(!items.length){document.getElementById('no-suggestions').style.display='block';document.getElementById('suggestions-list').innerHTML='';return;}
+    document.getElementById('no-suggestions').style.display='none';
+    document.getElementById('suggestions-list').innerHTML=items.map(s=>`<div class="suggestion-card">
+      <div style="display:flex;justify-content:space-between;align-items:start">
+        <div><strong>${esc(s.description)}</strong><br>
+          <span style="color:var(--text-secondary)">${esc(s.current_category||'?')} → <span style="color:var(--accent-green)">${esc(s.suggested_category)}</span></span>
+          ${s.reason?`<br><em style="color:var(--text-muted);font-size:0.82rem">${esc(s.reason)}</em>`:''}
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-primary" style="font-size:0.8rem;padding:4px 12px" onclick="reviewSuggestion(${s.id},'approved')">✓ Godkänn</button>
+          <button class="btn btn-ghost" style="font-size:0.8rem;padding:4px 12px" onclick="reviewSuggestion(${s.id},'rejected')">✗ Avslå</button>
+        </div>
+      </div>
+      <div class="meta">Från: ${esc(s.user_email)} · ${s.created_at?new Date(s.created_at).toLocaleDateString('sv-SE'):''}</div>
+    </div>`).join('');
+  }catch(e){console.error('loadSuggestions',e);}
+}
+
+async function reviewSuggestion(id,status){
+  await authFetch(`/api/v1/auth/suggestions/${id}`,{method:'PUT',headers:authHeaders(),body:JSON.stringify({status})});
+  showToast(status==='approved'?'Förslag godkänt — kategorier uppdaterade':'Förslag avslaget');
+  loadSuggestions();
+}
+
+/* ── Category suggestion (for non-admin users) ───────────────── */
+async function suggestCategory(desc, currentCat){
+  const cat=prompt(`Föreslå ny kategori för "${desc}":\n\nNuvarande: ${currentCat||'okategoriserad'}\n\nVälj bland: mejeri, ost, glass, kött, chark, fisk, bröd, grönsaker, frukt, skafferi, färdigmat, snacks & godis, barnprodukter, hälsa, hygien, hushåll, dryck, djur, kontorsmaterial, tjänst, transport, tobak, övrigt`);
+  if(!cat) return;
+  const reason=prompt('Motivering (valfritt):');
+  try{
+    const r=await authFetch('/api/v1/auth/suggestions',{method:'POST',headers:authHeaders(),
+      body:JSON.stringify({description:desc,current_category:currentCat,suggested_category:cat.toLowerCase().trim(),reason})});
+    if(r.ok) showToast('Kategoriförslag skickat till admin');
+    else showToast('Kunde inte skicka förslag',true);
+  }catch(e){showToast('Fel: '+e.message,true);}
+}
+
+const API='/api/v1';
+let currentPage=0,prodPage=0;let PS=20;let sTimer=null,pTimer=null,vcTimer=null,ptTimer=null,rTimer=null;let curRuleScope='';let curAnalyticsTab='products';
+
+const DOC_F={vendor:'Leverantör',document_type:'Dokumenttyp',currency:'Valuta',invoice_number:'Fakturanr',ocr_number:'OCR',total_amount:'Totalbelopp',vat_amount:'Moms',invoice_date:'Fakturadatum',due_date:'Förfallodatum',discount:'Rabatt',filename:'Filnamn'};
+const LINE_F={description:'Beskrivning',quantity:'Antal',unit:'Enhet',unit_price:'À-pris',total_price:'Radsumma',vat_rate:'Momssats',discount:'Rabatt',weight:'Vikt',packaging:'Förp.',category:'Kategori'};
+const LINE_CF={...LINE_F,vendor:'Leverantör (dok)',document_type:'Dokumenttyp (dok)'};
+const DR_T=[['field_correction','Fältkorrigering'],['vendor_normalize','Leverantörsnorm.'],['field_default','Standardvärde'],['validation','Validering']];
+const LR_T=[['field_correction','Fältkorrigering'],['product_normalize','Produktnorm.'],['category_assign','Kategori'],['unit_correction','Enhet'],['field_default','Standardvärde'],['validation','Validering']];
+const CCOL={mejeri:'#4a9eff',ost:'#f59e0b',glass:'#c084fc',kött:'#ef4444',chark:'#fb923c',fisk:'#06b6d4',bröd:'#d97706',grönsaker:'#22c55e',frukt:'#f97316',skafferi:'#34d399',färdigmat:'#a78bfa','snacks & godis':'#eab308',barnprodukter:'#f472b6',hälsa:'#2dd4bf',hygien:'#fb7185',hushåll:'#a78bfa',dryck:'#fbbf24',pant:'#8892a6',djur:'#f97316',kontorsmaterial:'#06b6d4',tjänst:'#6366f1',transport:'#ec4899',tobak:'#78716c',övrigt:'#8892a6'};
+
+function popSel(s,o){s.innerHTML='';(Array.isArray(o)?o:Object.entries(o)).forEach(([v,l])=>{const op=document.createElement('option');op.value=v;op.textContent=l;s.appendChild(op)})}
+function setRuleScope(sc,b){document.getElementById('rule-scope').value=sc;document.querySelectorAll('.scope-tab').forEach(t=>t.classList.remove('active'));b?.classList.add('active');const li=sc==='line_item';popSel(document.getElementById('rule-type'),li?LR_T:DR_T);popSel(document.getElementById('rule-cond-field'),li?LINE_CF:DOC_F);popSel(document.getElementById('rule-target'),li?LINE_F:DOC_F)}
+
+function showView(n){document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));document.getElementById(`view-${n}`).classList.add('active');document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));document.querySelector(`.nav-item[data-view="${n}"]`)?.classList.add('active');const t={dashboard:'Dashboard',analytics:'Analys',campaigns:'Kampanjer',documents:'Dokument',upload:'Ladda upp',detail:'Dokument',rules:'Regler',users:'Användare'};document.getElementById('header-title').textContent=t[n]||'Kvittoanalys';({dashboard:loadDashboard,documents:loadDocuments,rules:loadRules,analytics:loadAnalytics,campaigns:loadCampaigns,users:loadUsers})[n]?.()}
+function showToast(m,e){const t=document.getElementById('toast');t.textContent=m;t.className='toast show'+(e?' error':'');setTimeout(()=>t.className='toast',3000)}
+function esc(s){if(!s)return'';const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+function fmtC(n){return n==null?'—':new Intl.NumberFormat('sv-SE',{minimumFractionDigits:2,maximumFractionDigits:2}).format(n)}
+function fmtD(i){if(!i)return'—';return new Date(i).toLocaleDateString('sv-SE',{year:'numeric',month:'short',day:'numeric'})}
+function fmtB(b){if(!b)return'';return b<1048576?(b/1024).toFixed(1)+' KB':(b/1048576).toFixed(1)+' MB'}
+function typeL(t){return{invoice:'Faktura',receipt:'Kvitto',contract:'Kontrakt',image:'Bild',other:'Övrigt',unknown:'Okänd'}[t]||t||'Okänd'}
+function typeBdg(t){return`<span class="type-badge type-${t||'other'}">${typeL(t)}</span>`}
+function catL(c){if(!c)return'—';return c[0].toUpperCase()+c.slice(1).toLowerCase()}
+function catCol(c){return CCOL[(c||'').toLowerCase()]||'var(--accent)'}
+function fR(l,v){return`<div class="field-row"><span class="field-label">${esc(l)}</span><span class="field-value">${v?esc(String(v)):'—'}</span></div>`}
+function fL(f){return{...DOC_F,...LINE_F}[f]||f||'—'}
+function opL(o){return{contains:'innehåller',equals:'=',starts_with:'börjar med',ends_with:'slutar med',regex:'regex',greater_than:'>',less_than:'<',always:'alltid'}[o]||o}
+function aL(a){return{set:'Sätt',set_if_empty:'Om tomt',replace:'Ersätt',strip_chars:'Rensa',format_number:'Format',multiply:'×',recalculate:'Räkna om'}[a]||a}
+
+// Dashboard
+async function loadDashboard(){try{const[sR,dR]=await Promise.all([authFetch(`${API}/documents/stats`),authFetch(`${API}/documents?limit=5`)]);const s=(await sR.json()).stats,docs=(await dR.json()).documents;
+  document.getElementById('stat-total').textContent=s.total_documents;document.getElementById('stat-amount').textContent=fmtC(s.total_amount);document.getElementById('stat-currency').textContent=s.total_amount>0?'SEK':'';document.getElementById('stat-lines').textContent=s.total_line_items||0;document.getElementById('stat-cats').textContent=Object.keys(s.top_categories||{}).length;
+  document.getElementById('types-breakdown').innerHTML=Object.keys(s.by_type).length===0?'<div class="text-muted">Inga</div>':Object.entries(s.by_type).sort((a,b)=>b[1]-a[1]).map(([t,c])=>`<div class="vendor-row"><span class="vendor-name">${typeL(t)}</span><span class="vendor-count">${c}</span></div>`).join('');
+  document.getElementById('vendors-breakdown').innerHTML=Object.keys(s.top_vendors).length===0?'<div class="text-muted">Inga</div>':Object.entries(s.top_vendors).map(([v,c])=>`<div class="vendor-row"><span class="vendor-name">${esc(v)}</span><span class="vendor-count">${c}</span></div>`).join('');
+  const el=document.getElementById('recent-docs');el.innerHTML=!docs?.length?'<div class="empty-state">Inga dokument</div>':`<div class="table-wrapper"><table><thead><tr><th>Filnamn</th><th>Typ</th><th>Leverantör</th><th>Belopp</th><th>Skapad</th></tr></thead><tbody>${docs.map(d=>`<tr onclick="showDocument('${d.id}')" style="cursor:pointer"><td>${esc(d.filename)}</td><td>${typeBdg(d.document_type)}</td><td>${d.vendor?esc(d.vendor):'—'}</td><td class="amount">${d.total_amount!=null?fmtC(d.total_amount):'—'}</td><td class="text-secondary">${fmtD(d.created_at)}</td></tr>`).join('')}</tbody></table></div>`
+}catch(e){}}
+
+// Analytics — period state
+let curPeriod='all', periodOffset=0, showTotal=true;
+function _periodDates(){
+  const now=new Date();
+  const mult={week:7,month:30,quarter:91,year:365,all:0}[curPeriod]||0;
+  now.setDate(now.getDate()+periodOffset*mult);
+  let from,to,label;
+  if(curPeriod==='week'){
+    const d=new Date(now);d.setDate(d.getDate()-(d.getDay()||7)+1);from=d.toISOString().slice(0,10);
+    const e=new Date(d);e.setDate(e.getDate()+6);to=e.toISOString().slice(0,10);
+    const wn=Math.ceil(((d-new Date(d.getFullYear(),0,1))/86400000+1)/7);
+    label=`v${wn} ${d.getFullYear()}`;
+  }else if(curPeriod==='month'){
+    from=new Date(now.getFullYear(),now.getMonth(),1).toISOString().slice(0,10);
+    to=new Date(now.getFullYear(),now.getMonth()+1,0).toISOString().slice(0,10);
+    label=now.toLocaleDateString('sv-SE',{year:'numeric',month:'long'});
+  }else if(curPeriod==='quarter'){
+    const q=Math.floor(now.getMonth()/3);
+    from=new Date(now.getFullYear(),q*3,1).toISOString().slice(0,10);
+    to=new Date(now.getFullYear(),q*3+3,0).toISOString().slice(0,10);
+    label=`Q${q+1} ${now.getFullYear()}`;
+  }else if(curPeriod==='year'){
+    from=`${now.getFullYear()}-01-01`;to=`${now.getFullYear()}-12-31`;
+    label=`${now.getFullYear()}`;
+  }else{return{from:null,to:null,label:'Totalt',prevFrom:null,prevTo:null}}
+  const dur=new Date(to)-new Date(from);
+  const pTo=new Date(new Date(from)-86400000);
+  const pFrom=new Date(pTo-dur);
+  return{from,to,label,prevFrom:pFrom.toISOString().slice(0,10),prevTo:pTo.toISOString().slice(0,10)};
+}
+function setPeriod(p,btn){
+  curPeriod=p;periodOffset=0;
+  document.querySelectorAll('#period-tabs .filter-chip').forEach(c=>c.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('period-nav').style.display=p==='all'?'none':'flex';
+  document.getElementById('compare-toggle-wrap').classList.toggle('hidden',p==='all');
+  loadCatChart();
+}
+function shiftPeriod(dir){periodOffset+=dir;loadCatChart()}
+
+async function loadCatChart(){
+  const pd=_periodDates();
+  if(pd.label)document.getElementById('period-label').textContent=pd.label;
+  let url=`${API}/documents/categories`;
+  const params=[];
+  if(pd.from)params.push(`date_from=${pd.from}`);
+  if(pd.to)params.push(`date_to=${pd.to}`);
+  if(params.length)url+='?'+params.join('&');
+  const cats=(await(await authFetch(url)).json()).categories;
+  let prevCats=null;
+  if(document.getElementById('compare-toggle').checked&&pd.prevFrom){
+    const pUrl=`${API}/documents/categories?date_from=${pd.prevFrom}&date_to=${pd.prevTo}`;
+    prevCats=(await(await authFetch(pUrl)).json()).categories;
+  }
+  renderCatChart(cats,prevCats,pd);
+  populateCatFilters(cats);
+}
+
+async function migrateCategories(){
+  if(!confirm('Migrera alla kategorier till ny struktur?\n\n• livsmedel → skafferi\n• snacks/godis → snacks & godis\n• mejeri delas upp i mejeri + ost + glass\n• kött delas upp i kött + chark\n• hygien delas upp i hygien + hälsa + barnprodukter\n\nDetta påverkar alla rader i databasen.'))return;
+  const btn=document.getElementById('migrate-btn');btn.disabled=true;btn.textContent='⏳ Migrerar…';
+  try{const r=await authFetch('/api/v1/categories/migrate',{method:'POST'});const d=await r.json();
+  if(d.status==='success'){showToast(`✅ Migrering klar! ${d.renamed} omdöpta, ${d.cleared_for_resplit} omklassificerade, ${d.recategorized} ny-kategoriserade, ${d.rules_updated} regler uppdaterade`);
+  document.getElementById('migrate-btn-wrap').style.display='none';loadAnalytics()}
+  else showToast('❌ '+JSON.stringify(d),true)}catch(e){showToast('❌ '+e.message,true)}
+  finally{btn.disabled=false;btn.textContent='🔄 Migrera kategorier till ny struktur'}
+}
+async function cleanupDiscounts(){
+  if(!confirm('Koppla ihop rabattrader med produkter?\n\nRader som "Willys plus:nötfärs" och "Rabatt:lättdryck" kopplas till rätt produkt och rabatten visas på produktraden istället.'))return;
+  const btn=document.getElementById('discount-btn');btn.disabled=true;btn.textContent='⏳ Rensar…';
+  try{const r=await authFetch('/api/v1/line-items/cleanup-discounts',{method:'POST'});const d=await r.json();
+  if(d.status==='success'){showToast(`✅ ${d.linked} rabatter kopplade, ${d.deleted} rader borttagna${d.unmatched?' ('+d.unmatched+' omatchade)':''}`);
+  document.getElementById('discount-cleanup-wrap').style.display='none';loadAnalytics()}
+  else showToast('❌ '+JSON.stringify(d),true)}catch(e){showToast('❌ '+e.message,true)}
+  finally{btn.disabled=false;btn.textContent='🔗 Länka rabattrader till produkter'}
+}
+async function loadAnalytics(){
+  await loadCatChart();
+  const pR=await authFetch(`${API}/documents/products?limit=${PS}&skip=0`);
+  renderProds(await pR.json());
+  populateVendorFilter();
+  if(curAnalyticsTab==='vendors')loadVendors();
+  else if(curAnalyticsTab==='vendor-compare')loadVendorCompare();
+  else if(curAnalyticsTab==='price-trends')loadPriceTrends();
+}
+function switchAnalyticsTab(btn,tab){
+  document.querySelectorAll('#view-analytics > div[id^="analytics-"]').forEach(d=>d.style.display='none');
+  document.getElementById('analytics-'+tab).style.display='';
+  btn.parentElement.querySelectorAll('.filter-chip').forEach(c=>c.classList.remove('active'));btn.classList.add('active');
+  curAnalyticsTab=tab;
+  reloadActiveTab();
+}
+function renderCatChart(cats,prevCats,pd){const el=document.getElementById('cat-chart');if(!cats.length){el.innerHTML='<div class="text-muted">Inga kategorier ännu</div>';return}
+  const total=cats.reduce((s,c)=>s+c.total_amount,0);
+  const mx=Math.max(...cats.map(c=>c.total_amount));
+  const prevMap={};if(prevCats)prevCats.forEach(c=>{prevMap[c.category]=c.total_amount});
+  const prevTotal=prevCats?prevCats.reduce((s,c)=>s+c.total_amount,0):0;
+  const prevMx=prevCats?Math.max(...prevCats.map(c=>c.total_amount),1):1;
+  // Header with total toggle
+  let html=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+    <h3 style="font-size:0.82rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin:0;">Utgifter per kategori${pd&&pd.label&&pd.label!=='Totalt'?' — '+pd.label:''}</h3>
+    <label style="display:flex;align-items:center;gap:0.35rem;font-size:0.78rem;color:var(--text-secondary);cursor:pointer;">
+      <input type="checkbox" ${showTotal?'checked':''} onchange="showTotal=this.checked;loadCatChart()"> Visa total
+    </label></div>`;
+  // Total bar
+  if(showTotal){
+    let totalCompare='';
+    if(prevCats&&prevTotal>0){const diff=((total-prevTotal)/prevTotal*100).toFixed(1);const arrow=diff>0?'▲':'▼';const color=diff>0?'var(--accent-rose)':'var(--accent-green)';
+      totalCompare=`<span style="font-size:0.75rem;color:${color};margin-left:0.5rem;">${arrow} ${Math.abs(diff)}%</span>`}
+    html+=`<div class="cat-bar-row cat-bar-total"><span class="cat-bar-label" style="font-weight:600;">Totalt</span><div class="cat-bar-track"><div class="cat-bar-fill" style="width:100%;background:var(--text-muted);opacity:0.5"></div></div><span class="cat-bar-value" style="font-weight:600;">${fmtC(total)} kr${totalCompare}</span><span class="cat-bar-count">${cats.reduce((s,c)=>s+c.count,0)} st</span></div>`;
+  }
+  // Category bars
+  html+=cats.map(c=>{
+    const p=mx>0?Math.max((c.total_amount/mx)*100,2):0;
+    const pct=total>0?(c.total_amount/total*100).toFixed(1):0;
+    const col=catCol(c.category);
+    let compareHtml='';
+    if(prevCats){
+      const prev=prevMap[c.category]||0;
+      if(prev>0){const diff=((c.total_amount-prev)/prev*100).toFixed(0);const arrow=diff>0?'▲':'▼';const color=diff>0?'var(--accent-rose)':'var(--accent-green)';
+        compareHtml=` <span style="font-size:0.7rem;color:${color}">${arrow}${Math.abs(diff)}%</span>`}
+      const pp=prevMx>0?Math.max((prev/prevMx)*100,2):0;
+      compareHtml+=`<div class="cat-bar-compare" style="width:${pp}%;background:${col}"></div>`;
+    }
+    return`<div class="cat-bar-row" onclick="filterByCat('${esc(c.category)}')"><span class="cat-bar-label">${catL(c.category)}</span><div class="cat-bar-track"><div class="cat-bar-fill" style="width:${p}%;background:${col}">${p>12?pct+'%':''}</div>${compareHtml}</div><span class="cat-bar-value">${fmtC(c.total_amount)} kr</span><span class="cat-bar-count">${c.count} st</span></div>`}).join('');
+  el.innerHTML=html}
+function populateCatFilters(cats){
+  const opts='<option value="">Alla kategorier</option>'+cats.map(c=>`<option value="${esc(c.category)}">${catL(c.category)} (${c.count})</option>`).join('');
+  document.getElementById('global-cat-filter').innerHTML=opts;
+}
+async function populateVendorFilter(){
+  try{const d=await(await authFetch(`${API}/vendors`)).json();const vs=d.vendors||[];
+  const opts='<option value="">Alla leverantörer</option>'+vs.map(v=>`<option value="${esc(v.name)}">${esc(v.name)}${v.chain?' ('+esc(v.chain)+')':''}${v.document_count?' — '+v.document_count+' st':''}</option>`).join('');
+  document.getElementById('global-vendor-filter').innerHTML=opts}catch(e){}}
+function getGlobalCategory(){return document.getElementById('global-cat-filter')?.value||''}
+function getGlobalVendor(){return document.getElementById('global-vendor-filter')?.value||''}
+function setGlobalCategory(c){
+  document.getElementById('global-cat-filter').value=c||'';
+  prodPage=0;updateFilterTags();reloadActiveTab();
+}
+function setGlobalVendor(v){
+  document.getElementById('global-vendor-filter').value=v||'';
+  prodPage=0;updateFilterTags();reloadActiveTab();
+}
+function filterByCat(c){setGlobalCategory(c)}
+function resetFilters(){
+  document.getElementById('global-cat-filter').value='';
+  document.getElementById('global-vendor-filter').value='';
+  document.getElementById('prod-search').value='';
+  const vcs=document.getElementById('vc-search');if(vcs)vcs.value='';
+  const pts=document.getElementById('pt-search');if(pts)pts.value='';
+  prodPage=0;updateFilterTags();reloadActiveTab();
+}
+function changePageSize(v){PS=v;prodPage=0;if(curAnalyticsTab==='products')loadProducts()}
+function updateFilterTags(){
+  const c=getGlobalCategory(),v=getGlobalVendor();
+  const bar=document.getElementById('active-filters');
+  const tags=document.getElementById('active-filter-tags');
+  if(!c&&!v){bar.style.display='none';return}
+  bar.style.display='flex';
+  let html='';
+  if(c)html+=`<span class="filter-tag">${catL(c)}</span>`;
+  if(v)html+=`<span class="filter-tag filter-tag-vendor">${esc(v)}</span>`;
+  tags.innerHTML=html;
+}
+function reloadActiveTab(){
+  if(curAnalyticsTab==='products')loadProducts();
+  else if(curAnalyticsTab==='vendors')loadVendors();
+  else if(curAnalyticsTab==='vendor-compare')loadVendorCompare();
+  else if(curAnalyticsTab==='price-trends')loadPriceTrends();
+}
+async function loadProducts(){
+  const c=getGlobalCategory(),v=getGlobalVendor(),s=document.getElementById('prod-search').value;
+  const p=new URLSearchParams({skip:prodPage*PS,limit:PS});if(c)p.set('category',c);if(v)p.set('vendor',v);if(s)p.set('search',s);
+  document.getElementById('prod-tbody').innerHTML='<tr><td colspan="9"><div class="loading"><div class="spinner"></div></div></td></tr>';
+  renderProds(await(await authFetch(`${API}/documents/products?${p}`)).json())}
+function renderProds(d){const tb=document.getElementById('prod-tbody');
+  tb.innerHTML=!d.products.length?'<tr><td colspan="10"><div class="empty-state">Inga produkter</div></td></tr>'
+    :d.products.map(p=>{const sd=btoa(unescape(encodeURIComponent(p.description)));return`<tr><td><input type="checkbox" class="prod-check" data-desc="${sd}" onchange="updateMergeBar()"></td><td><a href="#" class="prod-link" onclick="showProductDocs('${esc(p.description.replace(/'/g,"\\'"))}');return false"><strong>${esc(p.description)}</strong></a></td><td style="position:relative">${prodCatBadge(p.description,p.category)}</td><td>${p.purchase_count}</td><td>${p.total_quantity}${p.unit?' '+p.unit:''}</td><td class="amount">${fmtC(p.total_spent)} kr</td><td class="amount">${fmtC(p.avg_unit_price)}</td><td class="text-muted">${p.min_unit_price!=null?fmtC(p.min_unit_price):'—'}</td><td class="text-muted">${p.max_unit_price!=null?fmtC(p.max_unit_price):'—'}</td><td><button class="btn btn-ghost btn-sm" onclick="showPrice('${esc(p.description.replace(/'/g,"\\'"))}')">📈</button></td></tr>`}).join('');
+  if(PS>0){const s=prodPage*PS+1,e=Math.min(s+PS-1,d.total);document.getElementById('prod-pag').textContent=d.total>0?`${s}–${e} av ${d.total}`:'';
+  document.getElementById('prod-prev').disabled=prodPage===0;document.getElementById('prod-next').disabled=e>=d.total}
+  else{document.getElementById('prod-pag').textContent=d.total>0?`Alla ${d.total}`:'';document.getElementById('prod-prev').disabled=true;document.getElementById('prod-next').disabled=true}
+  document.getElementById('prod-select-all').checked=false;updateMergeBar()}
+function debounceProducts(){clearTimeout(pTimer);prodPage=0;pTimer=setTimeout(loadProducts,350)}
+
+// Merge products
+function getSelectedProducts(){
+  return[...document.querySelectorAll('.prod-check:checked')].map(c=>decodeProdKey(c.dataset.desc)).filter(Boolean);
+}
+function toggleAllProducts(checked){
+  document.querySelectorAll('.prod-check').forEach(c=>c.checked=checked);updateMergeBar();
+}
+function updateMergeBar(){
+  const sel=getSelectedProducts();
+  const bar=document.getElementById('merge-bar');
+  if(sel.length>=2){bar.style.display='flex';document.getElementById('merge-count').textContent=sel.length+' valda'}
+  else{bar.style.display='none'}
+}
+function clearMergeSelection(){
+  document.querySelectorAll('.prod-check').forEach(c=>c.checked=false);
+  document.getElementById('prod-select-all').checked=false;updateMergeBar();
+}
+function openMergeModal(){
+  const sel=getSelectedProducts();if(sel.length<2)return;
+  const srcEl=document.getElementById('merge-sources');
+  srcEl.innerHTML=sel.map(s=>`<span class="cat-badge" style="cursor:default;font-size:0.78rem">${esc(s)}</span>`).join('');
+  // Suggest shortest name as canonical
+  const shortest=sel.reduce((a,b)=>a.length<=b.length?a:b);
+  document.getElementById('merge-target').value=shortest;
+  document.getElementById('merge-modal').classList.add('open');
+}
+function closeMergeModal(){document.getElementById('merge-modal').classList.remove('open')}
+async function doMerge(){
+  const sel=getSelectedProducts();const target=document.getElementById('merge-target').value.trim();
+  if(!target||sel.length<2){showToast('Ange ett kanoniskt namn',true);return}
+  try{
+    const r=await authFetch(`${API}/products/merge`,{method:'PUT',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({source_descriptions:sel,target_description:target})});
+    if(!r.ok){showToast(`Fel ${r.status}`,true);return}
+    const d=await r.json();
+    closeMergeModal();clearMergeSelection();
+    showToast(`${d.items_updated} rader sammanslagna → "${target}", ${d.rules_created} regler skapade ✅`);
+    loadProducts();
+  }catch(e){showToast('Fel: '+e.message,true)}
+}
+
+// Product documents
+function closeProdDocsModal(){document.getElementById('prod-docs-modal').classList.remove('open')}
+async function showProductDocs(desc){
+  document.getElementById('prod-docs-title').textContent=desc;
+  document.getElementById('prod-docs-content').innerHTML='<div class="loading"><div class="spinner"></div></div>';
+  document.getElementById('prod-docs-modal').classList.add('open');
+  try{
+    const r=await authFetch(`${API}/documents/products/documents?description=${encodeURIComponent(desc)}`);
+    const d=await r.json();
+    const docs=d.documents||[];
+    if(!docs.length){
+      document.getElementById('prod-docs-content').innerHTML='<div class="empty-state">Inga kvitton hittade</div>';
+      return;
+    }
+    document.getElementById('prod-docs-content').innerHTML=
+      `<p style="color:var(--text-secondary);margin-bottom:0.75rem;font-size:0.85rem">${docs.length} kvitto${docs.length!==1?'n':''} med denna produkt</p>`+
+      '<div class="prod-docs-list">'+docs.map(doc=>`
+        <div class="prod-doc-card" onclick="closeProdDocsModal();showDocument('${doc.document_id}')">
+          <div class="prod-doc-info">
+            <span class="prod-doc-vendor">${esc(doc.vendor||doc.filename||'Okänd')}</span>
+            <span class="prod-doc-meta">${doc.invoice_date||'—'} · ${doc.quantity?doc.quantity+(doc.unit?' '+doc.unit:''):''} · ${doc.unit_price!=null?fmtC(doc.unit_price)+' kr/st':''}</span>
+          </div>
+          <span class="amount" style="white-space:nowrap;font-weight:600">${doc.total_price!=null?fmtC(doc.total_price)+' kr':'—'}</span>
+        </div>`).join('')+'</div>';
+  }catch(e){
+    document.getElementById('prod-docs-content').innerHTML='<div class="empty-state">Kunde inte ladda kvitton</div>';
+  }
+}
+document.getElementById('prod-docs-modal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeProdDocsModal()});
+
+// Vendors
+let _vendorData=[];
+function chainBadge(c){
+  if(!c)return'<span class="vendor-cell empty">+ kedja</span>';
+  const cls={'ICA':'chain-ica','Coop':'chain-coop','Hemköp':'chain-hemköp','Willys':'chain-willys','Lidl':'chain-lidl'}[c]||'chain-other';
+  return`<span class="chain-badge ${cls}">${esc(c)}</span>`;
+}
+async function loadVendors(){
+  const tb=document.getElementById('vendor-tbody');
+  tb.innerHTML='<tr><td colspan="7"><div class="loading"><div class="spinner"></div></div></td></tr>';
+  try{
+    const d=await(await authFetch(`${API}/vendors`)).json();
+    _vendorData=d.vendors||[];
+    if(!_vendorData.length){tb.innerHTML='<tr><td colspan="7"><div class="empty-state">Inga leverantörer</div></td></tr>';return}
+    tb.innerHTML=_vendorData.map(v=>`<tr>
+      <td><input type="checkbox" class="vendor-check" data-vid="${v.id}" data-vname="${esc(v.name)}" onchange="updateVendorMergeBar()"></td>
+      <td><span class="vendor-cell" onclick="editVendorCell(this,${v.id},'name','${esc(v.name)}')"><strong>${esc(v.name)}</strong></span></td>
+      <td><span class="vendor-cell" onclick="editVendorCell(this,${v.id},'chain','${esc(v.chain||'')}')">${chainBadge(v.chain)}</span></td>
+      <td><span class="vendor-cell${v.format?'':' empty'}" onclick="editVendorCell(this,${v.id},'format','${esc(v.format||'')}')">${v.format?esc(v.format):'+ format'}</span></td>
+      <td><span class="vendor-cell${v.city?'':' empty'}" onclick="editVendorCell(this,${v.id},'city','${esc(v.city||'')}')">${v.city?esc(v.city):'+ ort'}</span></td>
+      <td>${v.document_count}</td>
+      <td class="amount">${fmtC(v.total_amount)} kr</td>
+    </tr>`).join('');
+    document.getElementById('vendor-select-all').checked=false;updateVendorMergeBar();
+  }catch(e){tb.innerHTML='<tr><td colspan="7"><div class="empty-state">Kunde inte ladda leverantörer</div></td></tr>'}
+}
+function editVendorCell(el,vendorId,field,currentVal){
+  if(el.querySelector('input'))return;
+  const orig=el.innerHTML;
+  el.innerHTML=`<input class="vendor-cell-edit" type="text" value="${esc(currentVal)}" placeholder="${field==='name'?'Butiksnamn':field==='chain'?'ICA, Coop…':field==='format'?'Maxi, Kvantum…':'Ort…'}">`
+  const inp=el.querySelector('input');inp.focus();inp.select();
+  async function save(){
+    const val=inp.value.trim();
+    if(val===currentVal){el.innerHTML=orig;return}
+    if(field==='name'&&!val){el.innerHTML=orig;showToast('Namn kan inte vara tomt',true);return}
+    try{
+      const body={};body[field]=val||null;
+      const r=await authFetch(`${API}/vendors/${vendorId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      if(r.ok){loadVendors();showToast('Uppdaterad ✅')}
+      else{el.innerHTML=orig;showToast('Kunde inte spara',true)}
+    }catch(e){el.innerHTML=orig;showToast('Fel: '+e.message,true)}
+  }
+  inp.addEventListener('blur',save);
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();inp.blur()}if(e.key==='Escape'){el.innerHTML=orig}});
+}
+function getSelectedVendors(){
+  return[...document.querySelectorAll('.vendor-check:checked')].map(c=>({id:+c.dataset.vid,name:c.dataset.vname}));
+}
+function toggleAllVendors(checked){
+  document.querySelectorAll('.vendor-check').forEach(c=>c.checked=checked);updateVendorMergeBar();
+}
+function updateVendorMergeBar(){
+  const sel=getSelectedVendors();
+  const bar=document.getElementById('vendor-merge-bar');
+  if(sel.length>=2){bar.style.display='flex';document.getElementById('vendor-merge-count').textContent=sel.length+' valda'}
+  else{bar.style.display='none'}
+}
+function clearVendorSelection(){
+  document.querySelectorAll('.vendor-check').forEach(c=>c.checked=false);
+  document.getElementById('vendor-select-all').checked=false;updateVendorMergeBar();
+}
+function openVendorMergeModal(){
+  const sel=getSelectedVendors();if(sel.length<2)return;
+  document.getElementById('vendor-merge-sources').innerHTML=sel.map(s=>`<span class="cat-badge" style="cursor:default;font-size:0.78rem">${esc(s.name)}</span>`).join('');
+  const tgt=document.getElementById('vendor-merge-target');
+  tgt.innerHTML=sel.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('');
+  document.getElementById('vendor-merge-modal').classList.add('open');
+}
+function closeVendorMergeModal(){document.getElementById('vendor-merge-modal').classList.remove('open')}
+async function doVendorMerge(){
+  const sel=getSelectedVendors();const targetId=+document.getElementById('vendor-merge-target').value;
+  if(sel.length<2||!targetId){showToast('Välj målleverantör',true);return}
+  try{
+    const r=await authFetch(`${API}/vendors/merge`,{method:'PUT',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({source_ids:sel.map(s=>s.id),target_id:targetId})});
+    if(!r.ok){showToast(`Fel ${r.status}`,true);return}
+    const d=await r.json();
+    closeVendorMergeModal();clearVendorSelection();
+    showToast(`${d.documents_moved} dokument flyttade till "${d.target_name}", ${d.vendors_deleted} leverantörer borttagna ✅`);
+    loadVendors();
+  }catch(e){showToast('Fel: '+e.message,true)}
+}
+document.getElementById('vendor-merge-modal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeVendorMergeModal()});
+
+// Vendor Compare
+async function loadVendorCompare(){
+  const el=document.getElementById('vc-content');el.innerHTML='<div class="loading"><div class="spinner"></div></div>';
+  const s=document.getElementById('vc-search')?.value||'',c=getGlobalCategory(),v=getGlobalVendor();
+  const p=new URLSearchParams({limit:'50'});if(s)p.set('search',s);if(c)p.set('category',c);if(v)p.set('vendor',v);
+  try{
+    const d=await(await authFetch(`${API}/documents/products/vendor-compare?${p}`)).json();
+    renderVendorCompare(el,d.comparisons||[]);
+  }catch(e){el.innerHTML='<div class="empty-state">Kunde inte ladda jämförelse</div>'}
+}
+function renderVendorCompare(el,comps){
+  if(!comps.length){el.innerHTML='<div class="empty-state">Inga produkter med flera leverantörer hittade.<br><span class="text-muted">Ladda upp kvitton från minst 2 leverantörer för samma produkt.</span></div>';return}
+  el.innerHTML=comps.map(p=>{
+    const sav=p.savings_pct||0;
+    const savCls=sav>0?'positive':'zero';
+    const savTxt=sav>0?`Spara ${sav}%`:'Samma pris';
+    const maxP=Math.max(...p.vendors.map(v=>v.avg_price));
+    const bars=p.vendors.map((v,i)=>{
+      const w=maxP>0?Math.max((v.avg_price/maxP)*100,5):50;
+      const cheapest=i===0;
+      const col=cheapest?'var(--accent-green)':'var(--accent-rose)';
+      return`<div class="vc-bar-row"><span class="vc-vendor ${cheapest?'vc-cheapest':'vc-expensive'}">${esc(v.vendor)}${cheapest?' ★':''}</span><div class="vc-bar-track"><div class="vc-bar-fill" style="width:${w}%;background:${col}">${w>20?fmtC(v.avg_price)+' kr':''}</div></div><span class="vc-price ${cheapest?'vc-cheapest':'vc-expensive'}">${fmtC(v.avg_price)} kr</span><span class="text-muted" style="min-width:40px;text-align:right;font-size:0.75rem">×${v.purchase_count}</span></div>`;
+    }).join('');
+    return`<div class="vc-card"><div class="vc-header"><span class="vc-title">${esc(p.description)} ${p.category?`<span class="cat-badge" style="cursor:default;font-size:0.65rem">${esc(p.category)}</span>`:''}</span><span class="vc-save ${savCls}">${savTxt}</span></div>${bars}</div>`;
+  }).join('');
+}
+function debounceVC(){clearTimeout(vcTimer);vcTimer=setTimeout(loadVendorCompare,350)}
+
+// Price Trends
+async function loadPriceTrends(){
+  const el=document.getElementById('pt-content');el.innerHTML='<div class="loading"><div class="spinner"></div></div>';
+  const s=document.getElementById('pt-search')?.value||'',c=getGlobalCategory(),v=getGlobalVendor();
+  const p=new URLSearchParams({top_n:'15'});if(s)p.set('search',s);if(c)p.set('category',c);if(v)p.set('vendor',v);
+  try{
+    const d=await(await authFetch(`${API}/documents/products/price-trends?${p}`)).json();
+    renderPriceTrends(el,d.trends||[]);
+  }catch(e){el.innerHTML='<div class="empty-state">Kunde inte ladda prisutveckling</div>'}
+}
+function renderPriceTrends(el,trends){
+  if(!trends.length){el.innerHTML='<div class="empty-state">Inga produkter med tillräcklig prisdata.<br><span class="text-muted">Minst 2 köp av samma produkt krävs.</span></div>';return}
+  el.innerHTML=trends.map(t=>{
+    const ch=t.change_pct;const cls=ch>2?'up':ch<-2?'down':'flat';
+    const arrow=ch>2?'↑':ch<-2?'↓':'→';
+    const pts=t.data_points;
+    // Mini sparkline SVG
+    let spark='';
+    if(pts.length>=2){
+      const prices=pts.map(p=>p.price);
+      const mn=Math.min(...prices),mx=Math.max(...prices),rng=mx-mn||1;
+      const W=200,H=40;
+      let path='M';
+      pts.forEach((p,i)=>{const x=(i/(pts.length-1))*W;const y=H-((p.price-mn)/rng)*H;path+=(i===0?'':' L')+`${x} ${y}`});
+      const col=ch>2?'var(--accent-rose)':ch<-2?'var(--accent-green)':'var(--accent)';
+      spark=`<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="display:block"><path d="${path}" fill="none" stroke="${col}" stroke-width="2" opacity="0.7"/>${pts.map((p,i)=>{const x=(i/(pts.length-1))*W;const y=H-((p.price-mn)/rng)*H;return`<circle cx="${x}" cy="${y}" r="3" fill="${col}"><title>${p.date}: ${fmtC(p.price)} kr${p.vendor?' — '+p.vendor:''}</title></circle>`}).join('')}</svg>`;
+    }
+    const firstP=pts.length?fmtC(pts[0].price):'—';
+    const lastP=pts.length?fmtC(pts[pts.length-1].price):'—';
+    return`<div class="pt-card"><div class="pt-header"><span class="vc-title">${esc(t.description)} ${t.category?`<span class="cat-badge" style="cursor:default;font-size:0.65rem">${esc(t.category)}</span>`:''} <span class="text-muted" style="font-weight:400;font-size:0.78rem">× ${t.purchase_count} köp</span></span><span class="pt-change ${cls}">${arrow} ${Math.abs(ch)}%</span></div><div style="display:flex;align-items:center;gap:1.5rem;margin-top:0.5rem"><div style="flex:1">${spark}</div><div style="text-align:right;font-family:var(--mono);font-size:0.82rem"><div class="text-muted">${firstP} → ${lastP} kr</div></div></div></div>`;
+  }).join('');
+}
+function debouncePT(){clearTimeout(ptTimer);ptTimer=setTimeout(loadPriceTrends,350)}
+
+// Price history
+async function showPrice(desc){
+  const sec=document.getElementById('price-section');sec.style.display='block';
+  document.getElementById('price-title').textContent=`Prisutveckling: ${desc}`;
+  const d=await(await authFetch(`${API}/documents/products/price-history?description=${encodeURIComponent(desc)}`)).json();
+  renderPriceChart(d.history);sec.scrollIntoView({behavior:'smooth'})}
+function renderPriceChart(h){
+  const ch=document.getElementById('price-chart'),tb=document.getElementById('price-table');
+  const pts=h.filter(x=>x.unit_price!=null);
+  if(!pts.length){ch.innerHTML='<div class="text-muted" style="padding:2rem;text-align:center">Ingen prisdata</div>';tb.innerHTML='';return}
+  const W=Math.min(ch.parentElement.offsetWidth-60,800),H=220,PAD=50;
+  const mn=Math.min(...pts.map(p=>p.unit_price))*0.9,mx=Math.max(...pts.map(p=>p.unit_price))*1.1,rng=mx-mn||1;
+  // SVG chart
+  let svg=`<svg class="chart-svg" viewBox="0 0 ${W+PAD} ${H+40}" width="${W+PAD}" height="${H+40}">`;
+  // Grid
+  for(let i=0;i<5;i++){const y=10+H*(i/4);svg+=`<line x1="${PAD}" y1="${y}" x2="${W+PAD}" y2="${y}" stroke="var(--border)" stroke-opacity="0.4"/>`;svg+=`<text x="${PAD-5}" y="${y+4}" fill="var(--text-muted)" font-size="10" text-anchor="end" font-family="var(--mono)">${fmtC(mx-(rng*i/4))}</text>`}
+  // Line path
+  if(pts.length>1){let path='M';pts.forEach((p,i)=>{const x=PAD+(i/(pts.length-1))*W;const y=10+H-(((p.unit_price-mn)/rng)*H);path+=(i===0?'':' L')+` ${x} ${y}`});svg+=`<path d="${path}" fill="none" stroke="var(--accent)" stroke-width="2" opacity="0.6"/>`}
+  // Points
+  pts.forEach((p,i)=>{const x=PAD+(pts.length===1?W/2:(i/(pts.length-1))*W);const y=10+H-(((p.unit_price-mn)/rng)*H);svg+=`<circle cx="${x}" cy="${y}" r="5" fill="var(--accent)" stroke="var(--bg-card)" stroke-width="2"><title>${p.date}: ${fmtC(p.unit_price)} kr${p.vendor?' — '+p.vendor:''}</title></circle>`});
+  // X labels
+  const step=Math.max(1,Math.floor(pts.length/6));
+  pts.forEach((p,i)=>{if(i%step===0||i===pts.length-1){const x=PAD+(pts.length===1?W/2:(i/(pts.length-1))*W);svg+=`<text x="${x}" y="${H+30}" fill="var(--text-muted)" font-size="9" text-anchor="middle" font-family="var(--mono)">${(p.date||'').substring(5)}</text>`}});
+  svg+=`</svg>`;ch.innerHTML=svg;
+  // Table
+  tb.innerHTML=`<div class="table-wrapper"><table><thead><tr><th>Datum</th><th>Leverantör</th><th>À-pris</th><th>Totalt</th><th>Antal</th><th>Vikt</th></tr></thead><tbody>${h.map(r=>`<tr><td>${r.date||'—'}</td><td>${r.vendor?esc(r.vendor):'—'}</td><td class="amount">${r.unit_price!=null?fmtC(r.unit_price)+' kr':'—'}</td><td class="amount">${r.total_price!=null?fmtC(r.total_price)+' kr':'—'}</td><td>${r.quantity??'—'} ${r.unit||''}</td><td>${r.weight!=null?r.weight+' kg':'—'}</td></tr>`).join('')}</tbody></table></div>`}
+
+// Campaigns
+let _campData=null;let _campCitiesLoaded=false;
+
+async function loadCampaignCities(){
+  if(_campCitiesLoaded)return;
+  try{
+    const d=await(await authFetch(`${API}/campaigns/cities`)).json();
+    const sel=document.getElementById('camp-city');
+    const cities=Object.entries(d).sort((a,b)=>a[0].localeCompare(b[0],'sv'));
+    sel.innerHTML='<option value="">Välj ort…</option>'+cities.map(([name])=>`<option value="${esc(name)}">${name[0].toUpperCase()+name.slice(1)}</option>`).join('');
+    _campCitiesLoaded=true;
+    // Auto-select user's city or Stockholm as fallback
+    const userCity=(currentUser?.city||'stockholm').toLowerCase();
+    sel.value=userCity;
+    if(!sel.value) sel.value='stockholm';
+  }catch(e){
+    document.getElementById('camp-content').innerHTML=`<div class="empty-state">Kunde inte ansluta till kampanj-API:t.<br><span class="text-muted" style="font-size:0.78rem;">Starta det med: <code>uvicorn app:app --port 8001</code></span></div>`;
+  }
+}
+
+async function loadCampaigns(){
+  await loadCampaignCities();
+  const city=document.getElementById('camp-city').value;
+  if(!city){document.getElementById('camp-content').innerHTML='<div class="empty-state">Välj en ort för att visa kampanjer</div>';document.getElementById('camp-summary').textContent='';return}
+  const el=document.getElementById('camp-content');
+  el.innerHTML='<div class="loading"><div class="spinner"></div></div>';
+  document.getElementById('camp-summary').textContent='Hämtar kampanjer…';
+  try{
+    const r=await authFetch(`${API}/campaigns?city=${encodeURIComponent(city)}&match_products=true`);
+    if(!r.ok){const e=await r.json();throw new Error(e.detail||`HTTP ${r.status}`)}
+    _campData=await r.json();
+    // Populate chain filter
+    const cf=document.getElementById('camp-chain-filter');
+    const chains=(_campData.chains||[]).map(c=>c.chain).sort((a,b)=>a.localeCompare(b,'sv'));
+    cf.innerHTML='<option value="">Alla kedjor</option>'+chains.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+    renderCampaigns();
+  }catch(e){
+    el.innerHTML=`<div class="empty-state">${esc(e.message)}</div>`;
+    document.getElementById('camp-summary').textContent='';
+  }
+}
+
+function renderCampaigns(){
+  if(!_campData){document.getElementById('camp-content').innerHTML='<div class="empty-state">Välj en ort</div>';return}
+  const chainFilter=document.getElementById('camp-chain-filter').value.toLowerCase();
+  const matchOnly=document.getElementById('camp-match-only').checked;
+  const search=(document.getElementById('camp-search').value||'').toLowerCase();
+
+  let chains=(_campData.chains||[]);
+  if(chainFilter)chains=chains.filter(c=>c.chain.toLowerCase()===chainFilter);
+
+  let totalShown=0,totalMatched=0;
+  let html='';
+
+  for(const ch of chains){
+    let offers=ch.offers||[];
+    if(search)offers=offers.filter(o=>{
+      const n=(o.product?.name||'').toLowerCase();
+      const b=(o.product?.brand||'').toLowerCase();
+      const cat=(o.product?.category||'').toLowerCase();
+      return n.includes(search)||b.includes(search)||cat.includes(search);
+    });
+    if(matchOnly)offers=offers.filter(o=>o.matches_purchased);
+    if(!offers.length)continue;
+
+    const matched=offers.filter(o=>o.matches_purchased).length;
+    totalShown+=offers.length;totalMatched+=matched;
+
+    html+=`<div class="camp-chain-group">
+      <div class="camp-chain-header" onclick="this.parentElement.classList.toggle('collapsed')">
+        <div><strong>${esc(ch.chain)}</strong> <span class="text-muted" style="font-size:0.78rem">${offers.length} erbjudanden${matched?' · '+matched+' matchar dina varor':''}</span></div>
+        <span class="camp-toggle">▾</span>
+      </div>
+      <div class="camp-chain-body"><div class="camp-grid">${offers.map(o=>{
+        const p=o.product||{};
+        const savings=_calcSavings(o.price,o.regular_price);
+        return`<div class="camp-card${o.matches_purchased?' camp-match':''}">
+          <div class="camp-card-top">
+            <div class="camp-product">${esc(p.name)}</div>
+            ${p.brand?`<div class="camp-brand">${esc(p.brand)}</div>`:''}
+          </div>
+          <div class="camp-prices">
+            <span class="camp-price">${esc(o.price)}</span>
+            ${o.regular_price?`<span class="camp-regular">${esc(o.regular_price)}</span>`:''}
+            ${savings?`<span class="camp-savings">${savings}</span>`:''}
+          </div>
+          ${o.compare_price?`<div class="camp-compare">${esc(o.compare_price)}</div>`:''}
+          ${o.condition?`<div class="camp-condition">${esc(o.condition)}</div>`:''}
+          <div class="camp-meta">
+            ${p.category?`<span class="camp-cat">${esc(p.category)}</span>`:''}
+            ${o.valid_to?`<span class="camp-valid">t.o.m. ${o.valid_to.substring(5)}</span>`:''}
+            ${o.requires_membership?'<span class="camp-member">🪪 Medlemskap</span>':''}
+          </div>
+          ${o.matches_purchased?'<div class="camp-match-badge">✓ Köpt tidigare</div>':''}
+        </div>`}).join('')}</div></div></div>`;
+  }
+
+  if(!html)html='<div class="empty-state">Inga kampanjer matchar filtret</div>';
+  document.getElementById('camp-content').innerHTML=html;
+
+  const city=_campData.city||'';
+  const info=`${city}: ${totalShown} erbjudanden visas${totalMatched?' · '+totalMatched+' matchar dina varor':''}`;
+  document.getElementById('camp-summary').textContent=info;
+}
+
+function _calcSavings(priceStr,regularStr){
+  if(!priceStr||!regularStr)return'';
+  const p=parseFloat(priceStr.replace(',','.').replace(/[^\d.]/g,''));
+  const r=parseFloat(regularStr.replace(',','.').replace(/[^\d.]/g,''));
+  if(!p||!r||p>=r)return'';
+  const pct=Math.round((1-p/r)*100);
+  return pct>0?'-'+pct+'%':'';
+}
+
+document.getElementById('camp-city').addEventListener('change',loadCampaigns);
+document.getElementById('camp-chain-filter').addEventListener('change',renderCampaigns);
+
+// Documents
+async function loadDocuments(){const s=document.getElementById('search-input').value,t=document.getElementById('filter-type').value;const p=new URLSearchParams({skip:currentPage*PS,limit:PS});if(s)p.set('search',s);if(t)p.set('document_type',t);const tb=document.getElementById('docs-tbody');tb.innerHTML='<tr><td colspan="7"><div class="loading"><div class="spinner"></div></div></td></tr>';
+  const d=await(await authFetch(`${API}/documents?${p}`)).json();tb.innerHTML=!d.documents.length?'<tr><td colspan="7"><div class="empty-state">Inga dokument</div></td></tr>':d.documents.map(x=>`<tr onclick="showDocument('${x.id}')" style="cursor:pointer"><td><strong>${esc(x.filename)}</strong></td><td>${typeBdg(x.document_type)}</td><td>${x.vendor?esc(x.vendor):'—'}</td><td class="amount">${x.total_amount!=null?fmtC(x.total_amount)+(x.currency?' '+x.currency:''):'—'}</td><td>${x.invoice_number||'—'}</td><td class="text-secondary">${x.invoice_date||'—'}</td><td class="text-secondary">${fmtD(x.created_at)}</td></tr>`).join('');
+  const s1=currentPage*PS+1,e=Math.min(s1+PS-1,d.total);document.getElementById('pagination-info').textContent=d.total>0?`${s1}–${e} av ${d.total}`:'';document.getElementById('btn-prev').disabled=currentPage===0;document.getElementById('btn-next').disabled=e>=d.total}
+function prevPage(){if(currentPage>0){currentPage--;loadDocuments()}}function nextPage(){currentPage++;loadDocuments()}function debounceSearch(){clearTimeout(sTimer);currentPage=0;sTimer=setTimeout(loadDocuments,350)}
+
+// Detail
+// Category dropdown
+const ALL_CATEGORIES=['mejeri','ost','glass','kött','chark','fisk','bröd','grönsaker','frukt','skafferi','färdigmat','dryck','snacks & godis','barnprodukter','hälsa','hygien','hushåll','kontorsmaterial','tjänst','transport','djur','tobak','övrigt'];
+let openDropdown=null;
+
+// Badge for document detail view (single line item)
+function catBadge(item){
+  const id=item.id;const cat=item.category;
+  if(cat)return`<span class="cat-badge" data-line-id="${id}" onclick="event.stopPropagation();openCatDrop(this,'line',${id},'${esc(cat)}','')" title="Klicka för att ändra">${esc(cat)}</span>`;
+  return`<span class="cat-badge no-cat" data-line-id="${id}" onclick="event.stopPropagation();openCatDrop(this,'line',${id},'','')" title="Sätt kategori">+ kategori</span>`;
+}
+// Badge for analysis view (product = all matching line items)
+function prodCatBadge(desc,cat){
+  const sd=btoa(unescape(encodeURIComponent(desc)));
+  if(cat)return`<span class="cat-badge" data-prod-key="${sd}" onclick="event.stopPropagation();openCatDrop(this,'product',0,'${esc(cat)}','${sd}')" title="Ändra kategori (alla kvitton)">${esc(cat)}</span>`;
+  return`<span class="cat-badge no-cat" data-prod-key="${sd}" onclick="event.stopPropagation();openCatDrop(this,'product',0,'','${sd}')" title="Sätt kategori">+ kategori</span>`;
+}
+function decodeProdKey(key){try{return decodeURIComponent(escape(atob(key)))}catch(e){return ''}}
+
+function openCatDrop(el,mode,lineId,current,prodKey){
+  // Non-admin users can only suggest category changes
+  if(currentUser && currentUser.role !== 'admin'){
+    const desc = mode==='product' ? decodeProdKey(prodKey) : (el.closest('tr')?.querySelector('td')?.textContent || el.textContent);
+    suggestCategory(desc, current);
+    return;
+  }
+  closeCatDrop();
+  const dd=document.createElement('div');dd.className='cat-dropdown';dd.onclick=e=>e.stopPropagation();
+  dd.innerHTML=`<input class="cat-dropdown-search" placeholder="Sök kategori…" oninput="filterCatItems(this)">`+
+    ALL_CATEGORIES.map(c=>`<button class="cat-dropdown-item${c===current?' active':''}" data-cat="${c}" onclick="pickCat('${c}','${mode}',${lineId},'${prodKey}')">${c}</button>`).join('');
+  document.body.appendChild(dd);
+  // Position relative to the badge
+  const rect=el.getBoundingClientRect();
+  const spaceBelow=window.innerHeight-rect.bottom;
+  if(spaceBelow<300){dd.style.bottom=(window.innerHeight-rect.top+4)+'px';dd.style.left=rect.left+'px'}
+  else{dd.style.top=(rect.bottom+4)+'px';dd.style.left=rect.left+'px'}
+  openDropdown={el,dd};
+  setTimeout(()=>dd.querySelector('.cat-dropdown-search').focus(),50);
+}
+function filterCatItems(input){
+  const q=input.value.toLowerCase();
+  input.parentElement.querySelectorAll('.cat-dropdown-item').forEach(b=>{b.style.display=b.dataset.cat.includes(q)?'':'none'});
+}
+function closeCatDrop(){if(openDropdown){openDropdown.dd.remove();openDropdown=null}}
+document.addEventListener('click',()=>closeCatDrop());
+
+async function pickCat(cat,mode,lineId,prodKey){
+  closeCatDrop();
+  try{
+    let url,body,badge;
+    if(mode==='product'){
+      const desc=decodeProdKey(prodKey);
+      url=`${API}/products/category`;
+      body=JSON.stringify({description:desc,category:cat,create_rule:true});
+      badge=document.querySelector(`[data-prod-key="${prodKey}"]`);
+    }else{
+      url=`${API}/line-items/${lineId}/category`;
+      body=JSON.stringify({category:cat,create_rule:true});
+      badge=document.querySelector(`[data-line-id="${lineId}"]`);
+    }
+    const r=await authFetch(url,{method:'PUT',headers:{'Content-Type':'application/json'},body});
+    if(!r.ok){const txt=await r.text();showToast(`Fel ${r.status}: ${txt.substring(0,120)}`,true);return}
+    const d=await r.json();
+    if(d.status==='success'){
+      if(badge){badge.textContent=cat;badge.className='cat-badge cat-saved';setTimeout(()=>badge.classList.remove('cat-saved'),600)}
+      const rMsg=d.rule_created?' + regel skapad':d.rule_updated?' + regel uppdaterad':'';
+      if(mode==='product'){showToast(`${d.items_updated||0} rader → "${cat}"${rMsg} ✅`)}
+      else{showToast(`Kategori sparad${rMsg} ✅`)}
+    }else{showToast('Fel: '+(d.detail||'okänt'),true)}
+  }catch(e){showToast('Fel: '+e.message,true)}
+}
+
+async function showDocument(id){showView('detail');const el=document.getElementById('detail-content');el.innerHTML='<div class="loading"><div class="spinner"></div></div>';
+  const d=(await(await authFetch(`${API}/documents/${id}`)).json()).document;
+  el.innerHTML=`<div class="detail-header"><div><div class="detail-title">${esc(d.filename)}</div><div class="detail-meta">${typeBdg(d.document_type)}<span>${d.analysis_type}</span><span>${d.file_size_bytes?fmtB(d.file_size_bytes):''}</span><span>${fmtD(d.created_at)}</span></div></div><button class="btn btn-danger" onclick="deleteDoc('${d.id}')">Ta bort</button></div>
+  <div class="detail-grid"><div class="detail-card"><h3>Dokumentinfo</h3>${fR('Leverantör',d.vendor)}${fR('Fakturanr',d.invoice_number)}${fR('OCR',d.ocr_number)}${fR('Fakturadatum',d.invoice_date)}${fR('Förfallodatum',d.due_date)}</div><div class="detail-card"><h3>Belopp</h3>${fR('Totalbelopp',d.total_amount!=null?fmtC(d.total_amount):null)}${fR('Moms',d.vat_amount!=null?fmtC(d.vat_amount):null)}${fR('Valuta',d.currency)}${fR('Rabatt',d.discount)}</div></div>
+  ${d.line_items?.length?`<div class="detail-card" style="margin-bottom:1.5rem"><h3>Rader (${d.line_items.length}) <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400">— klicka på kategori för att ändra</span></h3><div class="table-wrapper" style="border:none"><table class="line-items-table"><thead><tr><th>Beskrivning</th><th>Kategori</th><th>Antal</th><th>Enhet</th><th>À-pris</th><th>Summa</th><th>Rabatt</th><th>Moms%</th><th>Vikt</th></tr></thead><tbody>${d.line_items.map(i=>`<tr><td>${esc(i.description||'—')}</td><td style="position:relative">${catBadge(i)}</td><td>${i.quantity??'—'}</td><td>${i.unit||'—'}</td><td class="amount">${i.unit_price!=null?fmtC(i.unit_price):'—'}</td><td class="amount">${i.total_price!=null?fmtC(i.total_price):'—'}</td><td class="amount" style="color:var(--accent-red,#ef4444)">${i.discount||'—'}</td><td>${i.vat_rate!=null?i.vat_rate+'%':'—'}</td><td>${i.weight!=null?i.weight+' kg':'—'}</td></tr>`).join('')}</tbody></table></div></div>`:''}
+  ${d.raw_analysis?`<div class="detail-card"><h3>Rå analys</h3><div class="raw-text">${esc(d.raw_analysis)}</div></div>`:''}`}
+async function deleteDoc(id){if(!confirm('Ta bort?'))return;await authFetch(`${API}/documents/${id}`,{method:'DELETE'});showView('documents')}
+
+// Rules
+let allRulesCache=[];
+function filterRules(b,s){document.querySelectorAll('#view-rules .filter-chip').forEach(c=>c.classList.remove('active'));b.classList.add('active');curRuleScope=s;renderFilteredRules()}
+function debounceRuleSearch(){clearTimeout(rTimer);rTimer=setTimeout(renderFilteredRules,300)}
+async function loadRules(){const el=document.getElementById('rules-list');el.innerHTML='<div class="loading"><div class="spinner"></div></div>';const d=await(await authFetch(`${API}/rules`)).json();
+  allRulesCache=d.rules||[];renderFilteredRules()}
+function renderFilteredRules(){
+  const el=document.getElementById('rules-list');
+  const searchQ=(document.getElementById('rule-search')?.value||'').toLowerCase();
+  let rules=allRulesCache;
+  if(curRuleScope)rules=rules.filter(r=>r.scope===curRuleScope);
+  if(searchQ)rules=rules.filter(r=>(r.name||'').toLowerCase().includes(searchQ)||(r.description||'').toLowerCase().includes(searchQ)||(r.condition_value||'').toLowerCase().includes(searchQ)||(r.action_value||'').toLowerCase().includes(searchQ));
+  if(!rules.length){el.innerHTML='<div class="empty-state">Inga regler matchar</div>';return}
+  el.innerHTML=rules.map(r=>`<div class="rule-card ${r.active?'':'inactive'}"><div class="rule-header"><div class="rule-name">${esc(r.name)} <span class="rule-badge ${r.scope==='line_item'?'scope-line':'scope-doc'}">${r.scope==='line_item'?'Rad':'Dok'}</span> <span class="rule-badge ${r.auto_generated?'auto':'manual'}">${r.auto_generated?'Auto':'Man'}</span> <span class="rule-badge ${r.active?'active-badge':'inactive-badge'}">${r.active?'Aktiv':'Av'}</span></div><div class="rule-actions"><span class="rule-applied">×${r.times_applied||0}</span><label class="toggle"><input type="checkbox" ${r.active?'checked':''} onchange="toggleRule(${r.id},this.checked)"><span class="toggle-slider"></span></label><button class="btn btn-ghost btn-sm" onclick='editRule(${JSON.stringify(r).replace(/'/g,"&#39;")})'>✏️</button><button class="btn btn-danger btn-sm" onclick="delRule(${r.id})">×</button></div></div>${r.description?`<div class="rule-desc">${esc(r.description)}</div>`:''}<div class="rule-details"><div class="rule-detail-box"><div class="rule-detail-label">Villkor</div><div class="rule-detail-value">${fL(r.condition_field)} ${opL(r.condition_operator)} "${esc(r.condition_value||'')}"</div></div><div class="rule-detail-box"><div class="rule-detail-label">Åtgärd</div><div class="rule-detail-value">${aL(r.action)} ${fL(r.target_field)} → "${esc(r.action_value||'')}"</div></div></div></div>`).join('')}
+async function toggleRule(id,a){await authFetch(`${API}/rules/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({active:a})});showToast(a?'Aktiverad':'Avaktiverad');loadRules()}
+async function delRule(id){if(!confirm('Ta bort?'))return;await authFetch(`${API}/rules/${id}`,{method:'DELETE'});showToast('Borttagen');loadRules()}
+async function applyAllRules(b){b.disabled=true;const o=b.innerHTML;b.innerHTML='Kör…';const d=await(await authFetch(`${API}/rules/apply-all`,{method:'POST'})).json();showToast(`${d.documents_updated} dok, ${d.line_items_updated} rader`);b.disabled=false;b.innerHTML=o}
+function openRuleModal(){document.getElementById('modal-title').textContent='Ny regel';document.getElementById('rule-edit-id').value='';['rule-name','rule-desc','rule-cond-value','rule-action-value'].forEach(x=>document.getElementById(x).value='');document.getElementById('rule-active').checked=true;setRuleScope('document',document.querySelector('.scope-tab'));document.getElementById('rule-modal').classList.add('open')}
+function editRule(r){document.getElementById('modal-title').textContent='Redigera';document.getElementById('rule-edit-id').value=r.id;setRuleScope(r.scope||'document',document.querySelectorAll('.scope-tab')[r.scope==='line_item'?1:0]);document.getElementById('rule-name').value=r.name||'';document.getElementById('rule-desc').value=r.description||'';document.getElementById('rule-type').value=r.rule_type||'';document.getElementById('rule-active').checked=r.active;document.getElementById('rule-cond-field').value=r.condition_field||'';document.getElementById('rule-cond-op').value=r.condition_operator||'';document.getElementById('rule-cond-value').value=r.condition_value||'';document.getElementById('rule-target').value=r.target_field||'';document.getElementById('rule-action').value=r.action||'';document.getElementById('rule-action-value').value=r.action_value||'';document.getElementById('rule-modal').classList.add('open')}
+function closeRuleModal(){document.getElementById('rule-modal').classList.remove('open')}
+async function saveRule(){const id=document.getElementById('rule-edit-id').value;const b={name:document.getElementById('rule-name').value,description:document.getElementById('rule-desc').value,scope:document.getElementById('rule-scope').value,rule_type:document.getElementById('rule-type').value,active:document.getElementById('rule-active').checked,condition_field:document.getElementById('rule-cond-field').value,condition_operator:document.getElementById('rule-cond-op').value,condition_value:document.getElementById('rule-cond-value').value,target_field:document.getElementById('rule-target').value,action:document.getElementById('rule-action').value,action_value:document.getElementById('rule-action-value').value};
+  if(id)await authFetch(`${API}/rules/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});else await authFetch(`${API}/rules`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});showToast(id?'Uppdaterad':'Skapad');closeRuleModal();loadRules()}
+
+// Upload queue
+const uploadQueue=[];let queueRunning=false;let queueIdCounter=0;
+
+const dz=document.getElementById('drop-zone');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('dragover')});
+dz.addEventListener('dragleave',()=>dz.classList.remove('dragover'));
+dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('dragover');if(e.dataTransfer.files.length)addToQueue([...e.dataTransfer.files])});
+function handleFileSelect(e){addToQueue([...e.target.files]);e.target.value=''}
+
+function addToQueue(files){
+  const t=document.getElementById('upload-type').value;
+  const l=document.getElementById('upload-lang').value;
+  for(const f of files){
+    uploadQueue.push({id:++queueIdCounter,file:f,type:t,lang:l,status:'pending',result:null,error:null});
+  }
+  renderQueue();processQueue();
+}
+function renderQueue(){
+  const sec=document.getElementById('queue-section');
+  const el=document.getElementById('queue-list');
+  if(!uploadQueue.length){sec.style.display='none';updateQueueBadge();return}
+  sec.style.display='';
+  const pending=uploadQueue.filter(q=>q.status==='pending').length;
+  const processing=uploadQueue.filter(q=>q.status==='processing').length;
+  const done=uploadQueue.filter(q=>q.status==='done').length;
+  const dupes=uploadQueue.filter(q=>q.status==='duplicate').length;
+  const errors=uploadQueue.filter(q=>q.status==='error').length;
+  document.getElementById('queue-status').textContent=
+    `${done} klara` + (dupes?`, ${dupes} dubletter`:'') + (processing?`, ${processing} analyserar`:'') + (pending?`, ${pending} väntar`:'') + (errors?`, ${errors} fel`:'');
+  el.innerHTML=uploadQueue.map(q=>{
+    let statusHtml='';
+    if(q.status==='pending')statusHtml='<span class="qi-status pending">Väntar…</span>';
+    else if(q.status==='processing'){const elapsed=q._startTime?Math.round((Date.now()-q._startTime)/1000):0;statusHtml=`<div class="qi-progress"><div class="qi-progress-fill" style="width:${Math.min(95,elapsed*1.5)}%"></div></div><span class="qi-status processing"><span class="qi-spinner"></span>Analyserar${elapsed>3?' ('+elapsed+'s)':''}</span>`}
+    else if(q.status==='done')statusHtml=`<span class="qi-status done">✓ Klar</span><button class="btn btn-ghost btn-sm" onclick="showDocument('${q.docId}')" style="font-size:0.72rem">Visa</button>`;
+    else if(q.status==='duplicate')statusHtml=`<span class="qi-status pending" title="${esc(q.error||'')}">⊘ Finns redan</span>`;
+    else if(q.status==='error')statusHtml=`<span class="qi-status error" title="${esc(q.error||'')}">✕ Fel</span><button class="btn btn-ghost btn-sm" onclick="retryQueueItem(${q.id})" style="font-size:0.72rem">↻</button>`;
+    return`<div class="queue-item" data-qid="${q.id}"><span class="qi-name">${esc(q.file.name)}</span><span class="qi-size">${fmtB(q.file.size)}</span>${statusHtml}</div>`;
+  }).join('');
+  updateQueueBadge();
+}
+function updateQueueBadge(){
+  const badge=document.getElementById('queue-badge');
+  const active=uploadQueue.filter(q=>q.status==='pending'||q.status==='processing').length;
+  if(active>0){badge.textContent=active;badge.style.display=''}
+  else{badge.style.display='none'}
+  // Refresh elapsed timer while processing
+  clearInterval(window._queueTimer);
+  if(uploadQueue.some(q=>q.status==='processing')){
+    window._queueTimer=setInterval(renderQueue,1000);
+  }
+}
+async function processQueue(){
+  if(queueRunning)return;queueRunning=true;
+  while(true){
+    const item=uploadQueue.find(q=>q.status==='pending');
+    if(!item)break;
+    item.status='processing';item._startTime=Date.now();renderQueue();
+    try{
+      const fd=new FormData();
+      fd.append('file',item.file);fd.append('language',item.lang);
+      const ctrl=new AbortController();
+      const timer=setTimeout(()=>ctrl.abort(),150000); // 150s timeout
+      const r=await authFetch(`${API}/${item.type}`,{method:'POST',body:fd,signal:ctrl.signal});
+      clearTimeout(timer);
+      if(r.status===409){
+        const d=await r.json();
+        item.status='duplicate';item.error=d.detail||'Redan uppladdad';
+      } else if(!r.ok){
+        throw new Error(`HTTP ${r.status}`);
+      } else {
+        const d=await r.json();
+        item.status='done';
+        item.docId=d.document_id||d.document?.id||d.id||'';
+        item.result=d;
+      }
+    }catch(e){
+      item.status='error';item.error=e.name==='AbortError'?'Timeout — tog för lång tid':e.message;
+    }
+    renderQueue();
+  }
+  queueRunning=false;
+  const done=uploadQueue.filter(q=>q.status==='done').length;
+  const dupes=uploadQueue.filter(q=>q.status==='duplicate').length;
+  const errors=uploadQueue.filter(q=>q.status==='error').length;
+  if(done>0||errors>0||dupes>0){
+    let msg=`Kö klar: ${done} analyserade`;
+    if(dupes)msg+=`, ${dupes} dubletter`;
+    if(errors)msg+=`, ${errors} fel`;
+    showToast(msg+(errors?'':' ✅'),errors>0);
+  }
+}
+function retryQueueItem(id){
+  const item=uploadQueue.find(q=>q.id===id);
+  if(item){item.status='pending';item.error=null;renderQueue();processQueue()}
+}
+function clearFinished(){
+  const keep=uploadQueue.filter(q=>q.status==='pending'||q.status==='processing');
+  uploadQueue.length=0;uploadQueue.push(...keep);renderQueue();
+}
+
+document.getElementById('rule-modal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeRuleModal()});
+document.getElementById('merge-modal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeMergeModal()});
+setRuleScope('document',document.querySelector('.scope-tab'));
+
+// ── Init: check auth state ──
+// Enter key handlers
+document.getElementById('login-password')?.addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+document.getElementById('reg-password')?.addEventListener('keydown',e=>{if(e.key==='Enter')doRegister();});
+document.getElementById('forgot-email')?.addEventListener('keydown',e=>{if(e.key==='Enter')doForgotPassword();});
+document.getElementById('reset-password2')?.addEventListener('keydown',e=>{if(e.key==='Enter')doResetPassword();});
+
+const urlParams=new URLSearchParams(window.location.search);
+if(window.location.pathname==='/reset-password'&&urlParams.has('token')){
+  showAuthForm('reset');
+}else if(window.location.pathname==='/verify'&&urlParams.has('token')){
+  // Email verification
+  (async()=>{
+    try{
+      const r=await fetch(`/api/v1/auth/verify?token=${urlParams.get('token')}`);
+      const d=await r.json();
+      if(r.ok){
+        showAuthForm('login');
+        document.getElementById('login-error').textContent='✅ E-post verifierad! Du kan nu logga in.';
+        document.getElementById('login-error').style.display='block';
+        document.getElementById('login-error').style.color='var(--accent-green)';
+      }else{
+        showAuthForm('login');
+        document.getElementById('login-error').textContent=d.detail||'Verifieringen misslyckades';
+        document.getElementById('login-error').style.display='block';
+      }
+    }catch(e){showAuthForm('login');}
+    window.history.replaceState({},'','/');
+  })();
+}else if(authToken){
+  enterApp();
+}else{
+  document.getElementById('login-screen').style.display='flex';
+}
+</script>
+</body>
+</html>
