@@ -18,4 +18,4 @@ SQLAlchemy==2.0.36
 # Utilities
 pydantic==2.10.4
 pydantic-settings==2.7.1
-aiofiles==24.1.0
+aiofiles==24.1.0psycopg2-binary

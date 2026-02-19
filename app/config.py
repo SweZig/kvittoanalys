@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     claude_model: str = "claude-sonnet-4-5-20250929"
     claude_max_tokens: int = 4096
 
+    # Database
+    database_url: str = ""  # PostgreSQL URL, e.g. postgresql://user:pass@host:5432/db. Empty = local SQLite.
+
     # Auth / JWT
     jwt_secret: str = "kvittoanalys-dev-secret-change-in-production"  # CHANGE IN PROD
 
