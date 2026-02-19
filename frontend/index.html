@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="sv">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>Kvittoanalys — Dashboard</title>
+  <title>Kvittoanalys â€” Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,500;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
   <style>
@@ -163,7 +163,7 @@
     .chain-badge{display:inline-block;padding:0.15rem 0.5rem;border-radius:99px;font-size:0.75rem;font-weight:600}
     .chain-ica{background:rgba(239,68,68,0.12);color:#ef4444}
     .chain-coop{background:rgba(34,197,94,0.12);color:#22c55e}
-    .chain-hemköp{background:rgba(234,179,8,0.12);color:#ca8a04}
+    .chain-hemkÃ¶p{background:rgba(234,179,8,0.12);color:#ca8a04}
     .chain-willys{background:rgba(239,68,68,0.12);color:#dc2626}
     .chain-lidl{background:rgba(59,130,246,0.12);color:#2563eb}
     .chain-other{background:rgba(148,163,184,0.12);color:var(--text-secondary)}
@@ -268,7 +268,7 @@
     /* Impersonate */
     .user-name.admin-clickable{cursor:pointer;padding:0.2rem 0.5rem;border-radius:var(--radius-sm);transition:all var(--transition)}
     .user-name.admin-clickable:hover{background:var(--accent-glow);color:var(--accent)}
-    .user-name.admin-clickable::after{content:'▾';margin-left:0.3rem;font-size:0.7rem;opacity:0.5}
+    .user-name.admin-clickable::after{content:'â–¾';margin-left:0.3rem;font-size:0.7rem;opacity:0.5}
     .impersonate-dropdown{position:absolute;top:100%;right:0;margin-top:0.5rem;background:var(--bg-card);border:1px solid var(--border-light);border-radius:var(--radius);box-shadow:0 8px 32px rgba(0,0,0,0.5);min-width:260px;max-height:350px;overflow:hidden;z-index:110;display:none}
     .impersonate-dropdown.open{display:block}
     .impersonate-dropdown .imp-search{width:calc(100% - 1rem);margin:0.5rem;padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-input);color:var(--text-primary);font-size:0.82rem;font-family:var(--font);outline:none}
@@ -285,7 +285,7 @@
     .cat-bar-compare{height:6px;border-radius:2px;margin-top:2px;opacity:0.4}
     .cat-bar-total{border-top:1px solid var(--border);padding-top:0.75rem;margin-top:0.75rem}
 
-    /* ── Auth overlay ────────────────────────── */
+    /* â”€â”€ Auth overlay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
     #login-screen{position:fixed;inset:0;z-index:9999;background:var(--bg-primary);display:flex;align-items:center;justify-content:center;font-family:var(--font)}
     .login-box{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:2.5rem;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.4)}
     .login-box h2{font-size:1.5rem;color:var(--text-primary);margin-bottom:0.3rem;display:flex;align-items:center;gap:0.6rem}
@@ -302,7 +302,7 @@
     .login-box .success-msg{color:var(--accent-green);font-size:0.82rem;margin-bottom:0.5rem;display:none}
     .login-box select{width:100%;padding:0.6rem 0.8rem;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:0.9rem;margin-bottom:0.9rem;font-family:var(--font)}
 
-    /* ── User management ─────────────────────── */
+    /* â”€â”€ User management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
     .user-row{display:grid;grid-template-columns:1fr 120px 100px 80px 100px;align-items:center;gap:0.5rem;padding:0.6rem 0.8rem;border-bottom:1px solid var(--border);font-size:0.85rem}
     .user-row:hover{background:var(--bg-card-hover)}
     .user-row .email{color:var(--text-primary);font-weight:500}
@@ -321,83 +321,83 @@
 </head>
 <body>
 
-<!-- ── Login/Register screen ── -->
+<!-- â”€â”€ Login/Register screen â”€â”€ -->
 <div id="login-screen">
   <div class="login-box">
     <div id="login-form">
       <h2><svg viewBox="0 0 80 100" style="width:28px;height:35px;vertical-align:middle"><defs><linearGradient id="lg1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#4A9EFF"/><stop offset="100%" style="stop-color:#34D399"/></linearGradient><linearGradient id="lb1" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" style="stop-color:#4A9EFF"/><stop offset="100%" style="stop-color:#6DB8FF"/></linearGradient><linearGradient id="lb2" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" style="stop-color:#34D399"/><stop offset="100%" style="stop-color:#5EEDB8"/></linearGradient></defs><path d="M4 6C4 2.7 6.7 0 10 0L70 0C73.3 0 76 2.7 76 6L76 88 66 80 56 88 46 80 36 88 26 80 16 88 4 80Z" fill="url(#lg1)" opacity=".15" stroke="url(#lg1)" stroke-width="2"/><rect x="16" y="28" width="12" height="40" rx="3" fill="url(#lb1)"/><rect x="34" y="16" width="12" height="52" rx="3" fill="url(#lb2)"/><rect x="52" y="36" width="12" height="32" rx="3" fill="url(#lb1)" opacity=".75"/><line x1="14" y1="12" x2="66" y2="12" stroke="url(#lg1)" stroke-width="1.5" opacity=".35"/><line x1="14" y1="74" x2="66" y2="74" stroke="url(#lg1)" stroke-width="1.5" opacity=".35"/></svg> Logga in</h2>
-      <p class="sub">Logga in på ditt Kvittoanalys-konto</p>
+      <p class="sub">Logga in pÃ¥ ditt Kvittoanalys-konto</p>
       <div id="login-error" class="error-msg"></div>
       <label>E-postadress</label>
       <input type="email" id="login-email" placeholder="namn@exempel.se" autocomplete="email">
-      <label>Lösenord</label>
-      <input type="password" id="login-password" placeholder="••••••" autocomplete="current-password">
+      <label>LÃ¶senord</label>
+      <input type="password" id="login-password" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢" autocomplete="current-password">
       <button class="btn-login" onclick="doLogin()">Logga in</button>
       <div class="toggle-row">
         <span class="link" onclick="showAuthForm('register')">Skapa konto</span>
-        <span class="link" onclick="showAuthForm('forgot')">Glömt lösenord?</span>
+        <span class="link" onclick="showAuthForm('forgot')">GlÃ¶mt lÃ¶senord?</span>
       </div>
     </div>
 
     <div id="register-form" style="display:none">
       <h2><svg viewBox="0 0 80 100" style="width:28px;height:35px;vertical-align:middle"><defs><linearGradient id="lg2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#4A9EFF"/><stop offset="100%" style="stop-color:#34D399"/></linearGradient></defs><path d="M4 6C4 2.7 6.7 0 10 0L70 0C73.3 0 76 2.7 76 6L76 88 66 80 56 88 46 80 36 88 26 80 16 88 4 80Z" fill="url(#lg2)" opacity=".15" stroke="url(#lg2)" stroke-width="2"/><rect x="16" y="28" width="12" height="40" rx="3" fill="#4A9EFF"/><rect x="34" y="16" width="12" height="52" rx="3" fill="#34D399"/><rect x="52" y="36" width="12" height="32" rx="3" fill="#4A9EFF" opacity=".75"/></svg> Skapa konto</h2>
-      <p class="sub">Registrera dig för att börja spåra utgifter</p>
+      <p class="sub">Registrera dig fÃ¶r att bÃ¶rja spÃ¥ra utgifter</p>
       <div id="reg-error" class="error-msg"></div>
       <div id="reg-success" class="success-msg"></div>
       <label>Visningsnamn</label>
       <input type="text" id="reg-name" placeholder="Ditt namn">
       <label>E-postadress</label>
       <input type="email" id="reg-email" placeholder="namn@exempel.se" autocomplete="email">
-      <label>Lösenord (minst 6 tecken)</label>
-      <input type="password" id="reg-password" placeholder="••••••">
-      <label>Välj ort (för kampanjer)</label>
+      <label>LÃ¶senord (minst 6 tecken)</label>
+      <input type="password" id="reg-password" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢">
+      <label>VÃ¤lj ort (fÃ¶r kampanjer)</label>
       <select id="reg-city">
-        <option value="">— Välj ort —</option>
+        <option value="">â€” VÃ¤lj ort â€”</option>
         <option value="Stockholm">Stockholm</option>
-        <option value="Göteborg">Göteborg</option>
-        <option value="Malmö">Malmö</option>
+        <option value="GÃ¶teborg">GÃ¶teborg</option>
+        <option value="MalmÃ¶">MalmÃ¶</option>
         <option value="Uppsala">Uppsala</option>
-        <option value="Linköping">Linköping</option>
-        <option value="Örebro">Örebro</option>
-        <option value="Västerås">Västerås</option>
-        <option value="Norrköping">Norrköping</option>
+        <option value="LinkÃ¶ping">LinkÃ¶ping</option>
+        <option value="Ã–rebro">Ã–rebro</option>
+        <option value="VÃ¤sterÃ¥s">VÃ¤sterÃ¥s</option>
+        <option value="NorrkÃ¶ping">NorrkÃ¶ping</option>
         <option value="Helsingborg">Helsingborg</option>
-        <option value="Jönköping">Jönköping</option>
-        <option value="Umeå">Umeå</option>
+        <option value="JÃ¶nkÃ¶ping">JÃ¶nkÃ¶ping</option>
+        <option value="UmeÃ¥">UmeÃ¥</option>
         <option value="Lund">Lund</option>
         <option value="Karlstad">Karlstad</option>
-        <option value="Gävle">Gävle</option>
+        <option value="GÃ¤vle">GÃ¤vle</option>
         <option value="Sundsvall">Sundsvall</option>
       </select>
       <button class="btn-login" onclick="doRegister()">Skapa konto</button>
       <div class="toggle-row">
-        <span class="link" onclick="showAuthForm('login')">← Tillbaka till inloggning</span>
+        <span class="link" onclick="showAuthForm('login')">â† Tillbaka till inloggning</span>
       </div>
     </div>
 
     <div id="forgot-form" style="display:none">
-      <h2>Återställ lösenord</h2>
-      <p class="sub">Ange din e-postadress för att få en återställningslänk</p>
+      <h2>Ã…terstÃ¤ll lÃ¶senord</h2>
+      <p class="sub">Ange din e-postadress fÃ¶r att fÃ¥ en Ã¥terstÃ¤llningslÃ¤nk</p>
       <div id="forgot-error" class="error-msg"></div>
       <div id="forgot-success" class="success-msg"></div>
       <label>E-postadress</label>
       <input type="email" id="forgot-email" placeholder="namn@exempel.se">
-      <button class="btn-login" onclick="doForgotPassword()">Skicka återställningslänk</button>
+      <button class="btn-login" onclick="doForgotPassword()">Skicka Ã¥terstÃ¤llningslÃ¤nk</button>
       <div class="toggle-row">
-        <span class="link" onclick="showAuthForm('login')">← Tillbaka till inloggning</span>
+        <span class="link" onclick="showAuthForm('login')">â† Tillbaka till inloggning</span>
       </div>
     </div>
 
     <div id="reset-form" style="display:none">
-      <h2>Nytt lösenord</h2>
-      <p class="sub">Ange ditt nya lösenord</p>
+      <h2>Nytt lÃ¶senord</h2>
+      <p class="sub">Ange ditt nya lÃ¶senord</p>
       <div id="reset-error" class="error-msg"></div>
       <div id="reset-success" class="success-msg"></div>
-      <label>Nytt lösenord (minst 6 tecken)</label>
-      <input type="password" id="reset-password" placeholder="••••••">
-      <label>Bekräfta lösenord</label>
-      <input type="password" id="reset-password2" placeholder="••••••">
-      <button class="btn-login" onclick="doResetPassword()">Spara lösenord</button>
+      <label>Nytt lÃ¶senord (minst 6 tecken)</label>
+      <input type="password" id="reset-password" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢">
+      <label>BekrÃ¤fta lÃ¶senord</label>
+      <input type="password" id="reset-password2" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢">
+      <button class="btn-login" onclick="doResetPassword()">Spara lÃ¶senord</button>
     </div>
   </div>
 </div>
@@ -411,24 +411,24 @@
     <button class="nav-item" data-view="documents" onclick="showView('documents')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Dokument</button>
     <button class="nav-item" data-view="rules" onclick="showView('rules')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>Regler</button>
     <button class="nav-item" data-view="upload" onclick="showView('upload')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Ladda upp<span id="queue-badge" class="queue-badge" style="display:none">0</span></button>
-    <button class="nav-item admin-only" data-view="users" onclick="showView('users')" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Användare</button>
+    <button class="nav-item admin-only" data-view="users" onclick="showView('users')" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>AnvÃ¤ndare</button>
     <div class="sidebar-footer"><span class="status-dot"></span><span>API ansluten</span></div>
   </nav>
   <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeMobileMenu()"></div>
-  <header class="header"><div style="display:flex;align-items:center"><button class="hamburger" id="hamburger-btn" onclick="toggleMobileMenu()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button><h1 id="header-title">Dashboard</h1></div><div style="display:flex;align-items:center;gap:1rem"><div class="user-info-bar" style="position:relative"><span class="user-name" id="user-display-name" onclick="toggleImpersonateDropdown(event)"></span><span id="user-role-badge" class="role-badge"></span><button class="logout-btn" onclick="doLogout()">Logga ut</button><div class="impersonate-dropdown" id="impersonate-dropdown"><input class="imp-search" id="imp-search" placeholder="Sök användare…" oninput="filterImpersonateList(this.value)"><div class="imp-list" id="imp-list"></div></div></div><button class="btn btn-primary" onclick="showView('upload')">+ Nytt dokument</button></div></header>
+  <header class="header"><div style="display:flex;align-items:center"><button class="hamburger" id="hamburger-btn" onclick="toggleMobileMenu()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button><h1 id="header-title">Dashboard</h1></div><div style="display:flex;align-items:center;gap:1rem"><div class="user-info-bar" style="position:relative"><span class="user-name" id="user-display-name" onclick="toggleImpersonateDropdown(event)"></span><span id="user-role-badge" class="role-badge"></span><button class="logout-btn" onclick="doLogout()">Logga ut</button><div class="impersonate-dropdown" id="impersonate-dropdown"><input class="imp-search" id="imp-search" placeholder="SÃ¶k anvÃ¤ndareâ€¦" oninput="filterImpersonateList(this.value)"><div class="imp-list" id="imp-list"></div></div></div><button class="btn btn-primary" onclick="showView('upload')">+ Nytt dokument</button></div></header>
 
   <main class="main">
-    <div class="impersonate-banner" id="impersonate-banner" style="display:none"><span id="impersonate-label">Visar som: —</span><button onclick="stopImpersonating()">✕ Avsluta</button></div>
+    <div class="impersonate-banner" id="impersonate-banner" style="display:none"><span id="impersonate-label">Visar som: â€”</span><button onclick="stopImpersonating()">âœ• Avsluta</button></div>
     <!-- Dashboard -->
     <div id="view-dashboard" class="view active">
       <div class="stats-grid">
-        <div class="stat-card"><div class="stat-label">Dokument</div><div class="stat-value" id="stat-total">—</div></div>
-        <div class="stat-card"><div class="stat-label">Totalt belopp</div><div class="stat-value" id="stat-amount">—</div><div class="stat-sub" id="stat-currency"></div></div>
-        <div class="stat-card"><div class="stat-label">Produktrader</div><div class="stat-value" id="stat-lines">—</div></div>
-        <div class="stat-card"><div class="stat-label">Kategorier</div><div class="stat-value" id="stat-cats">—</div></div>
+        <div class="stat-card"><div class="stat-label">Dokument</div><div class="stat-value" id="stat-total">â€”</div></div>
+        <div class="stat-card"><div class="stat-label">Totalt belopp</div><div class="stat-value" id="stat-amount">â€”</div><div class="stat-sub" id="stat-currency"></div></div>
+        <div class="stat-card"><div class="stat-label">Produktrader</div><div class="stat-value" id="stat-lines">â€”</div></div>
+        <div class="stat-card"><div class="stat-label">Kategorier</div><div class="stat-value" id="stat-cats">â€”</div></div>
       </div>
       <div class="detail-grid">
-        <div class="detail-card"><h3>Topp-leverantörer</h3><div id="vendors-breakdown" class="vendor-list"></div></div>
+        <div class="detail-card"><h3>Topp-leverantÃ¶rer</h3><div id="vendors-breakdown" class="vendor-list"></div></div>
         <div class="detail-card"><h3>Per dokumenttyp</h3><div id="types-breakdown" class="vendor-list"></div></div>
       </div>
       <h3 style="margin-bottom:1rem;font-size:1rem;">Senaste dokument</h3>
@@ -441,34 +441,34 @@
       <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem;flex-wrap:wrap;">
         <div style="display:flex;gap:0.25rem;" id="period-tabs">
           <button class="filter-chip" onclick="setPeriod('week',this)">Vecka</button>
-          <button class="filter-chip" onclick="setPeriod('month',this)">Månad</button>
+          <button class="filter-chip" onclick="setPeriod('month',this)">MÃ¥nad</button>
           <button class="filter-chip" onclick="setPeriod('quarter',this)">Kvartal</button>
-          <button class="filter-chip" onclick="setPeriod('year',this)">År</button>
+          <button class="filter-chip" onclick="setPeriod('year',this)">Ã…r</button>
           <button class="filter-chip active" onclick="setPeriod('all',this)">Totalt</button>
         </div>
         <div id="period-nav" style="display:none;align-items:center;gap:0.4rem;">
-          <button class="btn btn-ghost btn-sm" onclick="shiftPeriod(-1)">←</button>
+          <button class="btn btn-ghost btn-sm" onclick="shiftPeriod(-1)">â†</button>
           <span id="period-label" style="font-size:0.9rem;font-weight:500;min-width:120px;text-align:center;"></span>
-          <button class="btn btn-ghost btn-sm" onclick="shiftPeriod(1)">→</button>
+          <button class="btn btn-ghost btn-sm" onclick="shiftPeriod(1)">â†’</button>
         </div>
         <label style="display:flex;align-items:center;gap:0.35rem;font-size:0.82rem;color:var(--text-secondary);cursor:pointer;margin-left:auto;" id="compare-toggle-wrap" class="hidden">
-          <input type="checkbox" id="compare-toggle" onchange="loadCatChart()"> Jämför med föregående
+          <input type="checkbox" id="compare-toggle" onchange="loadCatChart()"> JÃ¤mfÃ¶r med fÃ¶regÃ¥ende
         </label>
       </div>
       <div id="cat-chart" class="detail-card" style="margin-bottom:1rem;padding:1.5rem;"></div>
-      <div id="migrate-btn-wrap" style="margin-bottom:1rem;display:none;"><button class="btn btn-ghost btn-sm" onclick="migrateCategories()" id="migrate-btn">🔄 Migrera kategorier till ny struktur</button></div>
-      <div id="discount-cleanup-wrap" style="margin-bottom:1rem;"><button class="btn btn-ghost btn-sm" onclick="cleanupDiscounts()" id="discount-btn" title="Koppla ihop rabattrader (t.ex. Willys plus:nötfärs) med rätt produkt och ta bort dubbletter">🔗 Länka rabattrader till produkter</button></div>
+      <div id="migrate-btn-wrap" style="margin-bottom:1rem;display:none;"><button class="btn btn-ghost btn-sm" onclick="migrateCategories()" id="migrate-btn">ðŸ”„ Migrera kategorier till ny struktur</button></div>
+      <div id="discount-cleanup-wrap" style="margin-bottom:1rem;"><button class="btn btn-ghost btn-sm" onclick="cleanupDiscounts()" id="discount-btn" title="Koppla ihop rabattrader (t.ex. Willys plus:nÃ¶tfÃ¤rs) med rÃ¤tt produkt och ta bort dubbletter">ðŸ”— LÃ¤nka rabattrader till produkter</button></div>
 
       <!-- Global filter bar -->
       <div class="analytics-filter-bar">
         <div class="filter-group">
           <select id="global-cat-filter" onchange="setGlobalCategory(this.value)"><option value="">Alla kategorier</option></select>
-          <select id="global-vendor-filter" onchange="setGlobalVendor(this.value)"><option value="">Alla leverantörer</option></select>
+          <select id="global-vendor-filter" onchange="setGlobalVendor(this.value)"><option value="">Alla leverantÃ¶rer</option></select>
         </div>
         <div class="filter-group">
           <div id="active-filters" style="display:none;">
             <span id="active-filter-tags"></span>
-            <button class="btn btn-ghost btn-sm" onclick="resetFilters()" title="Rensa filter">✕ Rensa</button>
+            <button class="btn btn-ghost btn-sm" onclick="resetFilters()" title="Rensa filter">âœ• Rensa</button>
           </div>
           <select id="page-size-select" onchange="changePageSize(+this.value)" style="width:auto;min-width:70px;">
             <option value="20">20</option><option value="40">40</option><option value="60">60</option><option value="0">Alla</option>
@@ -478,32 +478,32 @@
 
       <!-- Sub-tabs -->
       <div style="display:flex;gap:0.5rem;margin-bottom:1rem;">
-        <button class="filter-chip active" onclick="switchAnalyticsTab(this,'products')">📦 Produkter</button>
-        <button class="filter-chip" onclick="switchAnalyticsTab(this,'vendors')">🏪 Leverantörer</button>
-        <button class="filter-chip" onclick="switchAnalyticsTab(this,'vendor-compare')">⚖️ Prisjämförelse</button>
-        <button class="filter-chip" onclick="switchAnalyticsTab(this,'price-trends')">📈 Prisutveckling</button>
+        <button class="filter-chip active" onclick="switchAnalyticsTab(this,'products')">ðŸ“¦ Produkter</button>
+        <button class="filter-chip" onclick="switchAnalyticsTab(this,'vendors')">ðŸª LeverantÃ¶rer</button>
+        <button class="filter-chip" onclick="switchAnalyticsTab(this,'vendor-compare')">âš–ï¸ PrisjÃ¤mfÃ¶relse</button>
+        <button class="filter-chip" onclick="switchAnalyticsTab(this,'price-trends')">ðŸ“ˆ Prisutveckling</button>
       </div>
 
       <!-- Products tab -->
       <div id="analytics-products">
         <div class="toolbar">
-          <div class="search-box" style="max-width:300px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" id="prod-search" placeholder="Sök produkt…" oninput="debounceProducts()"></div>
+          <div class="search-box" style="max-width:300px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" id="prod-search" placeholder="SÃ¶k produktâ€¦" oninput="debounceProducts()"></div>
         </div>
         <div id="merge-bar" class="merge-bar" style="display:none;">
           <span id="merge-count">0 valda</span>
-          <button class="btn btn-primary btn-sm" onclick="openMergeModal()">🔗 Slå ihop</button>
+          <button class="btn btn-primary btn-sm" onclick="openMergeModal()">ðŸ”— SlÃ¥ ihop</button>
           <button class="btn btn-ghost btn-sm" onclick="clearMergeSelection()">Avmarkera</button>
         </div>
         <div class="table-wrapper" style="margin-bottom:1.5rem;">
-          <table><thead><tr><th style="width:30px"><input type="checkbox" id="prod-select-all" onchange="toggleAllProducts(this.checked)"></th><th>Produkt</th><th>Kategori</th><th>Köp</th><th>Antal</th><th>Spenderat</th><th>Snittpris</th><th>Min</th><th>Max</th><th></th></tr></thead>
+          <table><thead><tr><th style="width:30px"><input type="checkbox" id="prod-select-all" onchange="toggleAllProducts(this.checked)"></th><th>Produkt</th><th>Kategori</th><th>KÃ¶p</th><th>Antal</th><th>Spenderat</th><th>Snittpris</th><th>Min</th><th>Max</th><th></th></tr></thead>
           <tbody id="prod-tbody"></tbody></table>
-          <div class="pagination"><span id="prod-pag">—</span><div style="display:flex;gap:0.5rem;"><button class="btn btn-ghost btn-sm" id="prod-prev" onclick="prodPage--;loadProducts()" disabled>←</button><button class="btn btn-ghost btn-sm" id="prod-next" onclick="prodPage++;loadProducts()">→</button></div></div>
+          <div class="pagination"><span id="prod-pag">â€”</span><div style="display:flex;gap:0.5rem;"><button class="btn btn-ghost btn-sm" id="prod-prev" onclick="prodPage--;loadProducts()" disabled>â†</button><button class="btn btn-ghost btn-sm" id="prod-next" onclick="prodPage++;loadProducts()">â†’</button></div></div>
         </div>
         <div id="price-section" style="display:none;">
           <div class="chart-container">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
               <h3 id="price-title" style="margin:0;">Prisutveckling</h3>
-              <button class="btn btn-ghost btn-sm" onclick="document.getElementById('price-section').style.display='none'">✕ Stäng</button>
+              <button class="btn btn-ghost btn-sm" onclick="document.getElementById('price-section').style.display='none'">âœ• StÃ¤ng</button>
             </div>
             <div id="price-chart"></div>
             <div id="price-table" style="margin-top:1rem;"></div>
@@ -515,7 +515,7 @@
       <div id="analytics-vendors" style="display:none;">
         <div id="vendor-merge-bar" class="merge-bar" style="display:none;">
           <span id="vendor-merge-count">0 valda</span>
-          <button class="btn btn-primary btn-sm" onclick="openVendorMergeModal()">🔗 Slå ihop</button>
+          <button class="btn btn-primary btn-sm" onclick="openVendorMergeModal()">ðŸ”— SlÃ¥ ihop</button>
           <button class="btn btn-ghost btn-sm" onclick="clearVendorSelection()">Avmarkera</button>
         </div>
         <div class="table-wrapper">
@@ -527,7 +527,7 @@
       <!-- Vendor Compare tab -->
       <div id="analytics-vendor-compare" style="display:none;">
         <div class="toolbar">
-          <div class="search-box" style="max-width:300px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" id="vc-search" placeholder="Sök produkt…" oninput="debounceVC()"></div>
+          <div class="search-box" style="max-width:300px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" id="vc-search" placeholder="SÃ¶k produktâ€¦" oninput="debounceVC()"></div>
         </div>
         <div id="vc-content"></div>
       </div>
@@ -535,7 +535,7 @@
       <!-- Price Trends tab -->
       <div id="analytics-price-trends" style="display:none;">
         <div class="toolbar">
-          <div class="search-box" style="max-width:300px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" id="pt-search" placeholder="Sök produkt…" oninput="debouncePT()"></div>
+          <div class="search-box" style="max-width:300px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" id="pt-search" placeholder="SÃ¶k produktâ€¦" oninput="debouncePT()"></div>
         </div>
         <div id="pt-content"></div>
       </div>
@@ -546,7 +546,7 @@
       <div class="toolbar" style="flex-wrap:wrap;">
         <div class="filter-group" style="gap:0.5rem;">
           <select id="camp-city" style="padding:0.4rem 0.6rem;border-radius:var(--radius);border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:0.82rem;">
-            <option value="">Välj ort…</option>
+            <option value="">VÃ¤lj ortâ€¦</option>
           </select>
           <select id="camp-chain-filter" style="padding:0.4rem 0.6rem;border-radius:var(--radius);border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:0.82rem;">
             <option value="">Alla kedjor</option>
@@ -555,7 +555,7 @@
             <input type="checkbox" id="camp-match-only" onchange="renderCampaigns()"> Bara mina varor
           </label>
         </div>
-        <div class="search-box" style="max-width:250px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" id="camp-search" placeholder="Sök kampanj…" oninput="renderCampaigns()"></div>
+        <div class="search-box" style="max-width:250px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" id="camp-search" placeholder="SÃ¶k kampanjâ€¦" oninput="renderCampaigns()"></div>
       </div>
       <div id="camp-summary" style="margin:0.8rem 0;font-size:0.82rem;color:var(--text-secondary);"></div>
       <div id="camp-content"></div>
@@ -564,23 +564,23 @@
     <!-- Documents -->
     <div id="view-documents" class="view">
       <div class="toolbar">
-        <div class="search-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" id="search-input" placeholder="Sök filnamn, leverantör, fakturanummer…" oninput="debounceSearch()"></div>
+        <div class="search-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" id="search-input" placeholder="SÃ¶k filnamn, leverantÃ¶r, fakturanummerâ€¦" oninput="debounceSearch()"></div>
         <select id="filter-type" onchange="loadDocuments()"><option value="">Alla typer</option><option value="invoice">Faktura</option><option value="receipt">Kvitto</option><option value="contract">Kontrakt</option></select>
-        <select id="filter-user" onchange="loadDocuments()" class="admin-only" style="display:none;padding:0.4rem 0.6rem;border-radius:var(--radius);border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:0.82rem;"><option value="">Alla användare</option></select>
+        <select id="filter-user" onchange="loadDocuments()" class="admin-only" style="display:none;padding:0.4rem 0.6rem;border-radius:var(--radius);border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:0.82rem;"><option value="">Alla anvÃ¤ndare</option></select>
         <button class="btn btn-secondary" onclick="loadDocuments()">Uppdatera</button>
       </div>
-      <div class="table-wrapper"><table><thead><tr><th>Filnamn</th><th>Typ</th><th>Leverantör</th><th>Belopp</th><th>Fakturanr</th><th>Datum</th><th>Användare</th><th>Skapad</th></tr></thead><tbody id="docs-tbody"></tbody></table>
-      <div class="pagination"><span id="pagination-info">—</span><div style="display:flex;gap:0.5rem;"><button class="btn btn-ghost btn-sm" id="btn-prev" onclick="prevPage()" disabled>←</button><button class="btn btn-ghost btn-sm" id="btn-next" onclick="nextPage()">→</button></div></div></div>
+      <div class="table-wrapper"><table><thead><tr><th>Filnamn</th><th>Typ</th><th>LeverantÃ¶r</th><th>Belopp</th><th>Fakturanr</th><th>Datum</th><th>AnvÃ¤ndare</th><th>Skapad</th></tr></thead><tbody id="docs-tbody"></tbody></table>
+      <div class="pagination"><span id="pagination-info">â€”</span><div style="display:flex;gap:0.5rem;"><button class="btn btn-ghost btn-sm" id="btn-prev" onclick="prevPage()" disabled>â†</button><button class="btn btn-ghost btn-sm" id="btn-next" onclick="nextPage()">â†’</button></div></div></div>
     </div>
 
     <!-- Detail -->
-    <div id="view-detail" class="view"><button class="btn btn-ghost" onclick="showView('documents')" style="margin-bottom:1rem;">← Tillbaka</button><div id="detail-content"></div></div>
+    <div id="view-detail" class="view"><button class="btn btn-ghost" onclick="showView('documents')" style="margin-bottom:1rem;">â† Tillbaka</button><div id="detail-content"></div></div>
 
     <!-- Rules -->
     <div id="view-rules" class="view">
-      <div class="toolbar"><div class="search-box" style="max-width:300px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" id="rule-search" placeholder="Sök regel…" oninput="debounceRuleSearch()"></div>
-      <button class="btn btn-success" onclick="applyAllRules(this)">Kör alla regler</button><button class="btn btn-primary" onclick="openRuleModal()">Ny regel</button></div>
-      <div style="display:flex;gap:0.5rem;margin-bottom:1rem;"><button class="filter-chip active" onclick="filterRules(this,'')">Alla</button><button class="filter-chip" onclick="filterRules(this,'document')">Dokumentnivå</button><button class="filter-chip" onclick="filterRules(this,'line_item')">Radnivå</button></div>
+      <div class="toolbar"><div class="search-box" style="max-width:300px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" id="rule-search" placeholder="SÃ¶k regelâ€¦" oninput="debounceRuleSearch()"></div>
+      <button class="btn btn-success" onclick="applyAllRules(this)">KÃ¶r alla regler</button><button class="btn btn-primary" onclick="openRuleModal()">Ny regel</button></div>
+      <div style="display:flex;gap:0.5rem;margin-bottom:1rem;"><button class="filter-chip active" onclick="filterRules(this,'')">Alla</button><button class="filter-chip" onclick="filterRules(this,'document')">DokumentnivÃ¥</button><button class="filter-chip" onclick="filterRules(this,'line_item')">RadnivÃ¥</button></div>
       <div id="rules-list"></div>
     </div>
 
@@ -588,16 +588,16 @@
     <div id="view-upload" class="view">
       <div class="upload-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-        <h3>Dra och släpp filer här</h3><p>PDF, DOCX, PNG, JPG, GIF, WEBP — välj flera samtidigt</p>
+        <h3>Dra och slÃ¤pp filer hÃ¤r</h3><p>PDF, DOCX, PNG, JPG, GIF, WEBP â€” vÃ¤lj flera samtidigt</p>
         <input type="file" id="file-input" hidden multiple accept=".pdf,.docx,.doc,.png,.jpg,.jpeg,.gif,.webp,.bmp,.tiff" onchange="handleFileSelect(event)">
       </div>
-      <div class="upload-options"><h3>Inställningar</h3>
-        <div class="form-row"><div class="form-group"><label>Analystyp</label><select id="upload-type"><option value="extract-structured">Strukturerad extraktion</option><option value="analyze">Full analys</option><option value="extract-text">OCR / text</option><option value="describe">Bildbeskrivning</option></select></div><div class="form-group"><label>Språk</label><select id="upload-lang"><option value="swedish">Svenska</option><option value="english">Engelska</option></select></div></div>
+      <div class="upload-options"><h3>InstÃ¤llningar</h3>
+        <div class="form-row"><div class="form-group"><label>Analystyp</label><select id="upload-type"><option value="extract-structured">Strukturerad extraktion</option><option value="analyze">Full analys</option><option value="extract-text">OCR / text</option><option value="describe">Bildbeskrivning</option></select></div><div class="form-group"><label>SprÃ¥k</label><select id="upload-lang"><option value="swedish">Svenska</option><option value="english">Engelska</option></select></div></div>
       </div>
       <!-- Queue -->
       <div id="queue-section" style="display:none;">
         <div class="toolbar" style="margin-bottom:0.75rem;">
-          <h3 style="margin:0;font-size:1rem;">Kö <span id="queue-status" class="text-muted" style="font-weight:400;font-size:0.85rem;"></span></h3>
+          <h3 style="margin:0;font-size:1rem;">KÃ¶ <span id="queue-status" class="text-muted" style="font-weight:400;font-size:0.85rem;"></span></h3>
           <div style="display:flex;gap:0.5rem;">
             <button class="btn btn-ghost btn-sm" onclick="clearFinished()">Rensa klara</button>
           </div>
@@ -609,25 +609,25 @@
     <!-- Users (admin only) -->
     <div id="view-users" class="view">
       <div class="user-header">
-        <h3 style="color:var(--text-primary)">Användarhantering</h3>
+        <h3 style="color:var(--text-primary)">AnvÃ¤ndarhantering</h3>
         <div style="display:flex;gap:0.5rem">
-          <button class="btn btn-ghost filter-chip active" onclick="showUsersTab('users',this)">Användare</button>
-          <button class="btn btn-ghost filter-chip" onclick="showUsersTab('suggestions',this)">Kategoriförslag <span id="suggestion-count" style="background:var(--accent-rose);color:#fff;border-radius:50%;padding:0 6px;font-size:0.7rem;margin-left:4px;display:none">0</span></button>
+          <button class="btn btn-ghost filter-chip active" onclick="showUsersTab('users',this)">AnvÃ¤ndare</button>
+          <button class="btn btn-ghost filter-chip" onclick="showUsersTab('suggestions',this)">KategorifÃ¶rslag <span id="suggestion-count" style="background:var(--accent-rose);color:#fff;border-radius:50%;padding:0 6px;font-size:0.7rem;margin-left:4px;display:none">0</span></button>
         </div>
       </div>
       <div id="users-tab">
         <div id="pending-users" style="margin-bottom:1.5rem;display:none">
-          <h4 style="color:var(--accent-amber);margin-bottom:0.5rem">⏳ Väntande godkännande</h4>
+          <h4 style="color:var(--accent-amber);margin-bottom:0.5rem">â³ VÃ¤ntande godkÃ¤nnande</h4>
           <div id="pending-users-list"></div>
         </div>
         <div style="border-bottom:2px solid var(--border);padding:0.4rem 0.8rem;font-size:0.75rem;color:var(--text-muted);display:grid;grid-template-columns:1fr 120px 100px 80px 100px;gap:0.5rem">
-          <span>E-post</span><span>Namn</span><span>Roll</span><span>Status</span><span>Åtgärd</span>
+          <span>E-post</span><span>Namn</span><span>Roll</span><span>Status</span><span>Ã…tgÃ¤rd</span>
         </div>
         <div id="users-list"></div>
       </div>
       <div id="suggestions-tab" style="display:none">
         <div id="suggestions-list"></div>
-        <div id="no-suggestions" style="color:var(--text-secondary);text-align:center;padding:2rem;display:none">Inga väntande kategoriförslag</div>
+        <div id="no-suggestions" style="color:var(--text-secondary);text-align:center;padding:2rem;display:none">Inga vÃ¤ntande kategorifÃ¶rslag</div>
       </div>
     </div>
   </main>
@@ -637,17 +637,17 @@
 <div class="modal-overlay" id="rule-modal">
   <div class="modal">
     <h2 id="modal-title">Ny regel</h2><input type="hidden" id="rule-edit-id">
-    <div class="scope-tabs"><button class="scope-tab active" onclick="setRuleScope('document',this)">📄 Dokumentnivå</button><button class="scope-tab" onclick="setRuleScope('line_item',this)">📋 Radnivå</button></div>
+    <div class="scope-tabs"><button class="scope-tab active" onclick="setRuleScope('document',this)">ðŸ“„ DokumentnivÃ¥</button><button class="scope-tab" onclick="setRuleScope('line_item',this)">ðŸ“‹ RadnivÃ¥</button></div>
     <input type="hidden" id="rule-scope" value="document">
     <div class="form-group" style="margin-bottom:1rem;"><label>Namn</label><input type="text" id="rule-name"></div>
     <div class="form-group" style="margin-bottom:1rem;"><label>Beskrivning</label><textarea id="rule-desc"></textarea></div>
     <div class="form-row"><div class="form-group"><label>Regeltyp</label><select id="rule-type"></select></div><div class="form-group"><label>Aktiv</label><div style="padding-top:0.35rem"><label class="toggle"><input type="checkbox" id="rule-active" checked><span class="toggle-slider"></span></label></div></div></div>
     <div class="section-label">Villkor</div>
-    <div class="form-row"><div class="form-group"><label>Fält</label><select id="rule-cond-field"></select></div><div class="form-group"><label>Operator</label><select id="rule-cond-op"><option value="contains">Innehåller</option><option value="equals">Lika med</option><option value="starts_with">Börjar med</option><option value="ends_with">Slutar med</option><option value="regex">Regex</option><option value="greater_than">Större än</option><option value="less_than">Mindre än</option><option value="always">Alltid</option></select></div></div>
-    <div class="form-group" style="margin-bottom:1rem;"><label>Värde</label><input type="text" id="rule-cond-value"></div>
-    <div class="section-label">Åtgärd</div>
-    <div class="form-row"><div class="form-group"><label>Målfält</label><select id="rule-target"></select></div><div class="form-group"><label>Åtgärd</label><select id="rule-action"><option value="set">Sätt värde</option><option value="set_if_empty">Sätt om tomt</option><option value="replace">Ersätt (gammal|||ny)</option><option value="strip_chars">Ta bort tecken</option><option value="format_number">Formatera nummer</option><option value="multiply">Multiplicera</option><option value="recalculate">Räkna om</option></select></div></div>
-    <div class="form-group"><label>Nytt värde</label><input type="text" id="rule-action-value"></div>
+    <div class="form-row"><div class="form-group"><label>FÃ¤lt</label><select id="rule-cond-field"></select></div><div class="form-group"><label>Operator</label><select id="rule-cond-op"><option value="contains">InnehÃ¥ller</option><option value="equals">Lika med</option><option value="starts_with">BÃ¶rjar med</option><option value="ends_with">Slutar med</option><option value="regex">Regex</option><option value="greater_than">StÃ¶rre Ã¤n</option><option value="less_than">Mindre Ã¤n</option><option value="always">Alltid</option></select></div></div>
+    <div class="form-group" style="margin-bottom:1rem;"><label>VÃ¤rde</label><input type="text" id="rule-cond-value"></div>
+    <div class="section-label">Ã…tgÃ¤rd</div>
+    <div class="form-row"><div class="form-group"><label>MÃ¥lfÃ¤lt</label><select id="rule-target"></select></div><div class="form-group"><label>Ã…tgÃ¤rd</label><select id="rule-action"><option value="set">SÃ¤tt vÃ¤rde</option><option value="set_if_empty">SÃ¤tt om tomt</option><option value="replace">ErsÃ¤tt (gammal|||ny)</option><option value="strip_chars">Ta bort tecken</option><option value="format_number">Formatera nummer</option><option value="multiply">Multiplicera</option><option value="recalculate">RÃ¤kna om</option></select></div></div>
+    <div class="form-group"><label>Nytt vÃ¤rde</label><input type="text" id="rule-action-value"></div>
     <div class="modal-actions"><button class="btn btn-ghost" onclick="closeRuleModal()">Avbryt</button><button class="btn btn-primary" onclick="saveRule()">Spara</button></div>
   </div>
 </div>
@@ -656,11 +656,11 @@
 <!-- Merge modal -->
 <div class="modal-overlay" id="merge-modal">
   <div class="modal">
-    <h2>Slå ihop produkter</h2>
-    <p style="color:var(--text-secondary);margin-bottom:1rem;font-size:0.9rem;">Alla rader med de valda namnen uppdateras till det kanoniska namnet. En regel skapas så framtida kvitton normaliseras automatiskt.</p>
+    <h2>SlÃ¥ ihop produkter</h2>
+    <p style="color:var(--text-secondary);margin-bottom:1rem;font-size:0.9rem;">Alla rader med de valda namnen uppdateras till det kanoniska namnet. En regel skapas sÃ¥ framtida kvitton normaliseras automatiskt.</p>
     <div class="form-group" style="margin-bottom:1rem;"><label>Valda produkter</label><div id="merge-sources" style="display:flex;flex-wrap:wrap;gap:0.4rem;padding:0.5rem 0;"></div></div>
-    <div class="form-group" style="margin-bottom:1rem;"><label>Kanoniskt namn (behåll eller skriv eget)</label><input type="text" id="merge-target"></div>
-    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeMergeModal()">Avbryt</button><button class="btn btn-primary" onclick="doMerge()">Slå ihop</button></div>
+    <div class="form-group" style="margin-bottom:1rem;"><label>Kanoniskt namn (behÃ¥ll eller skriv eget)</label><input type="text" id="merge-target"></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeMergeModal()">Avbryt</button><button class="btn btn-primary" onclick="doMerge()">SlÃ¥ ihop</button></div>
   </div>
 </div>
 
@@ -669,23 +669,23 @@
   <div class="modal" style="max-width:700px">
     <h2 id="prod-docs-title">Kvitton</h2>
     <div id="prod-docs-content"><div class="loading"><div class="spinner"></div></div></div>
-    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeProdDocsModal()">Stäng</button></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeProdDocsModal()">StÃ¤ng</button></div>
   </div>
 </div>
 
 <!-- Vendor merge modal -->
 <div class="modal-overlay" id="vendor-merge-modal">
   <div class="modal">
-    <h2>Slå ihop leverantörer</h2>
-    <p style="color:var(--text-secondary);margin-bottom:1rem;font-size:0.9rem;">Alla dokument från de valda leverantörerna flyttas till målleverantören. Övriga raderas.</p>
-    <div class="form-group" style="margin-bottom:1rem;"><label>Valda leverantörer</label><div id="vendor-merge-sources" style="display:flex;flex-wrap:wrap;gap:0.4rem;padding:0.5rem 0;"></div></div>
-    <div class="form-group" style="margin-bottom:1rem;"><label>Behåll som målleverantör</label><select id="vendor-merge-target" style="width:100%;padding:0.5rem;border-radius:var(--radius);border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary)"></select></div>
-    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeVendorMergeModal()">Avbryt</button><button class="btn btn-primary" onclick="doVendorMerge()">Slå ihop</button></div>
+    <h2>SlÃ¥ ihop leverantÃ¶rer</h2>
+    <p style="color:var(--text-secondary);margin-bottom:1rem;font-size:0.9rem;">Alla dokument frÃ¥n de valda leverantÃ¶rerna flyttas till mÃ¥lleverantÃ¶ren. Ã–vriga raderas.</p>
+    <div class="form-group" style="margin-bottom:1rem;"><label>Valda leverantÃ¶rer</label><div id="vendor-merge-sources" style="display:flex;flex-wrap:wrap;gap:0.4rem;padding:0.5rem 0;"></div></div>
+    <div class="form-group" style="margin-bottom:1rem;"><label>BehÃ¥ll som mÃ¥lleverantÃ¶r</label><select id="vendor-merge-target" style="width:100%;padding:0.5rem;border-radius:var(--radius);border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary)"></select></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeVendorMergeModal()">Avbryt</button><button class="btn btn-primary" onclick="doVendorMerge()">SlÃ¥ ihop</button></div>
   </div>
 </div>
 
 <script>
-/* ── Auth state ──────────────────────────────────────────────── */
+/* â”€â”€ Auth state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 let authToken = localStorage.getItem('ka_token');
 let currentUser = null;
 let impersonateUserId = null;
@@ -708,7 +708,7 @@ async function authFetch(url, opts={}){
     opts.headers['X-Impersonate-User-Id'] = String(impersonateUserId);
   }
   const r = await fetch(url, opts);
-  if(r.status===401){doLogout(); throw new Error('Sessionen har gått ut');}
+  if(r.status===401){doLogout(); throw new Error('Sessionen har gÃ¥tt ut');}
   return r;
 }
 
@@ -752,7 +752,7 @@ async function doRegister(){
     if(d.token){
       authToken=d.token;localStorage.setItem('ka_token',authToken);currentUser=d.user;enterApp();
     }else{
-      okEl.textContent=d.message||'Konto skapat! Väntar på godkännande av admin.';okEl.style.display='block';
+      okEl.textContent=d.message||'Konto skapat! VÃ¤ntar pÃ¥ godkÃ¤nnande av admin.';okEl.style.display='block';
     }
   }catch(e){errEl.textContent='Kunde inte ansluta till servern';errEl.style.display='block';}
 }
@@ -775,15 +775,15 @@ async function doResetPassword(){
   const errEl=document.getElementById('reset-error');
   const okEl=document.getElementById('reset-success');
   errEl.style.display='none'; okEl.style.display='none';
-  if(pw1!==pw2){errEl.textContent='Lösenorden matchar inte';errEl.style.display='block';return;}
+  if(pw1!==pw2){errEl.textContent='LÃ¶senorden matchar inte';errEl.style.display='block';return;}
   const params=new URLSearchParams(window.location.search);
   const token=params.get('token');
-  if(!token){errEl.textContent='Återställningslänken är ogiltig';errEl.style.display='block';return;}
+  if(!token){errEl.textContent='Ã…terstÃ¤llningslÃ¤nken Ã¤r ogiltig';errEl.style.display='block';return;}
   try{
     const r=await fetch('/api/v1/auth/reset-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,new_password:pw1})});
     const d=await r.json();
     if(!r.ok){errEl.textContent=d.detail||'Misslyckades';errEl.style.display='block';return;}
-    okEl.textContent='Lösenordet har ändrats! Du kan nu logga in.';okEl.style.display='block';
+    okEl.textContent='LÃ¶senordet har Ã¤ndrats! Du kan nu logga in.';okEl.style.display='block';
     setTimeout(()=>showAuthForm('login'),2000);
   }catch(e){errEl.textContent='Kunde inte ansluta';errEl.style.display='block';}
 }
@@ -826,7 +826,7 @@ function applyRoleVisibility(){
   if(rulesNav) rulesNav.style.display=(role==='admin'||role==='superuser')?'':'none';
 }
 
-/* ── Mobile menu ────────────────────────────────────────────── */
+/* â”€â”€ Mobile menu â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function toggleMobileMenu(){
   const sb=document.querySelector('.sidebar');
   const ov=document.getElementById('sidebar-overlay');
@@ -838,7 +838,7 @@ function closeMobileMenu(){
   document.getElementById('sidebar-overlay').classList.remove('open');
 }
 
-/* ── Impersonate (admin only) ──────────────────────────────── */
+/* â”€â”€ Impersonate (admin only) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 async function toggleImpersonateDropdown(e){
   e.stopPropagation();
   if(!currentUser||currentUser.role!=='admin')return;
@@ -860,7 +860,7 @@ function renderImpersonateList(users){
   // Show "Alla (admin)" option first to stop impersonating
   let html='';
   if(impersonateUserId){
-    html+=`<div class="imp-item" onclick="stopImpersonating()" style="border-bottom:1px solid var(--border);color:var(--accent-green)"><span class="imp-name">👤 Visa som mig själv (admin)</span></div>`;
+    html+=`<div class="imp-item" onclick="stopImpersonating()" style="border-bottom:1px solid var(--border);color:var(--accent-green)"><span class="imp-name">ðŸ‘¤ Visa som mig sjÃ¤lv (admin)</span></div>`;
   }
   html+=users.map(u=>`<div class="imp-item${impersonateUserId===u.id?' active':''}" onclick="impersonateUser(${u.id},'${esc(u.display_name||u.email)}')">
     <div><span class="imp-name">${esc(u.display_name||u.email)}</span><br><span class="imp-email">${esc(u.email)}</span></div>
@@ -903,7 +903,7 @@ document.addEventListener('click',function(e){
   if(dd&&dd.classList.contains('open')&&!dd.contains(e.target)){dd.classList.remove('open');}
 });
 
-/* ── Populate user filter dropdown (admin only) ──────────── */
+/* â”€â”€ Populate user filter dropdown (admin only) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 let _userFilterPopulated=false;
 async function _populateUserFilter(){
   if(!currentUser||currentUser.role!=='admin'||_userFilterPopulated)return;
@@ -915,13 +915,13 @@ async function _populateUserFilter(){
       _allUsers=d.users||[];
     }
     const prev=sel.value;
-    sel.innerHTML='<option value="">Alla användare</option>'+_allUsers.map(u=>`<option value="${u.id}">${esc(u.display_name||u.email)}</option>`).join('');
+    sel.innerHTML='<option value="">Alla anvÃ¤ndare</option>'+_allUsers.map(u=>`<option value="${u.id}">${esc(u.display_name||u.email)}</option>`).join('');
     sel.value=prev;
     _userFilterPopulated=true;
   }catch(e){}
 }
 
-/* ── User management (admin) ─────────────────────────────────── */
+/* â”€â”€ User management (admin) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function showUsersTab(tab,btn){
   document.getElementById('users-tab').style.display=tab==='users'?'':'none';
   document.getElementById('suggestions-tab').style.display=tab==='suggestions'?'':'none';
@@ -942,8 +942,8 @@ async function loadUsers(){
       pendDiv.style.display='block';
       pendList.innerHTML=pending.map(u=>`<div class="user-row">
         <span class="email">${esc(u.email)}</span><span>${esc(u.display_name||'')}</span>
-        <span class="role-badge role-${u.role}">${u.role}</span><span style="color:var(--accent-amber)">Väntande</span>
-        <button class="btn btn-ghost" style="font-size:0.8rem;padding:2px 8px" onclick="approveUser(${u.id})">✓ Godkänn</button>
+        <span class="role-badge role-${u.role}">${u.role}</span><span style="color:var(--accent-amber)">VÃ¤ntande</span>
+        <button class="btn btn-ghost" style="font-size:0.8rem;padding:2px 8px" onclick="approveUser(${u.id})">âœ“ GodkÃ¤nn</button>
       </div>`).join('');
     }else{pendDiv.style.display='none';}
     document.getElementById('users-list').innerHTML=active.map(u=>`<div class="user-row">
@@ -954,7 +954,7 @@ async function loadUsers(){
         <select onchange="changeRole(${u.id},this.value)" style="font-size:0.75rem;padding:1px 4px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text-primary)">
           ${['user','superuser','admin'].map(r=>`<option value="${r}"${u.role===r?' selected':''}>${r}</option>`).join('')}
         </select>
-        <button class="btn btn-ghost" style="font-size:0.75rem;padding:1px 6px" onclick="toggleActive(${u.id})">${u.is_active?'🚫':'✓'}</button>
+        <button class="btn btn-ghost" style="font-size:0.75rem;padding:1px 6px" onclick="toggleActive(${u.id})">${u.is_active?'ðŸš«':'âœ“'}</button>
       </span>
     </div>`).join('');
   }catch(e){console.error('loadUsers',e);}
@@ -962,15 +962,15 @@ async function loadUsers(){
 
 async function approveUser(id){
   await authFetch(`/api/v1/auth/users/${id}/approve`,{method:'PUT'});
-  showToast('Användare godkänd');loadUsers();
+  showToast('AnvÃ¤ndare godkÃ¤nd');loadUsers();
 }
 async function changeRole(id,role){
   await authFetch(`/api/v1/auth/users/${id}/role`,{method:'PUT',headers:authHeaders(),body:JSON.stringify({role})});
-  showToast(`Roll ändrad till ${role}`);loadUsers();
+  showToast(`Roll Ã¤ndrad till ${role}`);loadUsers();
 }
 async function toggleActive(id){
   await authFetch(`/api/v1/auth/users/${id}/toggle-active`,{method:'PUT'});
-  showToast('Status ändrad');loadUsers();
+  showToast('Status Ã¤ndrad');loadUsers();
 }
 
 async function loadSuggestions(){
@@ -984,75 +984,75 @@ async function loadSuggestions(){
     document.getElementById('suggestions-list').innerHTML=items.map(s=>`<div class="suggestion-card">
       <div style="display:flex;justify-content:space-between;align-items:start">
         <div><strong>${esc(s.description)}</strong><br>
-          <span style="color:var(--text-secondary)">${esc(s.current_category||'?')} → <span style="color:var(--accent-green)">${esc(s.suggested_category)}</span></span>
+          <span style="color:var(--text-secondary)">${esc(s.current_category||'?')} â†’ <span style="color:var(--accent-green)">${esc(s.suggested_category)}</span></span>
           ${s.reason?`<br><em style="color:var(--text-muted);font-size:0.82rem">${esc(s.reason)}</em>`:''}
         </div>
         <div style="display:flex;gap:6px">
-          <button class="btn btn-primary" style="font-size:0.8rem;padding:4px 12px" onclick="reviewSuggestion(${s.id},'approved')">✓ Godkänn</button>
-          <button class="btn btn-ghost" style="font-size:0.8rem;padding:4px 12px" onclick="reviewSuggestion(${s.id},'rejected')">✗ Avslå</button>
+          <button class="btn btn-primary" style="font-size:0.8rem;padding:4px 12px" onclick="reviewSuggestion(${s.id},'approved')">âœ“ GodkÃ¤nn</button>
+          <button class="btn btn-ghost" style="font-size:0.8rem;padding:4px 12px" onclick="reviewSuggestion(${s.id},'rejected')">âœ— AvslÃ¥</button>
         </div>
       </div>
-      <div class="meta">Från: ${esc(s.user_email)} · ${s.created_at?new Date(s.created_at).toLocaleDateString('sv-SE'):''}</div>
+      <div class="meta">FrÃ¥n: ${esc(s.user_email)} Â· ${s.created_at?new Date(s.created_at).toLocaleDateString('sv-SE'):''}</div>
     </div>`).join('');
   }catch(e){console.error('loadSuggestions',e);}
 }
 
 async function reviewSuggestion(id,status){
   await authFetch(`/api/v1/auth/suggestions/${id}`,{method:'PUT',headers:authHeaders(),body:JSON.stringify({status})});
-  showToast(status==='approved'?'Förslag godkänt — kategorier uppdaterade':'Förslag avslaget');
+  showToast(status==='approved'?'FÃ¶rslag godkÃ¤nt â€” kategorier uppdaterade':'FÃ¶rslag avslaget');
   loadSuggestions();
 }
 
-/* ── Category suggestion (for non-admin users) ───────────────── */
+/* â”€â”€ Category suggestion (for non-admin users) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 async function suggestCategory(desc, currentCat){
-  const cat=prompt(`Föreslå ny kategori för "${desc}":\n\nNuvarande: ${currentCat||'okategoriserad'}\n\nVälj bland: mejeri, ost, glass, kött, chark, fisk, bröd, grönsaker, frukt, skafferi, färdigmat, snacks & godis, barnprodukter, hälsa, hygien, hushåll, dryck, djur, kontorsmaterial, tjänst, transport, tobak, övrigt`);
+  const cat=prompt(`FÃ¶reslÃ¥ ny kategori fÃ¶r "${desc}":\n\nNuvarande: ${currentCat||'okategoriserad'}\n\nVÃ¤lj bland: mejeri, ost, glass, kÃ¶tt, chark, fisk, brÃ¶d, grÃ¶nsaker, frukt, skafferi, fÃ¤rdigmat, snacks & godis, barnprodukter, hÃ¤lsa, hygien, hushÃ¥ll, dryck, djur, kontorsmaterial, tjÃ¤nst, transport, tobak, Ã¶vrigt`);
   if(!cat) return;
   const reason=prompt('Motivering (valfritt):');
   try{
     const r=await authFetch('/api/v1/auth/suggestions',{method:'POST',headers:authHeaders(),
       body:JSON.stringify({description:desc,current_category:currentCat,suggested_category:cat.toLowerCase().trim(),reason})});
-    if(r.ok) showToast('Kategoriförslag skickat till admin');
-    else showToast('Kunde inte skicka förslag',true);
+    if(r.ok) showToast('KategorifÃ¶rslag skickat till admin');
+    else showToast('Kunde inte skicka fÃ¶rslag',true);
   }catch(e){showToast('Fel: '+e.message,true);}
 }
 
 const API='/api/v1';
 let currentPage=0,prodPage=0;let PS=20;let sTimer=null,pTimer=null,vcTimer=null,ptTimer=null,rTimer=null;let curRuleScope='';let curAnalyticsTab='products';
 
-const DOC_F={vendor:'Leverantör',document_type:'Dokumenttyp',currency:'Valuta',invoice_number:'Fakturanr',ocr_number:'OCR',total_amount:'Totalbelopp',vat_amount:'Moms',invoice_date:'Fakturadatum',due_date:'Förfallodatum',discount:'Rabatt',filename:'Filnamn'};
-const LINE_F={description:'Beskrivning',quantity:'Antal',unit:'Enhet',unit_price:'À-pris',total_price:'Radsumma',vat_rate:'Momssats',discount:'Rabatt',weight:'Vikt',packaging:'Förp.',category:'Kategori'};
-const LINE_CF={...LINE_F,vendor:'Leverantör (dok)',document_type:'Dokumenttyp (dok)'};
-const DR_T=[['field_correction','Fältkorrigering'],['vendor_normalize','Leverantörsnorm.'],['field_default','Standardvärde'],['validation','Validering']];
-const LR_T=[['field_correction','Fältkorrigering'],['product_normalize','Produktnorm.'],['category_assign','Kategori'],['unit_correction','Enhet'],['field_default','Standardvärde'],['validation','Validering']];
-const CCOL={mejeri:'#4a9eff',ost:'#f59e0b',glass:'#c084fc',kött:'#ef4444',chark:'#fb923c',fisk:'#06b6d4',bröd:'#d97706',grönsaker:'#22c55e',frukt:'#f97316',skafferi:'#34d399',färdigmat:'#a78bfa','snacks & godis':'#eab308',barnprodukter:'#f472b6',hälsa:'#2dd4bf',hygien:'#fb7185',hushåll:'#a78bfa',dryck:'#fbbf24',pant:'#8892a6',djur:'#f97316',kontorsmaterial:'#06b6d4',tjänst:'#6366f1',transport:'#ec4899',tobak:'#78716c',övrigt:'#8892a6'};
+const DOC_F={vendor:'LeverantÃ¶r',document_type:'Dokumenttyp',currency:'Valuta',invoice_number:'Fakturanr',ocr_number:'OCR',total_amount:'Totalbelopp',vat_amount:'Moms',invoice_date:'Fakturadatum',due_date:'FÃ¶rfallodatum',discount:'Rabatt',filename:'Filnamn'};
+const LINE_F={description:'Beskrivning',quantity:'Antal',unit:'Enhet',unit_price:'Ã€-pris',total_price:'Radsumma',vat_rate:'Momssats',discount:'Rabatt',weight:'Vikt',packaging:'FÃ¶rp.',category:'Kategori'};
+const LINE_CF={...LINE_F,vendor:'LeverantÃ¶r (dok)',document_type:'Dokumenttyp (dok)'};
+const DR_T=[['field_correction','FÃ¤ltkorrigering'],['vendor_normalize','LeverantÃ¶rsnorm.'],['field_default','StandardvÃ¤rde'],['validation','Validering']];
+const LR_T=[['field_correction','FÃ¤ltkorrigering'],['product_normalize','Produktnorm.'],['category_assign','Kategori'],['unit_correction','Enhet'],['field_default','StandardvÃ¤rde'],['validation','Validering']];
+const CCOL={mejeri:'#4a9eff',ost:'#f59e0b',glass:'#c084fc',kÃ¶tt:'#ef4444',chark:'#fb923c',fisk:'#06b6d4',brÃ¶d:'#d97706',grÃ¶nsaker:'#22c55e',frukt:'#f97316',skafferi:'#34d399',fÃ¤rdigmat:'#a78bfa','snacks & godis':'#eab308',barnprodukter:'#f472b6',hÃ¤lsa:'#2dd4bf',hygien:'#fb7185',hushÃ¥ll:'#a78bfa',dryck:'#fbbf24',pant:'#8892a6',djur:'#f97316',kontorsmaterial:'#06b6d4',tjÃ¤nst:'#6366f1',transport:'#ec4899',tobak:'#78716c',Ã¶vrigt:'#8892a6'};
 
 function popSel(s,o){s.innerHTML='';(Array.isArray(o)?o:Object.entries(o)).forEach(([v,l])=>{const op=document.createElement('option');op.value=v;op.textContent=l;s.appendChild(op)})}
 function setRuleScope(sc,b){document.getElementById('rule-scope').value=sc;document.querySelectorAll('.scope-tab').forEach(t=>t.classList.remove('active'));b?.classList.add('active');const li=sc==='line_item';popSel(document.getElementById('rule-type'),li?LR_T:DR_T);popSel(document.getElementById('rule-cond-field'),li?LINE_CF:DOC_F);popSel(document.getElementById('rule-target'),li?LINE_F:DOC_F)}
 
-function showView(n){closeMobileMenu();document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));document.getElementById(`view-${n}`).classList.add('active');document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));document.querySelector(`.nav-item[data-view="${n}"]`)?.classList.add('active');const t={dashboard:'Dashboard',analytics:'Analys',campaigns:'Kampanjer',documents:'Dokument',upload:'Ladda upp',detail:'Dokument',rules:'Regler',users:'Användare'};document.getElementById('header-title').textContent=t[n]||'Kvittoanalys';({dashboard:loadDashboard,documents:loadDocuments,rules:loadRules,analytics:loadAnalytics,campaigns:loadCampaigns,users:loadUsers})[n]?.()}
+function showView(n){closeMobileMenu();document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));document.getElementById(`view-${n}`).classList.add('active');document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));document.querySelector(`.nav-item[data-view="${n}"]`)?.classList.add('active');const t={dashboard:'Dashboard',analytics:'Analys',campaigns:'Kampanjer',documents:'Dokument',upload:'Ladda upp',detail:'Dokument',rules:'Regler',users:'AnvÃ¤ndare'};document.getElementById('header-title').textContent=t[n]||'Kvittoanalys';({dashboard:loadDashboard,documents:loadDocuments,rules:loadRules,analytics:loadAnalytics,campaigns:loadCampaigns,users:loadUsers})[n]?.()}
 function showToast(m,e){const t=document.getElementById('toast');t.textContent=m;t.className='toast show'+(e?' error':'');setTimeout(()=>t.className='toast',3000)}
 function esc(s){if(!s)return'';const d=document.createElement('div');d.textContent=s;return d.innerHTML}
-function fmtC(n){return n==null?'—':new Intl.NumberFormat('sv-SE',{minimumFractionDigits:2,maximumFractionDigits:2}).format(n)}
-function fmtD(i){if(!i)return'—';return new Date(i).toLocaleDateString('sv-SE',{year:'numeric',month:'short',day:'numeric'})}
+function fmtC(n){return n==null?'â€”':new Intl.NumberFormat('sv-SE',{minimumFractionDigits:2,maximumFractionDigits:2}).format(n)}
+function fmtD(i){if(!i)return'â€”';return new Date(i).toLocaleDateString('sv-SE',{year:'numeric',month:'short',day:'numeric'})}
 function fmtB(b){if(!b)return'';return b<1048576?(b/1024).toFixed(1)+' KB':(b/1048576).toFixed(1)+' MB'}
-function typeL(t){return{invoice:'Faktura',receipt:'Kvitto',contract:'Kontrakt',image:'Bild',other:'Övrigt',unknown:'Okänd'}[t]||t||'Okänd'}
+function typeL(t){return{invoice:'Faktura',receipt:'Kvitto',contract:'Kontrakt',image:'Bild',other:'Ã–vrigt',unknown:'OkÃ¤nd'}[t]||t||'OkÃ¤nd'}
 function typeBdg(t){return`<span class="type-badge type-${t||'other'}">${typeL(t)}</span>`}
-function catL(c){if(!c)return'—';return c[0].toUpperCase()+c.slice(1).toLowerCase()}
+function catL(c){if(!c)return'â€”';return c[0].toUpperCase()+c.slice(1).toLowerCase()}
 function catCol(c){return CCOL[(c||'').toLowerCase()]||'var(--accent)'}
-function fR(l,v){return`<div class="field-row"><span class="field-label">${esc(l)}</span><span class="field-value">${v?esc(String(v)):'—'}</span></div>`}
-function fL(f){return{...DOC_F,...LINE_F}[f]||f||'—'}
-function opL(o){return{contains:'innehåller',equals:'=',starts_with:'börjar med',ends_with:'slutar med',regex:'regex',greater_than:'>',less_than:'<',always:'alltid'}[o]||o}
-function aL(a){return{set:'Sätt',set_if_empty:'Om tomt',replace:'Ersätt',strip_chars:'Rensa',format_number:'Format',multiply:'×',recalculate:'Räkna om'}[a]||a}
+function fR(l,v){return`<div class="field-row"><span class="field-label">${esc(l)}</span><span class="field-value">${v?esc(String(v)):'â€”'}</span></div>`}
+function fL(f){return{...DOC_F,...LINE_F}[f]||f||'â€”'}
+function opL(o){return{contains:'innehÃ¥ller',equals:'=',starts_with:'bÃ¶rjar med',ends_with:'slutar med',regex:'regex',greater_than:'>',less_than:'<',always:'alltid'}[o]||o}
+function aL(a){return{set:'SÃ¤tt',set_if_empty:'Om tomt',replace:'ErsÃ¤tt',strip_chars:'Rensa',format_number:'Format',multiply:'Ã—',recalculate:'RÃ¤kna om'}[a]||a}
 
 // Dashboard
 async function loadDashboard(){try{const[sR,dR]=await Promise.all([authFetch(`${API}/documents/stats`),authFetch(`${API}/documents?limit=5`)]);const s=(await sR.json()).stats,docs=(await dR.json()).documents;
   document.getElementById('stat-total').textContent=s.total_documents;document.getElementById('stat-amount').textContent=fmtC(s.total_amount);document.getElementById('stat-currency').textContent=s.total_amount>0?'SEK':'';document.getElementById('stat-lines').textContent=s.total_line_items||0;document.getElementById('stat-cats').textContent=Object.keys(s.top_categories||{}).length;
   document.getElementById('types-breakdown').innerHTML=Object.keys(s.by_type).length===0?'<div class="text-muted">Inga</div>':Object.entries(s.by_type).sort((a,b)=>b[1]-a[1]).map(([t,c])=>`<div class="vendor-row"><span class="vendor-name">${typeL(t)}</span><span class="vendor-count">${c}</span></div>`).join('');
   document.getElementById('vendors-breakdown').innerHTML=Object.keys(s.top_vendors).length===0?'<div class="text-muted">Inga</div>':Object.entries(s.top_vendors).map(([v,c])=>`<div class="vendor-row"><span class="vendor-name">${esc(v)}</span><span class="vendor-count">${c}</span></div>`).join('');
-  const el=document.getElementById('recent-docs');el.innerHTML=!docs?.length?'<div class="empty-state">Inga dokument</div>':`<div class="table-wrapper"><table><thead><tr><th>Filnamn</th><th>Typ</th><th>Leverantör</th><th>Belopp</th><th>Skapad</th></tr></thead><tbody>${docs.map(d=>`<tr onclick="showDocument('${d.id}')" style="cursor:pointer"><td>${esc(d.filename)}</td><td>${typeBdg(d.document_type)}</td><td>${d.vendor?esc(d.vendor):'—'}</td><td class="amount">${d.total_amount!=null?fmtC(d.total_amount):'—'}</td><td class="text-secondary">${fmtD(d.created_at)}</td></tr>`).join('')}</tbody></table></div>`
+  const el=document.getElementById('recent-docs');el.innerHTML=!docs?.length?'<div class="empty-state">Inga dokument</div>':`<div class="table-wrapper"><table><thead><tr><th>Filnamn</th><th>Typ</th><th>LeverantÃ¶r</th><th>Belopp</th><th>Skapad</th></tr></thead><tbody>${docs.map(d=>`<tr onclick="showDocument('${d.id}')" style="cursor:pointer"><td>${esc(d.filename)}</td><td>${typeBdg(d.document_type)}</td><td>${d.vendor?esc(d.vendor):'â€”'}</td><td class="amount">${d.total_amount!=null?fmtC(d.total_amount):'â€”'}</td><td class="text-secondary">${fmtD(d.created_at)}</td></tr>`).join('')}</tbody></table></div>`
 }catch(e){}}
 
-// Analytics — period state
+// Analytics â€” period state
 let curPeriod='all', periodOffset=0, showTotal=true;
 function _periodDates(){
   const now=new Date();
@@ -1111,22 +1111,22 @@ async function loadCatChart(){
 }
 
 async function migrateCategories(){
-  if(!confirm('Migrera alla kategorier till ny struktur?\n\n• livsmedel → skafferi\n• snacks/godis → snacks & godis\n• mejeri delas upp i mejeri + ost + glass\n• kött delas upp i kött + chark\n• hygien delas upp i hygien + hälsa + barnprodukter\n\nDetta påverkar alla rader i databasen.'))return;
-  const btn=document.getElementById('migrate-btn');btn.disabled=true;btn.textContent='⏳ Migrerar…';
+  if(!confirm('Migrera alla kategorier till ny struktur?\n\nâ€¢ livsmedel â†’ skafferi\nâ€¢ snacks/godis â†’ snacks & godis\nâ€¢ mejeri delas upp i mejeri + ost + glass\nâ€¢ kÃ¶tt delas upp i kÃ¶tt + chark\nâ€¢ hygien delas upp i hygien + hÃ¤lsa + barnprodukter\n\nDetta pÃ¥verkar alla rader i databasen.'))return;
+  const btn=document.getElementById('migrate-btn');btn.disabled=true;btn.textContent='â³ Migrerarâ€¦';
   try{const r=await authFetch('/api/v1/categories/migrate',{method:'POST'});const d=await r.json();
-  if(d.status==='success'){showToast(`✅ Migrering klar! ${d.renamed} omdöpta, ${d.cleared_for_resplit} omklassificerade, ${d.recategorized} ny-kategoriserade, ${d.rules_updated} regler uppdaterade`);
+  if(d.status==='success'){showToast(`âœ… Migrering klar! ${d.renamed} omdÃ¶pta, ${d.cleared_for_resplit} omklassificerade, ${d.recategorized} ny-kategoriserade, ${d.rules_updated} regler uppdaterade`);
   document.getElementById('migrate-btn-wrap').style.display='none';loadAnalytics()}
-  else showToast('❌ '+JSON.stringify(d),true)}catch(e){showToast('❌ '+e.message,true)}
-  finally{btn.disabled=false;btn.textContent='🔄 Migrera kategorier till ny struktur'}
+  else showToast('âŒ '+JSON.stringify(d),true)}catch(e){showToast('âŒ '+e.message,true)}
+  finally{btn.disabled=false;btn.textContent='ðŸ”„ Migrera kategorier till ny struktur'}
 }
 async function cleanupDiscounts(){
-  if(!confirm('Koppla ihop rabattrader med produkter?\n\nRader som "Willys plus:nötfärs" och "Rabatt:lättdryck" kopplas till rätt produkt och rabatten visas på produktraden istället.'))return;
-  const btn=document.getElementById('discount-btn');btn.disabled=true;btn.textContent='⏳ Rensar…';
+  if(!confirm('Koppla ihop rabattrader med produkter?\n\nRader som "Willys plus:nÃ¶tfÃ¤rs" och "Rabatt:lÃ¤ttdryck" kopplas till rÃ¤tt produkt och rabatten visas pÃ¥ produktraden istÃ¤llet.'))return;
+  const btn=document.getElementById('discount-btn');btn.disabled=true;btn.textContent='â³ Rensarâ€¦';
   try{const r=await authFetch('/api/v1/line-items/cleanup-discounts',{method:'POST'});const d=await r.json();
-  if(d.status==='success'){showToast(`✅ ${d.linked} rabatter kopplade, ${d.deleted} rader borttagna${d.unmatched?' ('+d.unmatched+' omatchade)':''}`);
+  if(d.status==='success'){showToast(`âœ… ${d.linked} rabatter kopplade, ${d.deleted} rader borttagna${d.unmatched?' ('+d.unmatched+' omatchade)':''}`);
   document.getElementById('discount-cleanup-wrap').style.display='none';loadAnalytics()}
-  else showToast('❌ '+JSON.stringify(d),true)}catch(e){showToast('❌ '+e.message,true)}
-  finally{btn.disabled=false;btn.textContent='🔗 Länka rabattrader till produkter'}
+  else showToast('âŒ '+JSON.stringify(d),true)}catch(e){showToast('âŒ '+e.message,true)}
+  finally{btn.disabled=false;btn.textContent='ðŸ”— LÃ¤nka rabattrader till produkter'}
 }
 async function loadAnalytics(){
   await loadCatChart();
@@ -1144,7 +1144,7 @@ function switchAnalyticsTab(btn,tab){
   curAnalyticsTab=tab;
   reloadActiveTab();
 }
-function renderCatChart(cats,prevCats,pd){const el=document.getElementById('cat-chart');if(!cats.length){el.innerHTML='<div class="text-muted">Inga kategorier ännu</div>';return}
+function renderCatChart(cats,prevCats,pd){const el=document.getElementById('cat-chart');if(!cats.length){el.innerHTML='<div class="text-muted">Inga kategorier Ã¤nnu</div>';return}
   const total=cats.reduce((s,c)=>s+c.total_amount,0);
   const mx=Math.max(...cats.map(c=>c.total_amount));
   const prevMap={};if(prevCats)prevCats.forEach(c=>{prevMap[c.category]=c.total_amount});
@@ -1152,14 +1152,14 @@ function renderCatChart(cats,prevCats,pd){const el=document.getElementById('cat-
   const prevMx=prevCats?Math.max(...prevCats.map(c=>c.total_amount),1):1;
   // Header with total toggle
   let html=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
-    <h3 style="font-size:0.82rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin:0;">Utgifter per kategori${pd&&pd.label&&pd.label!=='Totalt'?' — '+pd.label:''}</h3>
+    <h3 style="font-size:0.82rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin:0;">Utgifter per kategori${pd&&pd.label&&pd.label!=='Totalt'?' â€” '+pd.label:''}</h3>
     <label style="display:flex;align-items:center;gap:0.35rem;font-size:0.78rem;color:var(--text-secondary);cursor:pointer;">
       <input type="checkbox" ${showTotal?'checked':''} onchange="showTotal=this.checked;loadCatChart()"> Visa total
     </label></div>`;
   // Total bar
   if(showTotal){
     let totalCompare='';
-    if(prevCats&&prevTotal>0){const diff=((total-prevTotal)/prevTotal*100).toFixed(1);const arrow=diff>0?'▲':'▼';const color=diff>0?'var(--accent-rose)':'var(--accent-green)';
+    if(prevCats&&prevTotal>0){const diff=((total-prevTotal)/prevTotal*100).toFixed(1);const arrow=diff>0?'â–²':'â–¼';const color=diff>0?'var(--accent-rose)':'var(--accent-green)';
       totalCompare=`<span style="font-size:0.75rem;color:${color};margin-left:0.5rem;">${arrow} ${Math.abs(diff)}%</span>`}
     html+=`<div class="cat-bar-row cat-bar-total"><span class="cat-bar-label" style="font-weight:600;">Totalt</span><div class="cat-bar-track"><div class="cat-bar-fill" style="width:100%;background:var(--text-muted);opacity:0.5"></div></div><span class="cat-bar-value" style="font-weight:600;">${fmtC(total)} kr${totalCompare}</span><span class="cat-bar-count">${cats.reduce((s,c)=>s+c.count,0)} st</span></div>`;
   }
@@ -1171,7 +1171,7 @@ function renderCatChart(cats,prevCats,pd){const el=document.getElementById('cat-
     let compareHtml='';
     if(prevCats){
       const prev=prevMap[c.category]||0;
-      if(prev>0){const diff=((c.total_amount-prev)/prev*100).toFixed(0);const arrow=diff>0?'▲':'▼';const color=diff>0?'var(--accent-rose)':'var(--accent-green)';
+      if(prev>0){const diff=((c.total_amount-prev)/prev*100).toFixed(0);const arrow=diff>0?'â–²':'â–¼';const color=diff>0?'var(--accent-rose)':'var(--accent-green)';
         compareHtml=` <span style="font-size:0.7rem;color:${color}">${arrow}${Math.abs(diff)}%</span>`}
       const pp=prevMx>0?Math.max((prev/prevMx)*100,2):0;
       compareHtml+=`<div class="cat-bar-compare" style="width:${pp}%;background:${col}"></div>`;
@@ -1184,7 +1184,7 @@ function populateCatFilters(cats){
 }
 async function populateVendorFilter(){
   try{const d=await(await authFetch(`${API}/vendors`)).json();const vs=d.vendors||[];
-  const opts='<option value="">Alla leverantörer</option>'+vs.map(v=>`<option value="${esc(v.name)}">${esc(v.name)}${v.chain?' ('+esc(v.chain)+')':''}${v.document_count?' — '+v.document_count+' st':''}</option>`).join('');
+  const opts='<option value="">Alla leverantÃ¶rer</option>'+vs.map(v=>`<option value="${esc(v.name)}">${esc(v.name)}${v.chain?' ('+esc(v.chain)+')':''}${v.document_count?' â€” '+v.document_count+' st':''}</option>`).join('');
   document.getElementById('global-vendor-filter').innerHTML=opts}catch(e){}}
 function getGlobalCategory(){return document.getElementById('global-cat-filter')?.value||''}
 function getGlobalVendor(){return document.getElementById('global-vendor-filter')?.value||''}
@@ -1230,8 +1230,8 @@ async function loadProducts(){
   renderProds(await(await authFetch(`${API}/documents/products?${p}`)).json())}
 function renderProds(d){const tb=document.getElementById('prod-tbody');
   tb.innerHTML=!d.products.length?'<tr><td colspan="10"><div class="empty-state">Inga produkter</div></td></tr>'
-    :d.products.map(p=>{const sd=btoa(unescape(encodeURIComponent(p.description)));return`<tr><td><input type="checkbox" class="prod-check" data-desc="${sd}" onchange="updateMergeBar()"></td><td><a href="#" class="prod-link" onclick="showProductDocs('${esc(p.description.replace(/'/g,"\\'"))}');return false"><strong>${esc(p.description)}</strong></a></td><td style="position:relative">${prodCatBadge(p.description,p.category)}</td><td>${p.purchase_count}</td><td>${p.total_quantity}${p.unit?' '+p.unit:''}</td><td class="amount">${fmtC(p.total_spent)} kr</td><td class="amount">${fmtC(p.avg_unit_price)}</td><td class="text-muted">${p.min_unit_price!=null?fmtC(p.min_unit_price):'—'}</td><td class="text-muted">${p.max_unit_price!=null?fmtC(p.max_unit_price):'—'}</td><td><button class="btn btn-ghost btn-sm" onclick="showPrice('${esc(p.description.replace(/'/g,"\\'"))}')">📈</button></td></tr>`}).join('');
-  if(PS>0){const s=prodPage*PS+1,e=Math.min(s+PS-1,d.total);document.getElementById('prod-pag').textContent=d.total>0?`${s}–${e} av ${d.total}`:'';
+    :d.products.map(p=>{const sd=btoa(unescape(encodeURIComponent(p.description)));return`<tr><td><input type="checkbox" class="prod-check" data-desc="${sd}" onchange="updateMergeBar()"></td><td><a href="#" class="prod-link" onclick="showProductDocs('${esc(p.description.replace(/'/g,"\\'"))}');return false"><strong>${esc(p.description)}</strong></a></td><td style="position:relative">${prodCatBadge(p.description,p.category)}</td><td>${p.purchase_count}</td><td>${p.total_quantity}${p.unit?' '+p.unit:''}</td><td class="amount">${fmtC(p.total_spent)} kr</td><td class="amount">${fmtC(p.avg_unit_price)}</td><td class="text-muted">${p.min_unit_price!=null?fmtC(p.min_unit_price):'â€”'}</td><td class="text-muted">${p.max_unit_price!=null?fmtC(p.max_unit_price):'â€”'}</td><td><button class="btn btn-ghost btn-sm" onclick="showPrice('${esc(p.description.replace(/'/g,"\\'"))}')">ðŸ“ˆ</button></td></tr>`}).join('');
+  if(PS>0){const s=prodPage*PS+1,e=Math.min(s+PS-1,d.total);document.getElementById('prod-pag').textContent=d.total>0?`${s}â€“${e} av ${d.total}`:'';
   document.getElementById('prod-prev').disabled=prodPage===0;document.getElementById('prod-next').disabled=e>=d.total}
   else{document.getElementById('prod-pag').textContent=d.total>0?`Alla ${d.total}`:'';document.getElementById('prod-prev').disabled=true;document.getElementById('prod-next').disabled=true}
   document.getElementById('prod-select-all').checked=false;updateMergeBar()}
@@ -1273,7 +1273,7 @@ async function doMerge(){
     if(!r.ok){showToast(`Fel ${r.status}`,true);return}
     const d=await r.json();
     closeMergeModal();clearMergeSelection();
-    showToast(`${d.items_updated} rader sammanslagna → "${target}", ${d.rules_created} regler skapade ✅`);
+    showToast(`${d.items_updated} rader sammanslagna â†’ "${target}", ${d.rules_created} regler skapade âœ…`);
     loadProducts();
   }catch(e){showToast('Fel: '+e.message,true)}
 }
@@ -1297,10 +1297,10 @@ async function showProductDocs(desc){
       '<div class="prod-docs-list">'+docs.map(doc=>`
         <div class="prod-doc-card" onclick="closeProdDocsModal();showDocument('${doc.document_id}')">
           <div class="prod-doc-info">
-            <span class="prod-doc-vendor">${esc(doc.vendor||doc.filename||'Okänd')}</span>
-            <span class="prod-doc-meta">${doc.invoice_date||'—'} · ${doc.quantity?doc.quantity+(doc.unit?' '+doc.unit:''):''} · ${doc.unit_price!=null?fmtC(doc.unit_price)+' kr/st':''}</span>
+            <span class="prod-doc-vendor">${esc(doc.vendor||doc.filename||'OkÃ¤nd')}</span>
+            <span class="prod-doc-meta">${doc.invoice_date||'â€”'} Â· ${doc.quantity?doc.quantity+(doc.unit?' '+doc.unit:''):''} Â· ${doc.unit_price!=null?fmtC(doc.unit_price)+' kr/st':''}</span>
           </div>
-          <span class="amount" style="white-space:nowrap;font-weight:600">${doc.total_price!=null?fmtC(doc.total_price)+' kr':'—'}</span>
+          <span class="amount" style="white-space:nowrap;font-weight:600">${doc.total_price!=null?fmtC(doc.total_price)+' kr':'â€”'}</span>
         </div>`).join('')+'</div>';
   }catch(e){
     document.getElementById('prod-docs-content').innerHTML='<div class="empty-state">Kunde inte ladda kvitton</div>';
@@ -1312,7 +1312,7 @@ document.getElementById('prod-docs-modal').addEventListener('click',e=>{if(e.tar
 let _vendorData=[];
 function chainBadge(c){
   if(!c)return'<span class="vendor-cell empty">+ kedja</span>';
-  const cls={'ICA':'chain-ica','Coop':'chain-coop','Hemköp':'chain-hemköp','Willys':'chain-willys','Lidl':'chain-lidl'}[c]||'chain-other';
+  const cls={'ICA':'chain-ica','Coop':'chain-coop','HemkÃ¶p':'chain-hemkÃ¶p','Willys':'chain-willys','Lidl':'chain-lidl'}[c]||'chain-other';
   return`<span class="chain-badge ${cls}">${esc(c)}</span>`;
 }
 async function loadVendors(){
@@ -1321,7 +1321,7 @@ async function loadVendors(){
   try{
     const d=await(await authFetch(`${API}/vendors`)).json();
     _vendorData=d.vendors||[];
-    if(!_vendorData.length){tb.innerHTML='<tr><td colspan="7"><div class="empty-state">Inga leverantörer</div></td></tr>';return}
+    if(!_vendorData.length){tb.innerHTML='<tr><td colspan="7"><div class="empty-state">Inga leverantÃ¶rer</div></td></tr>';return}
     tb.innerHTML=_vendorData.map(v=>`<tr>
       <td><input type="checkbox" class="vendor-check" data-vid="${v.id}" data-vname="${esc(v.name)}" onchange="updateVendorMergeBar()"></td>
       <td><span class="vendor-cell" onclick="editVendorCell(this,${v.id},'name','${esc(v.name)}')"><strong>${esc(v.name)}</strong></span></td>
@@ -1332,12 +1332,12 @@ async function loadVendors(){
       <td class="amount">${fmtC(v.total_amount)} kr</td>
     </tr>`).join('');
     document.getElementById('vendor-select-all').checked=false;updateVendorMergeBar();
-  }catch(e){tb.innerHTML='<tr><td colspan="7"><div class="empty-state">Kunde inte ladda leverantörer</div></td></tr>'}
+  }catch(e){tb.innerHTML='<tr><td colspan="7"><div class="empty-state">Kunde inte ladda leverantÃ¶rer</div></td></tr>'}
 }
 function editVendorCell(el,vendorId,field,currentVal){
   if(el.querySelector('input'))return;
   const orig=el.innerHTML;
-  el.innerHTML=`<input class="vendor-cell-edit" type="text" value="${esc(currentVal)}" placeholder="${field==='name'?'Butiksnamn':field==='chain'?'ICA, Coop…':field==='format'?'Maxi, Kvantum…':'Ort…'}">`
+  el.innerHTML=`<input class="vendor-cell-edit" type="text" value="${esc(currentVal)}" placeholder="${field==='name'?'Butiksnamn':field==='chain'?'ICA, Coopâ€¦':field==='format'?'Maxi, Kvantumâ€¦':'Ortâ€¦'}">`
   const inp=el.querySelector('input');inp.focus();inp.select();
   async function save(){
     const val=inp.value.trim();
@@ -1346,7 +1346,7 @@ function editVendorCell(el,vendorId,field,currentVal){
     try{
       const body={};body[field]=val||null;
       const r=await authFetch(`${API}/vendors/${vendorId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-      if(r.ok){loadVendors();showToast('Uppdaterad ✅')}
+      if(r.ok){loadVendors();showToast('Uppdaterad âœ…')}
       else{el.innerHTML=orig;showToast('Kunde inte spara',true)}
     }catch(e){el.innerHTML=orig;showToast('Fel: '+e.message,true)}
   }
@@ -1379,14 +1379,14 @@ function openVendorMergeModal(){
 function closeVendorMergeModal(){document.getElementById('vendor-merge-modal').classList.remove('open')}
 async function doVendorMerge(){
   const sel=getSelectedVendors();const targetId=+document.getElementById('vendor-merge-target').value;
-  if(sel.length<2||!targetId){showToast('Välj målleverantör',true);return}
+  if(sel.length<2||!targetId){showToast('VÃ¤lj mÃ¥lleverantÃ¶r',true);return}
   try{
     const r=await authFetch(`${API}/vendors/merge`,{method:'PUT',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({source_ids:sel.map(s=>s.id),target_id:targetId})});
     if(!r.ok){showToast(`Fel ${r.status}`,true);return}
     const d=await r.json();
     closeVendorMergeModal();clearVendorSelection();
-    showToast(`${d.documents_moved} dokument flyttade till "${d.target_name}", ${d.vendors_deleted} leverantörer borttagna ✅`);
+    showToast(`${d.documents_moved} dokument flyttade till "${d.target_name}", ${d.vendors_deleted} leverantÃ¶rer borttagna âœ…`);
     loadVendors();
   }catch(e){showToast('Fel: '+e.message,true)}
 }
@@ -1400,10 +1400,10 @@ async function loadVendorCompare(){
   try{
     const d=await(await authFetch(`${API}/documents/products/vendor-compare?${p}`)).json();
     renderVendorCompare(el,d.comparisons||[]);
-  }catch(e){el.innerHTML='<div class="empty-state">Kunde inte ladda jämförelse</div>'}
+  }catch(e){el.innerHTML='<div class="empty-state">Kunde inte ladda jÃ¤mfÃ¶relse</div>'}
 }
 function renderVendorCompare(el,comps){
-  if(!comps.length){el.innerHTML='<div class="empty-state">Inga produkter med flera leverantörer hittade.<br><span class="text-muted">Ladda upp kvitton från minst 2 leverantörer för samma produkt.</span></div>';return}
+  if(!comps.length){el.innerHTML='<div class="empty-state">Inga produkter med flera leverantÃ¶rer hittade.<br><span class="text-muted">Ladda upp kvitton frÃ¥n minst 2 leverantÃ¶rer fÃ¶r samma produkt.</span></div>';return}
   el.innerHTML=comps.map(p=>{
     const sav=p.savings_pct||0;
     const savCls=sav>0?'positive':'zero';
@@ -1413,7 +1413,7 @@ function renderVendorCompare(el,comps){
       const w=maxP>0?Math.max((v.avg_price/maxP)*100,5):50;
       const cheapest=i===0;
       const col=cheapest?'var(--accent-green)':'var(--accent-rose)';
-      return`<div class="vc-bar-row"><span class="vc-vendor ${cheapest?'vc-cheapest':'vc-expensive'}">${esc(v.vendor)}${cheapest?' ★':''}</span><div class="vc-bar-track"><div class="vc-bar-fill" style="width:${w}%;background:${col}">${w>20?fmtC(v.avg_price)+' kr':''}</div></div><span class="vc-price ${cheapest?'vc-cheapest':'vc-expensive'}">${fmtC(v.avg_price)} kr</span><span class="text-muted" style="min-width:40px;text-align:right;font-size:0.75rem">×${v.purchase_count}</span></div>`;
+      return`<div class="vc-bar-row"><span class="vc-vendor ${cheapest?'vc-cheapest':'vc-expensive'}">${esc(v.vendor)}${cheapest?' â˜…':''}</span><div class="vc-bar-track"><div class="vc-bar-fill" style="width:${w}%;background:${col}">${w>20?fmtC(v.avg_price)+' kr':''}</div></div><span class="vc-price ${cheapest?'vc-cheapest':'vc-expensive'}">${fmtC(v.avg_price)} kr</span><span class="text-muted" style="min-width:40px;text-align:right;font-size:0.75rem">Ã—${v.purchase_count}</span></div>`;
     }).join('');
     return`<div class="vc-card"><div class="vc-header"><span class="vc-title">${esc(p.description)} ${p.category?`<span class="cat-badge" style="cursor:default;font-size:0.65rem">${esc(p.category)}</span>`:''}</span><span class="vc-save ${savCls}">${savTxt}</span></div>${bars}</div>`;
   }).join('');
@@ -1431,10 +1431,10 @@ async function loadPriceTrends(){
   }catch(e){el.innerHTML='<div class="empty-state">Kunde inte ladda prisutveckling</div>'}
 }
 function renderPriceTrends(el,trends){
-  if(!trends.length){el.innerHTML='<div class="empty-state">Inga produkter med tillräcklig prisdata.<br><span class="text-muted">Minst 2 köp av samma produkt krävs.</span></div>';return}
+  if(!trends.length){el.innerHTML='<div class="empty-state">Inga produkter med tillrÃ¤cklig prisdata.<br><span class="text-muted">Minst 2 kÃ¶p av samma produkt krÃ¤vs.</span></div>';return}
   el.innerHTML=trends.map(t=>{
     const ch=t.change_pct;const cls=ch>2?'up':ch<-2?'down':'flat';
-    const arrow=ch>2?'↑':ch<-2?'↓':'→';
+    const arrow=ch>2?'â†‘':ch<-2?'â†“':'â†’';
     const pts=t.data_points;
     // Mini sparkline SVG
     let spark='';
@@ -1445,11 +1445,11 @@ function renderPriceTrends(el,trends){
       let path='M';
       pts.forEach((p,i)=>{const x=(i/(pts.length-1))*W;const y=H-((p.price-mn)/rng)*H;path+=(i===0?'':' L')+`${x} ${y}`});
       const col=ch>2?'var(--accent-rose)':ch<-2?'var(--accent-green)':'var(--accent)';
-      spark=`<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="display:block"><path d="${path}" fill="none" stroke="${col}" stroke-width="2" opacity="0.7"/>${pts.map((p,i)=>{const x=(i/(pts.length-1))*W;const y=H-((p.price-mn)/rng)*H;return`<circle cx="${x}" cy="${y}" r="3" fill="${col}"><title>${p.date}: ${fmtC(p.price)} kr${p.vendor?' — '+p.vendor:''}</title></circle>`}).join('')}</svg>`;
+      spark=`<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="display:block"><path d="${path}" fill="none" stroke="${col}" stroke-width="2" opacity="0.7"/>${pts.map((p,i)=>{const x=(i/(pts.length-1))*W;const y=H-((p.price-mn)/rng)*H;return`<circle cx="${x}" cy="${y}" r="3" fill="${col}"><title>${p.date}: ${fmtC(p.price)} kr${p.vendor?' â€” '+p.vendor:''}</title></circle>`}).join('')}</svg>`;
     }
-    const firstP=pts.length?fmtC(pts[0].price):'—';
-    const lastP=pts.length?fmtC(pts[pts.length-1].price):'—';
-    return`<div class="pt-card"><div class="pt-header"><span class="vc-title">${esc(t.description)} ${t.category?`<span class="cat-badge" style="cursor:default;font-size:0.65rem">${esc(t.category)}</span>`:''} <span class="text-muted" style="font-weight:400;font-size:0.78rem">× ${t.purchase_count} köp</span></span><span class="pt-change ${cls}">${arrow} ${Math.abs(ch)}%</span></div><div style="display:flex;align-items:center;gap:1.5rem;margin-top:0.5rem"><div style="flex:1">${spark}</div><div style="text-align:right;font-family:var(--mono);font-size:0.82rem"><div class="text-muted">${firstP} → ${lastP} kr</div></div></div></div>`;
+    const firstP=pts.length?fmtC(pts[0].price):'â€”';
+    const lastP=pts.length?fmtC(pts[pts.length-1].price):'â€”';
+    return`<div class="pt-card"><div class="pt-header"><span class="vc-title">${esc(t.description)} ${t.category?`<span class="cat-badge" style="cursor:default;font-size:0.65rem">${esc(t.category)}</span>`:''} <span class="text-muted" style="font-weight:400;font-size:0.78rem">Ã— ${t.purchase_count} kÃ¶p</span></span><span class="pt-change ${cls}">${arrow} ${Math.abs(ch)}%</span></div><div style="display:flex;align-items:center;gap:1.5rem;margin-top:0.5rem"><div style="flex:1">${spark}</div><div style="text-align:right;font-family:var(--mono);font-size:0.82rem"><div class="text-muted">${firstP} â†’ ${lastP} kr</div></div></div></div>`;
   }).join('');
 }
 function debouncePT(){clearTimeout(ptTimer);ptTimer=setTimeout(loadPriceTrends,350)}
@@ -1473,13 +1473,13 @@ function renderPriceChart(h){
   // Line path
   if(pts.length>1){let path='M';pts.forEach((p,i)=>{const x=PAD+(i/(pts.length-1))*W;const y=10+H-(((p.unit_price-mn)/rng)*H);path+=(i===0?'':' L')+` ${x} ${y}`});svg+=`<path d="${path}" fill="none" stroke="var(--accent)" stroke-width="2" opacity="0.6"/>`}
   // Points
-  pts.forEach((p,i)=>{const x=PAD+(pts.length===1?W/2:(i/(pts.length-1))*W);const y=10+H-(((p.unit_price-mn)/rng)*H);svg+=`<circle cx="${x}" cy="${y}" r="5" fill="var(--accent)" stroke="var(--bg-card)" stroke-width="2"><title>${p.date}: ${fmtC(p.unit_price)} kr${p.vendor?' — '+p.vendor:''}</title></circle>`});
+  pts.forEach((p,i)=>{const x=PAD+(pts.length===1?W/2:(i/(pts.length-1))*W);const y=10+H-(((p.unit_price-mn)/rng)*H);svg+=`<circle cx="${x}" cy="${y}" r="5" fill="var(--accent)" stroke="var(--bg-card)" stroke-width="2"><title>${p.date}: ${fmtC(p.unit_price)} kr${p.vendor?' â€” '+p.vendor:''}</title></circle>`});
   // X labels
   const step=Math.max(1,Math.floor(pts.length/6));
   pts.forEach((p,i)=>{if(i%step===0||i===pts.length-1){const x=PAD+(pts.length===1?W/2:(i/(pts.length-1))*W);svg+=`<text x="${x}" y="${H+30}" fill="var(--text-muted)" font-size="9" text-anchor="middle" font-family="var(--mono)">${(p.date||'').substring(5)}</text>`}});
   svg+=`</svg>`;ch.innerHTML=svg;
   // Table
-  tb.innerHTML=`<div class="table-wrapper"><table><thead><tr><th>Datum</th><th>Leverantör</th><th>À-pris</th><th>Totalt</th><th>Antal</th><th>Vikt</th></tr></thead><tbody>${h.map(r=>`<tr><td>${r.date||'—'}</td><td>${r.vendor?esc(r.vendor):'—'}</td><td class="amount">${r.unit_price!=null?fmtC(r.unit_price)+' kr':'—'}</td><td class="amount">${r.total_price!=null?fmtC(r.total_price)+' kr':'—'}</td><td>${r.quantity??'—'} ${r.unit||''}</td><td>${r.weight!=null?r.weight+' kg':'—'}</td></tr>`).join('')}</tbody></table></div>`}
+  tb.innerHTML=`<div class="table-wrapper"><table><thead><tr><th>Datum</th><th>LeverantÃ¶r</th><th>Ã€-pris</th><th>Totalt</th><th>Antal</th><th>Vikt</th></tr></thead><tbody>${h.map(r=>`<tr><td>${r.date||'â€”'}</td><td>${r.vendor?esc(r.vendor):'â€”'}</td><td class="amount">${r.unit_price!=null?fmtC(r.unit_price)+' kr':'â€”'}</td><td class="amount">${r.total_price!=null?fmtC(r.total_price)+' kr':'â€”'}</td><td>${r.quantity??'â€”'} ${r.unit||''}</td><td>${r.weight!=null?r.weight+' kg':'â€”'}</td></tr>`).join('')}</tbody></table></div>`}
 
 // Campaigns
 let _campData=null;let _campCitiesLoaded=false;
@@ -1490,7 +1490,7 @@ async function loadCampaignCities(){
     const d=await(await authFetch(`${API}/campaigns/cities`)).json();
     const sel=document.getElementById('camp-city');
     const cities=Object.entries(d).sort((a,b)=>a[0].localeCompare(b[0],'sv'));
-    sel.innerHTML='<option value="">Välj ort…</option>'+cities.map(([name])=>`<option value="${esc(name)}">${name[0].toUpperCase()+name.slice(1)}</option>`).join('');
+    sel.innerHTML='<option value="">VÃ¤lj ortâ€¦</option>'+cities.map(([name])=>`<option value="${esc(name)}">${name[0].toUpperCase()+name.slice(1)}</option>`).join('');
     _campCitiesLoaded=true;
     // Auto-select user's city or Stockholm as fallback
     const userCity=(currentUser?.city||'stockholm').toLowerCase();
@@ -1504,10 +1504,10 @@ async function loadCampaignCities(){
 async function loadCampaigns(){
   await loadCampaignCities();
   const city=document.getElementById('camp-city').value;
-  if(!city){document.getElementById('camp-content').innerHTML='<div class="empty-state">Välj en ort för att visa kampanjer</div>';document.getElementById('camp-summary').textContent='';return}
+  if(!city){document.getElementById('camp-content').innerHTML='<div class="empty-state">VÃ¤lj en ort fÃ¶r att visa kampanjer</div>';document.getElementById('camp-summary').textContent='';return}
   const el=document.getElementById('camp-content');
   el.innerHTML='<div class="loading"><div class="spinner"></div></div>';
-  document.getElementById('camp-summary').textContent='Hämtar kampanjer…';
+  document.getElementById('camp-summary').textContent='HÃ¤mtar kampanjerâ€¦';
   try{
     const r=await authFetch(`${API}/campaigns?city=${encodeURIComponent(city)}&match_products=true`);
     if(!r.ok){const e=await r.json();throw new Error(e.detail||`HTTP ${r.status}`)}
@@ -1524,7 +1524,7 @@ async function loadCampaigns(){
 }
 
 function renderCampaigns(){
-  if(!_campData){document.getElementById('camp-content').innerHTML='<div class="empty-state">Välj en ort</div>';return}
+  if(!_campData){document.getElementById('camp-content').innerHTML='<div class="empty-state">VÃ¤lj en ort</div>';return}
   const chainFilter=document.getElementById('camp-chain-filter').value.toLowerCase();
   const matchOnly=document.getElementById('camp-match-only').checked;
   const search=(document.getElementById('camp-search').value||'').toLowerCase();
@@ -1551,8 +1551,8 @@ function renderCampaigns(){
 
     html+=`<div class="camp-chain-group">
       <div class="camp-chain-header" onclick="this.parentElement.classList.toggle('collapsed')">
-        <div><strong>${esc(ch.chain)}</strong> <span class="text-muted" style="font-size:0.78rem">${offers.length} erbjudanden${matched?' · '+matched+' matchar dina varor':''}</span></div>
-        <span class="camp-toggle">▾</span>
+        <div><strong>${esc(ch.chain)}</strong> <span class="text-muted" style="font-size:0.78rem">${offers.length} erbjudanden${matched?' Â· '+matched+' matchar dina varor':''}</span></div>
+        <span class="camp-toggle">â–¾</span>
       </div>
       <div class="camp-chain-body"><div class="camp-grid">${offers.map(o=>{
         const p=o.product||{};
@@ -1572,9 +1572,9 @@ function renderCampaigns(){
           <div class="camp-meta">
             ${p.category?`<span class="camp-cat">${esc(p.category)}</span>`:''}
             ${o.valid_to?`<span class="camp-valid">t.o.m. ${o.valid_to.substring(5)}</span>`:''}
-            ${o.requires_membership?'<span class="camp-member">🪪 Medlemskap</span>':''}
+            ${o.requires_membership?'<span class="camp-member">ðŸªª Medlemskap</span>':''}
           </div>
-          ${o.matches_purchased?'<div class="camp-match-badge">✓ Köpt tidigare</div>':''}
+          ${o.matches_purchased?'<div class="camp-match-badge">âœ“ KÃ¶pt tidigare</div>':''}
         </div>`}).join('')}</div></div></div>`;
   }
 
@@ -1582,7 +1582,7 @@ function renderCampaigns(){
   document.getElementById('camp-content').innerHTML=html;
 
   const city=_campData.city||'';
-  const info=`${city}: ${totalShown} erbjudanden visas${totalMatched?' · '+totalMatched+' matchar dina varor':''}`;
+  const info=`${city}: ${totalShown} erbjudanden visas${totalMatched?' Â· '+totalMatched+' matchar dina varor':''}`;
   document.getElementById('camp-summary').textContent=info;
 }
 
@@ -1602,26 +1602,26 @@ document.getElementById('camp-chain-filter').addEventListener('change',renderCam
 async function loadDocuments(){const s=document.getElementById('search-input').value,t=document.getElementById('filter-type').value,fu=document.getElementById('filter-user').value;const p=new URLSearchParams({skip:currentPage*PS,limit:PS});if(s)p.set('search',s);if(t)p.set('document_type',t);if(fu)p.set('filter_user_id',fu);const tb=document.getElementById('docs-tbody');tb.innerHTML='<tr><td colspan="8"><div class="loading"><div class="spinner"></div></div></td></tr>';
   // Populate user filter for admin
   _populateUserFilter();
-  const d=await(await authFetch(`${API}/documents?${p}`)).json();tb.innerHTML=!d.documents.length?'<tr><td colspan="8"><div class="empty-state">Inga dokument</div></td></tr>':d.documents.map(x=>`<tr onclick="showDocument('${x.id}')" style="cursor:pointer"><td><strong>${esc(x.filename)}</strong></td><td>${typeBdg(x.document_type)}</td><td>${x.vendor?esc(x.vendor):'—'}</td><td class="amount">${x.total_amount!=null?fmtC(x.total_amount)+(x.currency?' '+x.currency:''):'—'}</td><td>${x.invoice_number||'—'}</td><td class="text-secondary">${x.invoice_date||'—'}</td><td class="text-secondary">${x.uploaded_by||'—'}</td><td class="text-secondary">${fmtD(x.created_at)}</td></tr>`).join('');
-  const s1=currentPage*PS+1,e=Math.min(s1+PS-1,d.total);document.getElementById('pagination-info').textContent=d.total>0?`${s1}–${e} av ${d.total}`:'';document.getElementById('btn-prev').disabled=currentPage===0;document.getElementById('btn-next').disabled=e>=d.total}
+  const d=await(await authFetch(`${API}/documents?${p}`)).json();tb.innerHTML=!d.documents.length?'<tr><td colspan="8"><div class="empty-state">Inga dokument</div></td></tr>':d.documents.map(x=>`<tr onclick="showDocument('${x.id}')" style="cursor:pointer"><td><strong>${esc(x.filename)}</strong></td><td>${typeBdg(x.document_type)}</td><td>${x.vendor?esc(x.vendor):'â€”'}</td><td class="amount">${x.total_amount!=null?fmtC(x.total_amount)+(x.currency?' '+x.currency:''):'â€”'}</td><td>${x.invoice_number||'â€”'}</td><td class="text-secondary">${x.invoice_date||'â€”'}</td><td class="text-secondary">${x.uploaded_by||'â€”'}</td><td class="text-secondary">${fmtD(x.created_at)}</td></tr>`).join('');
+  const s1=currentPage*PS+1,e=Math.min(s1+PS-1,d.total);document.getElementById('pagination-info').textContent=d.total>0?`${s1}â€“${e} av ${d.total}`:'';document.getElementById('btn-prev').disabled=currentPage===0;document.getElementById('btn-next').disabled=e>=d.total}
 function prevPage(){if(currentPage>0){currentPage--;loadDocuments()}}function nextPage(){currentPage++;loadDocuments()}function debounceSearch(){clearTimeout(sTimer);currentPage=0;sTimer=setTimeout(loadDocuments,350)}
 
 // Detail
 // Category dropdown
-const ALL_CATEGORIES=['mejeri','ost','glass','kött','chark','fisk','bröd','grönsaker','frukt','skafferi','färdigmat','dryck','snacks & godis','barnprodukter','hälsa','hygien','hushåll','kontorsmaterial','tjänst','transport','djur','tobak','övrigt'];
+const ALL_CATEGORIES=['mejeri','ost','glass','kÃ¶tt','chark','fisk','brÃ¶d','grÃ¶nsaker','frukt','skafferi','fÃ¤rdigmat','dryck','snacks & godis','barnprodukter','hÃ¤lsa','hygien','hushÃ¥ll','kontorsmaterial','tjÃ¤nst','transport','djur','tobak','Ã¶vrigt'];
 let openDropdown=null;
 
 // Badge for document detail view (single line item)
 function catBadge(item){
   const id=item.id;const cat=item.category;
-  if(cat)return`<span class="cat-badge" data-line-id="${id}" onclick="event.stopPropagation();openCatDrop(this,'line',${id},'${esc(cat)}','')" title="Klicka för att ändra">${esc(cat)}</span>`;
-  return`<span class="cat-badge no-cat" data-line-id="${id}" onclick="event.stopPropagation();openCatDrop(this,'line',${id},'','')" title="Sätt kategori">+ kategori</span>`;
+  if(cat)return`<span class="cat-badge" data-line-id="${id}" onclick="event.stopPropagation();openCatDrop(this,'line',${id},'${esc(cat)}','')" title="Klicka fÃ¶r att Ã¤ndra">${esc(cat)}</span>`;
+  return`<span class="cat-badge no-cat" data-line-id="${id}" onclick="event.stopPropagation();openCatDrop(this,'line',${id},'','')" title="SÃ¤tt kategori">+ kategori</span>`;
 }
 // Badge for analysis view (product = all matching line items)
 function prodCatBadge(desc,cat){
   const sd=btoa(unescape(encodeURIComponent(desc)));
-  if(cat)return`<span class="cat-badge" data-prod-key="${sd}" onclick="event.stopPropagation();openCatDrop(this,'product',0,'${esc(cat)}','${sd}')" title="Ändra kategori (alla kvitton)">${esc(cat)}</span>`;
-  return`<span class="cat-badge no-cat" data-prod-key="${sd}" onclick="event.stopPropagation();openCatDrop(this,'product',0,'','${sd}')" title="Sätt kategori">+ kategori</span>`;
+  if(cat)return`<span class="cat-badge" data-prod-key="${sd}" onclick="event.stopPropagation();openCatDrop(this,'product',0,'${esc(cat)}','${sd}')" title="Ã„ndra kategori (alla kvitton)">${esc(cat)}</span>`;
+  return`<span class="cat-badge no-cat" data-prod-key="${sd}" onclick="event.stopPropagation();openCatDrop(this,'product',0,'','${sd}')" title="SÃ¤tt kategori">+ kategori</span>`;
 }
 function decodeProdKey(key){try{return decodeURIComponent(escape(atob(key)))}catch(e){return ''}}
 
@@ -1634,7 +1634,7 @@ function openCatDrop(el,mode,lineId,current,prodKey){
   }
   closeCatDrop();
   const dd=document.createElement('div');dd.className='cat-dropdown';dd.onclick=e=>e.stopPropagation();
-  dd.innerHTML=`<input class="cat-dropdown-search" placeholder="Sök kategori…" oninput="filterCatItems(this)">`+
+  dd.innerHTML=`<input class="cat-dropdown-search" placeholder="SÃ¶k kategoriâ€¦" oninput="filterCatItems(this)">`+
     ALL_CATEGORIES.map(c=>`<button class="cat-dropdown-item${c===current?' active':''}" data-cat="${c}" onclick="pickCat('${c}','${mode}',${lineId},'${prodKey}')">${c}</button>`).join('');
   document.body.appendChild(dd);
   // Position relative to the badge
@@ -1672,18 +1672,18 @@ async function pickCat(cat,mode,lineId,prodKey){
     if(d.status==='success'){
       if(badge){badge.textContent=cat;badge.className='cat-badge cat-saved';setTimeout(()=>badge.classList.remove('cat-saved'),600)}
       const rMsg=d.rule_created?' + regel skapad':d.rule_updated?' + regel uppdaterad':'';
-      if(mode==='product'){showToast(`${d.items_updated||0} rader → "${cat}"${rMsg} ✅`)}
-      else{showToast(`Kategori sparad${rMsg} ✅`)}
-    }else{showToast('Fel: '+(d.detail||'okänt'),true)}
+      if(mode==='product'){showToast(`${d.items_updated||0} rader â†’ "${cat}"${rMsg} âœ…`)}
+      else{showToast(`Kategori sparad${rMsg} âœ…`)}
+    }else{showToast('Fel: '+(d.detail||'okÃ¤nt'),true)}
   }catch(e){showToast('Fel: '+e.message,true)}
 }
 
 async function showDocument(id){showView('detail');const el=document.getElementById('detail-content');el.innerHTML='<div class="loading"><div class="spinner"></div></div>';
   const d=(await(await authFetch(`${API}/documents/${id}`)).json()).document;
   el.innerHTML=`<div class="detail-header"><div><div class="detail-title">${esc(d.filename)}</div><div class="detail-meta">${typeBdg(d.document_type)}<span>${d.analysis_type}</span><span>${d.file_size_bytes?fmtB(d.file_size_bytes):''}</span><span>${fmtD(d.created_at)}</span></div></div><button class="btn btn-danger" onclick="deleteDoc('${d.id}')">Ta bort</button></div>
-  <div class="detail-grid"><div class="detail-card"><h3>Dokumentinfo</h3>${fR('Leverantör',d.vendor)}${fR('Fakturanr',d.invoice_number)}${fR('OCR',d.ocr_number)}${fR('Fakturadatum',d.invoice_date)}${fR('Förfallodatum',d.due_date)}</div><div class="detail-card"><h3>Belopp</h3>${fR('Totalbelopp',d.total_amount!=null?fmtC(d.total_amount):null)}${fR('Moms',d.vat_amount!=null?fmtC(d.vat_amount):null)}${fR('Valuta',d.currency)}${fR('Rabatt',d.discount)}</div></div>
-  ${d.line_items?.length?`<div class="detail-card" style="margin-bottom:1.5rem"><h3>Rader (${d.line_items.length}) <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400">— klicka på kategori för att ändra</span></h3><div class="table-wrapper" style="border:none"><table class="line-items-table"><thead><tr><th>Beskrivning</th><th>Kategori</th><th>Antal</th><th>Enhet</th><th>À-pris</th><th>Summa</th><th>Rabatt</th><th>Moms%</th><th>Vikt</th></tr></thead><tbody>${d.line_items.map(i=>`<tr><td>${esc(i.description||'—')}</td><td style="position:relative">${catBadge(i)}</td><td>${i.quantity??'—'}</td><td>${i.unit||'—'}</td><td class="amount">${i.unit_price!=null?fmtC(i.unit_price):'—'}</td><td class="amount">${i.total_price!=null?fmtC(i.total_price):'—'}</td><td class="amount" style="color:var(--accent-red,#ef4444)">${i.discount||'—'}</td><td>${i.vat_rate!=null?i.vat_rate+'%':'—'}</td><td>${i.weight!=null?i.weight+' kg':'—'}</td></tr>`).join('')}</tbody></table></div></div>`:''}
-  ${d.raw_analysis?`<div class="detail-card"><h3>Rå analys</h3><div class="raw-text">${esc(d.raw_analysis)}</div></div>`:''}`}
+  <div class="detail-grid"><div class="detail-card"><h3>Dokumentinfo</h3>${fR('LeverantÃ¶r',d.vendor)}${fR('Fakturanr',d.invoice_number)}${fR('OCR',d.ocr_number)}${fR('Fakturadatum',d.invoice_date)}${fR('FÃ¶rfallodatum',d.due_date)}</div><div class="detail-card"><h3>Belopp</h3>${fR('Totalbelopp',d.total_amount!=null?fmtC(d.total_amount):null)}${fR('Moms',d.vat_amount!=null?fmtC(d.vat_amount):null)}${fR('Valuta',d.currency)}${fR('Rabatt',d.discount)}</div></div>
+  ${d.line_items?.length?`<div class="detail-card" style="margin-bottom:1.5rem"><h3>Rader (${d.line_items.length}) <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400">â€” klicka pÃ¥ kategori fÃ¶r att Ã¤ndra</span></h3><div class="table-wrapper" style="border:none"><table class="line-items-table"><thead><tr><th>Beskrivning</th><th>Kategori</th><th>Antal</th><th>Enhet</th><th>Ã€-pris</th><th>Summa</th><th>Rabatt</th><th>Moms%</th><th>Vikt</th></tr></thead><tbody>${d.line_items.map(i=>`<tr><td>${esc(i.description||'â€”')}</td><td style="position:relative">${catBadge(i)}</td><td>${i.quantity??'â€”'}</td><td>${i.unit||'â€”'}</td><td class="amount">${i.unit_price!=null?fmtC(i.unit_price):'â€”'}</td><td class="amount">${i.total_price!=null?fmtC(i.total_price):'â€”'}</td><td class="amount" style="color:var(--accent-red,#ef4444)">${i.discount||'â€”'}</td><td>${i.vat_rate!=null?i.vat_rate+'%':'â€”'}</td><td>${i.weight!=null?i.weight+' kg':'â€”'}</td></tr>`).join('')}</tbody></table></div></div>`:''}
+  ${d.raw_analysis?`<div class="detail-card"><h3>RÃ¥ analys</h3><div class="raw-text">${esc(d.raw_analysis)}</div></div>`:''}`}
 async function deleteDoc(id){if(!confirm('Ta bort?'))return;await authFetch(`${API}/documents/${id}`,{method:'DELETE'});showView('documents')}
 
 // Rules
@@ -1699,10 +1699,10 @@ function renderFilteredRules(){
   if(curRuleScope)rules=rules.filter(r=>r.scope===curRuleScope);
   if(searchQ)rules=rules.filter(r=>(r.name||'').toLowerCase().includes(searchQ)||(r.description||'').toLowerCase().includes(searchQ)||(r.condition_value||'').toLowerCase().includes(searchQ)||(r.action_value||'').toLowerCase().includes(searchQ));
   if(!rules.length){el.innerHTML='<div class="empty-state">Inga regler matchar</div>';return}
-  el.innerHTML=rules.map(r=>`<div class="rule-card ${r.active?'':'inactive'}"><div class="rule-header"><div class="rule-name">${esc(r.name)} <span class="rule-badge ${r.scope==='line_item'?'scope-line':'scope-doc'}">${r.scope==='line_item'?'Rad':'Dok'}</span> <span class="rule-badge ${r.auto_generated?'auto':'manual'}">${r.auto_generated?'Auto':'Man'}</span> <span class="rule-badge ${r.active?'active-badge':'inactive-badge'}">${r.active?'Aktiv':'Av'}</span></div><div class="rule-actions"><span class="rule-applied">×${r.times_applied||0}</span><label class="toggle"><input type="checkbox" ${r.active?'checked':''} onchange="toggleRule(${r.id},this.checked)"><span class="toggle-slider"></span></label><button class="btn btn-ghost btn-sm" onclick='editRule(${JSON.stringify(r).replace(/'/g,"&#39;")})'>✏️</button><button class="btn btn-danger btn-sm" onclick="delRule(${r.id})">×</button></div></div>${r.description?`<div class="rule-desc">${esc(r.description)}</div>`:''}<div class="rule-details"><div class="rule-detail-box"><div class="rule-detail-label">Villkor</div><div class="rule-detail-value">${fL(r.condition_field)} ${opL(r.condition_operator)} "${esc(r.condition_value||'')}"</div></div><div class="rule-detail-box"><div class="rule-detail-label">Åtgärd</div><div class="rule-detail-value">${aL(r.action)} ${fL(r.target_field)} → "${esc(r.action_value||'')}"</div></div></div></div>`).join('')}
+  el.innerHTML=rules.map(r=>`<div class="rule-card ${r.active?'':'inactive'}"><div class="rule-header"><div class="rule-name">${esc(r.name)} <span class="rule-badge ${r.scope==='line_item'?'scope-line':'scope-doc'}">${r.scope==='line_item'?'Rad':'Dok'}</span> <span class="rule-badge ${r.auto_generated?'auto':'manual'}">${r.auto_generated?'Auto':'Man'}</span> <span class="rule-badge ${r.active?'active-badge':'inactive-badge'}">${r.active?'Aktiv':'Av'}</span></div><div class="rule-actions"><span class="rule-applied">Ã—${r.times_applied||0}</span><label class="toggle"><input type="checkbox" ${r.active?'checked':''} onchange="toggleRule(${r.id},this.checked)"><span class="toggle-slider"></span></label><button class="btn btn-ghost btn-sm" onclick='editRule(${JSON.stringify(r).replace(/'/g,"&#39;")})'>âœï¸</button><button class="btn btn-danger btn-sm" onclick="delRule(${r.id})">Ã—</button></div></div>${r.description?`<div class="rule-desc">${esc(r.description)}</div>`:''}<div class="rule-details"><div class="rule-detail-box"><div class="rule-detail-label">Villkor</div><div class="rule-detail-value">${fL(r.condition_field)} ${opL(r.condition_operator)} "${esc(r.condition_value||'')}"</div></div><div class="rule-detail-box"><div class="rule-detail-label">Ã…tgÃ¤rd</div><div class="rule-detail-value">${aL(r.action)} ${fL(r.target_field)} â†’ "${esc(r.action_value||'')}"</div></div></div></div>`).join('')}
 async function toggleRule(id,a){await authFetch(`${API}/rules/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({active:a})});showToast(a?'Aktiverad':'Avaktiverad');loadRules()}
 async function delRule(id){if(!confirm('Ta bort?'))return;await authFetch(`${API}/rules/${id}`,{method:'DELETE'});showToast('Borttagen');loadRules()}
-async function applyAllRules(b){b.disabled=true;const o=b.innerHTML;b.innerHTML='Kör…';const d=await(await authFetch(`${API}/rules/apply-all`,{method:'POST'})).json();showToast(`${d.documents_updated} dok, ${d.line_items_updated} rader`);b.disabled=false;b.innerHTML=o}
+async function applyAllRules(b){b.disabled=true;const o=b.innerHTML;b.innerHTML='KÃ¶râ€¦';const d=await(await authFetch(`${API}/rules/apply-all`,{method:'POST'})).json();showToast(`${d.documents_updated} dok, ${d.line_items_updated} rader`);b.disabled=false;b.innerHTML=o}
 function openRuleModal(){document.getElementById('modal-title').textContent='Ny regel';document.getElementById('rule-edit-id').value='';['rule-name','rule-desc','rule-cond-value','rule-action-value'].forEach(x=>document.getElementById(x).value='');document.getElementById('rule-active').checked=true;setRuleScope('document',document.querySelector('.scope-tab'));document.getElementById('rule-modal').classList.add('open')}
 function editRule(r){document.getElementById('modal-title').textContent='Redigera';document.getElementById('rule-edit-id').value=r.id;setRuleScope(r.scope||'document',document.querySelectorAll('.scope-tab')[r.scope==='line_item'?1:0]);document.getElementById('rule-name').value=r.name||'';document.getElementById('rule-desc').value=r.description||'';document.getElementById('rule-type').value=r.rule_type||'';document.getElementById('rule-active').checked=r.active;document.getElementById('rule-cond-field').value=r.condition_field||'';document.getElementById('rule-cond-op').value=r.condition_operator||'';document.getElementById('rule-cond-value').value=r.condition_value||'';document.getElementById('rule-target').value=r.target_field||'';document.getElementById('rule-action').value=r.action||'';document.getElementById('rule-action-value').value=r.action_value||'';document.getElementById('rule-modal').classList.add('open')}
 function closeRuleModal(){document.getElementById('rule-modal').classList.remove('open')}
@@ -1737,14 +1737,14 @@ function renderQueue(){
   const dupes=uploadQueue.filter(q=>q.status==='duplicate').length;
   const errors=uploadQueue.filter(q=>q.status==='error').length;
   document.getElementById('queue-status').textContent=
-    `${done} klara` + (dupes?`, ${dupes} dubletter`:'') + (processing?`, ${processing} analyserar`:'') + (pending?`, ${pending} väntar`:'') + (errors?`, ${errors} fel`:'');
+    `${done} klara` + (dupes?`, ${dupes} dubletter`:'') + (processing?`, ${processing} analyserar`:'') + (pending?`, ${pending} vÃ¤ntar`:'') + (errors?`, ${errors} fel`:'');
   el.innerHTML=uploadQueue.map(q=>{
     let statusHtml='';
-    if(q.status==='pending')statusHtml='<span class="qi-status pending">Väntar…</span>';
+    if(q.status==='pending')statusHtml='<span class="qi-status pending">VÃ¤ntarâ€¦</span>';
     else if(q.status==='processing'){const elapsed=q._startTime?Math.round((Date.now()-q._startTime)/1000):0;statusHtml=`<div class="qi-progress"><div class="qi-progress-fill" style="width:${Math.min(95,elapsed*1.5)}%"></div></div><span class="qi-status processing"><span class="qi-spinner"></span>Analyserar${elapsed>3?' ('+elapsed+'s)':''}</span>`}
-    else if(q.status==='done')statusHtml=`<span class="qi-status done">✓ Klar</span><button class="btn btn-ghost btn-sm" onclick="showDocument('${q.docId}')" style="font-size:0.72rem">Visa</button>`;
-    else if(q.status==='duplicate')statusHtml=`<span class="qi-status pending" title="${esc(q.error||'')}">⊘ Finns redan</span>`;
-    else if(q.status==='error')statusHtml=`<span class="qi-status error" title="${esc(q.error||'')}">✕ Fel</span><button class="btn btn-ghost btn-sm" onclick="retryQueueItem(${q.id})" style="font-size:0.72rem">↻</button>`;
+    else if(q.status==='done')statusHtml=`<span class="qi-status done">âœ“ Klar</span><button class="btn btn-ghost btn-sm" onclick="showDocument('${q.docId}')" style="font-size:0.72rem">Visa</button>`;
+    else if(q.status==='duplicate')statusHtml=`<span class="qi-status pending" title="${esc(q.error||'')}">âŠ˜ Finns redan</span>`;
+    else if(q.status==='error')statusHtml=`<span class="qi-status error" title="${esc(q.error||'')}">âœ• Fel</span><button class="btn btn-ghost btn-sm" onclick="retryQueueItem(${q.id})" style="font-size:0.72rem">â†»</button>`;
     return`<div class="queue-item" data-qid="${q.id}"><span class="qi-name">${esc(q.file.name)}</span><span class="qi-size">${fmtB(q.file.size)}</span>${statusHtml}</div>`;
   }).join('');
   updateQueueBadge();
@@ -1770,7 +1770,7 @@ async function processQueue(){
       const fd=new FormData();
       fd.append('file',item.file);fd.append('language',item.lang);
       const ctrl=new AbortController();
-      const timer=setTimeout(()=>ctrl.abort(),150000); // 150s timeout
+      const timer=setTimeout(()=>ctrl.abort(),300000); // 300s timeout
       const r=await authFetch(`${API}/${item.type}`,{method:'POST',body:fd,signal:ctrl.signal});
       clearTimeout(timer);
       if(r.status===409){
@@ -1785,7 +1785,7 @@ async function processQueue(){
         item.result=d;
       }
     }catch(e){
-      item.status='error';item.error=e.name==='AbortError'?'Timeout — tog för lång tid':e.message;
+      item.status='error';item.error=e.name==='AbortError'?'Timeout â€” tog fÃ¶r lÃ¥ng tid':e.message;
     }
     renderQueue();
   }
@@ -1794,10 +1794,10 @@ async function processQueue(){
   const dupes=uploadQueue.filter(q=>q.status==='duplicate').length;
   const errors=uploadQueue.filter(q=>q.status==='error').length;
   if(done>0||errors>0||dupes>0){
-    let msg=`Kö klar: ${done} analyserade`;
+    let msg=`KÃ¶ klar: ${done} analyserade`;
     if(dupes)msg+=`, ${dupes} dubletter`;
     if(errors)msg+=`, ${errors} fel`;
-    showToast(msg+(errors?'':' ✅'),errors>0);
+    showToast(msg+(errors?'':' âœ…'),errors>0);
   }
 }
 function retryQueueItem(id){
@@ -1813,7 +1813,7 @@ document.getElementById('rule-modal').addEventListener('click',e=>{if(e.target==
 document.getElementById('merge-modal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeMergeModal()});
 setRuleScope('document',document.querySelector('.scope-tab'));
 
-// ── Init: check auth state ──
+// â”€â”€ Init: check auth state â”€â”€
 // Enter key handlers
 document.getElementById('login-password')?.addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
 document.getElementById('reg-password')?.addEventListener('keydown',e=>{if(e.key==='Enter')doRegister();});
@@ -1831,7 +1831,7 @@ if(window.location.pathname==='/reset-password'&&urlParams.has('token')){
       const d=await r.json();
       if(r.ok){
         showAuthForm('login');
-        document.getElementById('login-error').textContent='✅ E-post verifierad! Du kan nu logga in.';
+        document.getElementById('login-error').textContent='âœ… E-post verifierad! Du kan nu logga in.';
         document.getElementById('login-error').style.display='block';
         document.getElementById('login-error').style.color='var(--accent-green)';
       }else{
