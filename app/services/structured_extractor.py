@@ -192,28 +192,57 @@ class StructuredExtractor:
         return data
 
     @staticmethod
-    def _resize_image_if_needed(b64_data: str, media_type: str) -> tuple[str, str]:
-        """Resize large images to reduce API payload and speed up processing."""
+    def _preprocess_image(b64_data: str, media_type: str) -> tuple[str, str]:
+        """Resize and enhance images for better extraction quality.
+
+        For PNG/photos: apply contrast boost, sharpening, and grayscale
+        conversion to improve text readability before sending to Claude.
+        """
         import base64
         import io
-        from PIL import Image
+        from PIL import Image, ImageEnhance, ImageFilter
 
         raw = base64.standard_b64decode(b64_data)
         img = Image.open(io.BytesIO(raw))
 
         w, h = img.size
-        if w <= _MAX_IMAGE_DIM and h <= _MAX_IMAGE_DIM:
-            return b64_data, media_type  # Already small enough
+        needs_resize = w > _MAX_IMAGE_DIM or h > _MAX_IMAGE_DIM
+        is_photo = media_type not in ("image/png",)  # PNGs are usually screenshots/scans
 
-        # Scale down proportionally
-        ratio = min(_MAX_IMAGE_DIM / w, _MAX_IMAGE_DIM / h)
-        new_w, new_h = int(w * ratio), int(h * ratio)
-        img = img.resize((new_w, new_h), Image.LANCZOS)
+        # ── Enhancement for receipt images (PNG scans, photos) ──
+        # Convert to RGB if needed
+        if img.mode in ("RGBA", "P", "LA"):
+            bg = Image.new("RGB", img.size, (255, 255, 255))
+            if img.mode == "RGBA" or img.mode == "LA":
+                bg.paste(img, mask=img.split()[-1])
+            else:
+                bg.paste(img)
+            img = bg
+        elif img.mode != "RGB":
+            img = img.convert("RGB")
 
-        # Re-encode as JPEG for photos (much smaller), PNG for anything else
+        # Auto-enhance: boost contrast and sharpness for scanned receipts
+        # (helps Claude read faded/blurry text)
+        enhancer = ImageEnhance.Contrast(img)
+        img = enhancer.enhance(1.3)  # 30% more contrast
+
+        enhancer = ImageEnhance.Sharpness(img)
+        img = enhancer.enhance(1.5)  # 50% sharper
+
+        # For very light images (faded receipts), boost brightness slightly
+        enhancer = ImageEnhance.Brightness(img)
+        img = enhancer.enhance(1.05)
+
+        # ── Resize if needed ──
+        if needs_resize:
+            ratio = min(_MAX_IMAGE_DIM / w, _MAX_IMAGE_DIM / h)
+            new_w, new_h = int(w * ratio), int(h * ratio)
+            img = img.resize((new_w, new_h), Image.LANCZOS)
+
+        # ── Re-encode ──
         buf = io.BytesIO()
-        if media_type in ("image/jpeg", "image/jpg"):
-            img.convert("RGB").save(buf, format="JPEG", quality=85)
+        if is_photo or media_type in ("image/jpeg", "image/jpg"):
+            img.save(buf, format="JPEG", quality=90)
             out_type = "image/jpeg"
         else:
             img.save(buf, format="PNG", optimize=True)
@@ -231,7 +260,7 @@ class StructuredExtractor:
 
         for block in content_blocks:
             if block["type"] == "image":
-                img_data, img_type = StructuredExtractor._resize_image_if_needed(
+                img_data, img_type = StructuredExtractor._preprocess_image(
                     block["data"], block["media_type"]
                 )
                 message_content.append(

@@ -92,6 +92,12 @@
     .field-label{font-size:0.85rem;color:var(--text-secondary)}.field-value{font-size:0.9rem;font-weight:500;text-align:right;max-width:60%;word-break:break-word}
     .line-items-table th{font-size:0.75rem;padding:0.5rem 0.75rem;background:var(--bg-secondary)}
     .line-items-table td{font-size:0.85rem;padding:0.6rem 0.75rem}
+    /* Inline editing */
+    .editable{cursor:pointer;border-radius:var(--radius-sm);padding:0.1rem 0.3rem;transition:all var(--transition)}
+    .editable:hover{background:var(--accent-glow);outline:1px dashed var(--border-light)}
+    .inline-input{background:var(--bg-input);border:1px solid var(--accent);border-radius:var(--radius-sm);color:var(--text-primary);font-size:inherit;font-family:var(--font);padding:0.2rem 0.4rem;width:100%;min-width:60px;outline:none}
+    .inline-input:focus{box-shadow:0 0 0 2px var(--accent-glow)}
+    .detail-field-value.editable{display:inline-block;min-width:40px;min-height:1.2em}
     .raw-text{background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);padding:1rem;font-size:0.85rem;line-height:1.7;color:var(--text-secondary);max-height:400px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;font-family:var(--mono)}
     .upload-zone{border:2px dashed var(--border);border-radius:var(--radius);padding:3rem 2rem;text-align:center;cursor:pointer;transition:all var(--transition);background:var(--bg-card);margin-bottom:1.5rem}
     .upload-zone:hover,.upload-zone.dragover{border-color:var(--accent);background:var(--accent-glow)}
@@ -1040,6 +1046,44 @@ function typeBdg(t){return`<span class="type-badge type-${t||'other'}">${typeL(t
 function catL(c){if(!c)return'—';return c[0].toUpperCase()+c.slice(1).toLowerCase()}
 function catCol(c){return CCOL[(c||'').toLowerCase()]||'var(--accent)'}
 function fR(l,v){return`<div class="field-row"><span class="field-label">${esc(l)}</span><span class="field-value">${v?esc(String(v)):'—'}</span></div>`}
+function fRe(l,v,docId,field){return`<div class="field-row"><span class="field-label">${esc(l)}</span><span class="field-value editable" onclick="inlineEditDoc(this,'${docId}','${field}')">${v?esc(String(v)):'—'}</span></div>`}
+/* ── Inline editing ────────────────────────────────────────── */
+let _editDocId=null;
+async function inlineEditDoc(el,docId,field){
+  if(el.querySelector('.inline-input'))return;
+  const old=el.textContent==='—'?'':el.textContent;
+  el.innerHTML=`<input class="inline-input" value="${esc(old)}">`;
+  const inp=el.querySelector('input');inp.focus();inp.select();
+  function save(){
+    const nv=inp.value.trim();
+    if(nv===old){el.textContent=old||'—';return}
+    const body={};body[field]=nv||null;
+    authFetch(`${API}/documents/${docId}/fields`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+      .then(r=>{if(!r.ok)throw new Error('Sparfel');return r.json()})
+      .then(()=>{el.textContent=nv||'—';showToast('Sparat ✓')})
+      .catch(e=>{el.textContent=old||'—';showToast('Kunde inte spara',true)});
+  }
+  inp.addEventListener('blur',save);
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();inp.blur()}if(e.key==='Escape'){inp.value=old;inp.blur()}});
+}
+async function inlineEditLine(el,lineId,field,isNum){
+  if(el.querySelector('.inline-input'))return;
+  let old=el.textContent.replace(/\s*(kr|kg|%)$/,'').trim();
+  if(old==='—')old='';
+  el.innerHTML=`<input class="inline-input" value="${esc(old)}" ${isNum?'type="number" step="any"':''}>`;
+  const inp=el.querySelector('input');inp.focus();inp.select();
+  function save(){
+    const nv=inp.value.trim();
+    if(nv===old){showDocument(_editDocId);return}
+    const body={};body[field]=isNum?(nv===''?null:parseFloat(nv)):nv||null;
+    authFetch(`${API}/line-items/${lineId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+      .then(r=>{if(!r.ok)throw new Error('Sparfel');return r.json()})
+      .then(()=>{showToast('Sparat ✓');showDocument(_editDocId)})
+      .catch(e=>{showToast('Kunde inte spara',true);showDocument(_editDocId)});
+  }
+  inp.addEventListener('blur',save);
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();inp.blur()}if(e.key==='Escape'){inp.value=old;inp.blur()}});
+}
 function fL(f){return{...DOC_F,...LINE_F}[f]||f||'—'}
 function opL(o){return{contains:'innehåller',equals:'=',starts_with:'börjar med',ends_with:'slutar med',regex:'regex',greater_than:'>',less_than:'<',always:'alltid'}[o]||o}
 function aL(a){return{set:'Sätt',set_if_empty:'Om tomt',replace:'Ersätt',strip_chars:'Rensa',format_number:'Format',multiply:'×',recalculate:'Räkna om'}[a]||a}
@@ -1683,11 +1727,13 @@ async function pickCat(cat,mode,lineId,prodKey){
   }catch(e){showToast('Fel: '+e.message,true)}
 }
 
-async function showDocument(id){showView('detail');const el=document.getElementById('detail-content');el.innerHTML='<div class="loading"><div class="spinner"></div></div>';
+async function showDocument(id){showView('detail');_editDocId=id;const el=document.getElementById('detail-content');el.innerHTML='<div class="loading"><div class="spinner"></div></div>';
   const d=(await(await authFetch(`${API}/documents/${id}`)).json()).document;
-  el.innerHTML=`<div class="detail-header"><div><div class="detail-title">${esc(d.filename)}</div><div class="detail-meta">${typeBdg(d.document_type)}<span>${d.analysis_type}</span><span>${d.file_size_bytes?fmtB(d.file_size_bytes):''}</span><span>${fmtD(d.created_at)}</span></div></div><button class="btn btn-danger" onclick="deleteDoc('${d.id}')">Ta bort</button></div>
-  <div class="detail-grid"><div class="detail-card"><h3>Dokumentinfo</h3>${fR('Leverantör',d.vendor)}${fR('Fakturanr',d.invoice_number)}${fR('OCR',d.ocr_number)}${fR('Fakturadatum',d.invoice_date)}${fR('Förfallodatum',d.due_date)}</div><div class="detail-card"><h3>Belopp</h3>${fR('Totalbelopp',d.total_amount!=null?fmtC(d.total_amount):null)}${fR('Moms',d.vat_amount!=null?fmtC(d.vat_amount):null)}${fR('Valuta',d.currency)}${fR('Rabatt',d.discount)}</div></div>
-  ${d.line_items?.length?`<div class="detail-card" style="margin-bottom:1.5rem"><h3>Rader (${d.line_items.length}) <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400">— klicka på kategori för att ändra</span></h3><div class="table-wrapper" style="border:none"><table class="line-items-table"><thead><tr><th>Beskrivning</th><th>Kategori</th><th>Antal</th><th>Enhet</th><th>À-pris</th><th>Summa</th><th>Rabatt</th><th>Moms%</th><th>Vikt</th></tr></thead><tbody>${d.line_items.map(i=>`<tr><td>${esc(i.description||'—')}</td><td style="position:relative">${catBadge(i)}</td><td>${i.quantity??'—'}</td><td>${i.unit||'—'}</td><td class="amount">${i.unit_price!=null?fmtC(i.unit_price):'—'}</td><td class="amount">${i.total_price!=null?fmtC(i.total_price):'—'}</td><td class="amount" style="color:var(--accent-red,#ef4444)">${i.discount||'—'}</td><td>${i.vat_rate!=null?i.vat_rate+'%':'—'}</td><td>${i.weight!=null?i.weight+' kg':'—'}</td></tr>`).join('')}</tbody></table></div></div>`:''}
+  const isAdmin=currentUser?.role==='admin'||currentUser?.role==='superuser';
+  const fr=isAdmin?(l,v,f)=>fRe(l,v,d.id,f):(l,v)=>fR(l,v);
+  el.innerHTML=`<div class="detail-header"><div><div class="detail-title">${esc(d.filename)}</div><div class="detail-meta">${typeBdg(d.document_type)}<span>${d.analysis_type}</span><span>${d.file_size_bytes?fmtB(d.file_size_bytes):''}</span><span>${fmtD(d.created_at)}</span>${d.uploaded_by?`<span>👤 ${esc(d.uploaded_by)}</span>`:''}</div></div><button class="btn btn-danger" onclick="deleteDoc('${d.id}')">Ta bort</button></div>
+  <div class="detail-grid"><div class="detail-card"><h3>Dokumentinfo${isAdmin?' <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400">— klicka för att redigera</span>':''}</h3>${fr('Leverantör',d.vendor,'vendor')}${fr('Fakturanr',d.invoice_number,'invoice_number')}${fr('OCR',d.ocr_number,'ocr_number')}${fr('Fakturadatum',d.invoice_date,'invoice_date')}${fr('Förfallodatum',d.due_date,'due_date')}</div><div class="detail-card"><h3>Belopp</h3>${fr('Totalbelopp',d.total_amount!=null?fmtC(d.total_amount):null,'total_amount')}${fr('Moms',d.vat_amount!=null?fmtC(d.vat_amount):null,'vat_amount')}${fr('Valuta',d.currency,'currency')}${fr('Rabatt',d.discount,'discount')}</div></div>
+  ${d.line_items?.length?`<div class="detail-card" style="margin-bottom:1.5rem"><h3>Rader (${d.line_items.length}) <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400">— klicka på ${isAdmin?'valfritt fält':'kategori'} för att ändra</span></h3><div class="table-wrapper" style="border:none"><table class="line-items-table"><thead><tr><th>Beskrivning</th><th>Kategori</th><th>Antal</th><th>Enhet</th><th>À-pris</th><th>Summa</th><th>Rabatt</th><th>Moms%</th><th>Vikt</th></tr></thead><tbody>${d.line_items.map(i=>{const e=(f,n)=>isAdmin?`onclick="inlineEditLine(this,${i.id},'${f}',${!!n})"`:'';return`<tr><td class="${isAdmin?'editable':''}" ${e('description',false)}>${esc(i.description||'—')}</td><td style="position:relative">${catBadge(i)}</td><td class="${isAdmin?'editable':''}" ${e('quantity',true)}>${i.quantity??'—'}</td><td class="${isAdmin?'editable':''}" ${e('unit',false)}>${i.unit||'—'}</td><td class="amount ${isAdmin?'editable':''}" ${e('unit_price',true)}>${i.unit_price!=null?fmtC(i.unit_price):'—'}</td><td class="amount ${isAdmin?'editable':''}" ${e('total_price',true)}>${i.total_price!=null?fmtC(i.total_price):'—'}</td><td class="amount ${isAdmin?'editable':''}" style="color:var(--accent-red,#ef4444)" ${e('discount',false)}>${i.discount||'—'}</td><td class="${isAdmin?'editable':''}" ${e('vat_rate',true)}>${i.vat_rate!=null?i.vat_rate+'%':'—'}</td><td class="${isAdmin?'editable':''}" ${e('weight',true)}>${i.weight!=null?i.weight+' kg':'—'}</td></tr>`}).join('')}</tbody></table></div></div>`:''}
   ${d.raw_analysis?`<div class="detail-card"><h3>Rå analys</h3><div class="raw-text">${esc(d.raw_analysis)}</div></div>`:''}`}
 async function deleteDoc(id){if(!confirm('Ta bort?'))return;await authFetch(`${API}/documents/${id}`,{method:'DELETE'});showView('documents')}
 

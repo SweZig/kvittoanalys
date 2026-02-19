@@ -318,6 +318,32 @@ class LineItemCategoryUpdate(BaseModel):
     create_rule: bool = True
 
 
+class LineItemUpdate(BaseModel):
+    description: str | None = None
+    quantity: float | None = None
+    unit: str | None = None
+    unit_price: float | None = None
+    total_price: float | None = None
+    vat_rate: float | None = None
+    discount: str | None = None
+    weight: float | None = None
+    packaging: str | None = None
+    category: str | None = None
+
+
+class DocumentFieldsUpdate(BaseModel):
+    vendor: str | None = None
+    total_amount: float | None = None
+    vat_amount: float | None = None
+    currency: str | None = None
+    invoice_number: str | None = None
+    ocr_number: str | None = None
+    invoice_date: str | None = None
+    due_date: str | None = None
+    document_type: str | None = None
+    discount: str | None = None
+
+
 class ProductCategoryUpdate(BaseModel):
     description: str
     category: str
@@ -359,6 +385,36 @@ async def migrate_categories(
 ):
     """Migrate all categories to the new structure and recategorize. Admin only."""
     result = crud.migrate_categories(db)
+    return {"status": "success", **result}
+
+
+@router.put("/line-items/{line_item_id}", tags=["database"])
+async def update_line_item(
+    line_item_id: int, data: LineItemUpdate, db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin", "superuser")),
+):
+    """Update any editable fields on a line item."""
+    updates = data.model_dump(exclude_unset=True)
+    if not updates:
+        raise HTTPException(status_code=400, detail="Inga fält att uppdatera")
+    result = crud.update_line_item(db, line_item_id=line_item_id, updates=updates)
+    if not result:
+        raise HTTPException(status_code=404, detail="Raden hittades inte")
+    return {"status": "success", **result}
+
+
+@router.put("/documents/{document_id}/fields", tags=["database"])
+async def update_document_fields(
+    document_id: str, data: DocumentFieldsUpdate, db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin", "superuser")),
+):
+    """Update editable document-level fields (vendor, amounts, dates, etc.)."""
+    updates = data.model_dump(exclude_unset=True)
+    if not updates:
+        raise HTTPException(status_code=400, detail="Inga fält att uppdatera")
+    result = crud.update_document_fields(db, document_id=document_id, updates=updates)
+    if not result:
+        raise HTTPException(status_code=404, detail="Dokumentet hittades inte")
     return {"status": "success", **result}
 
 

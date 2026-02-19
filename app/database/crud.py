@@ -306,6 +306,76 @@ def update_line_item_category(
     return result
 
 
+def update_line_item(
+    db: Session, *, line_item_id: int, updates: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Update any editable fields on a line item."""
+    line = db.query(LineItem).filter(LineItem.id == line_item_id).first()
+    if not line:
+        return None
+
+    editable = {"description", "quantity", "unit", "unit_price", "total_price",
+                "vat_rate", "discount", "weight", "packaging", "category"}
+    numeric = {"quantity", "unit_price", "total_price", "vat_rate", "weight"}
+    changed = {}
+    for key, value in updates.items():
+        if key not in editable:
+            continue
+        # Coerce numeric fields
+        if key in numeric:
+            if value == "" or value is None:
+                value = None
+            else:
+                try:
+                    value = float(value)
+                except (ValueError, TypeError):
+                    continue
+        elif key in ("description", "unit", "discount", "packaging", "category"):
+            value = _fmt(value) if value else None
+        old = getattr(line, key)
+        if old != value:
+            setattr(line, key, value)
+            changed[key] = {"old": old, "new": value}
+    if changed:
+        db.commit()
+    return {"line_item_id": line_item_id, "changed": changed}
+
+
+def update_document_fields(
+    db: Session, *, document_id: str, updates: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Update editable document-level fields."""
+    doc = db.query(Document).filter(Document.id == document_id).first()
+    if not doc:
+        return None
+
+    editable = {"vendor", "total_amount", "vat_amount", "currency",
+                "invoice_number", "ocr_number", "invoice_date", "due_date",
+                "document_type", "discount"}
+    numeric = {"total_amount", "vat_amount"}
+    changed = {}
+    for key, value in updates.items():
+        if key not in editable:
+            continue
+        if key in numeric:
+            if value == "" or value is None:
+                value = None
+            else:
+                try:
+                    value = float(value)
+                except (ValueError, TypeError):
+                    continue
+        elif value == "":
+            value = None
+        old = getattr(doc, key)
+        if old != value:
+            setattr(doc, key, value)
+            changed[key] = {"old": old, "new": value}
+    if changed:
+        db.commit()
+    return {"document_id": document_id, "changed": changed}
+
+
 def update_product_category(
     db: Session, *, description: str, category: str, should_create_rule: bool = True,
 ) -> dict[str, Any]:
