@@ -671,7 +671,7 @@ def list_documents(
     document_type: str | None = None, vendor: str | None = None,
     search: str | None = None, user_id: int | None = None,
 ) -> list[Document]:
-    query = db.query(Document)
+    query = db.query(Document).options(joinedload(Document.owner))
     if user_id is not None:
         query = query.filter(Document.user_id == user_id)
     if document_type:

@@ -247,7 +247,22 @@
     .camp-valid{color:var(--text-muted)}
     .camp-member{font-size:0.68rem}
     .camp-match-badge{margin-top:0.35rem;font-size:0.7rem;color:var(--accent-green,#22c55e);font-weight:600}
-    @media(max-width:768px){.app{grid-template-columns:1fr}.sidebar{display:none}.main{padding:1rem}.stats-grid{grid-template-columns:1fr 1fr}.form-row{grid-template-columns:1fr}.camp-grid{grid-template-columns:1fr}}
+    .hamburger{display:none;background:none;border:none;color:var(--text-primary);cursor:pointer;padding:0.5rem;margin-right:0.5rem}
+    .hamburger svg{width:24px;height:24px}
+    .sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:90;backdrop-filter:blur(2px)}
+    .sidebar-overlay.open{display:block}
+    @media(max-width:768px){
+      .app{grid-template-columns:1fr}
+      .sidebar{display:none;position:fixed;top:0;left:0;bottom:0;width:260px;z-index:95;background:var(--bg-secondary);border-right:1px solid var(--border)}
+      .sidebar.mobile-open{display:flex}
+      .hamburger{display:flex;align-items:center}
+      .main{padding:1rem}
+      .stats-grid{grid-template-columns:1fr 1fr}
+      .form-row{grid-template-columns:1fr}
+      .camp-grid{grid-template-columns:1fr}
+      .table-wrapper{overflow-x:auto}
+      table{min-width:700px}
+    }
     ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
     .hidden{display:none!important}
     .cat-bar-compare{height:6px;border-radius:2px;margin-top:2px;opacity:0.4}
@@ -382,7 +397,8 @@
     <button class="nav-item admin-only" data-view="users" onclick="showView('users')" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Användare</button>
     <div class="sidebar-footer"><span class="status-dot"></span><span>API ansluten</span></div>
   </nav>
-  <header class="header"><h1 id="header-title">Dashboard</h1><div style="display:flex;align-items:center;gap:1rem"><div class="user-info-bar"><span class="user-name" id="user-display-name"></span><span id="user-role-badge" class="role-badge"></span><button class="logout-btn" onclick="doLogout()">Logga ut</button></div><button class="btn btn-primary" onclick="showView('upload')">+ Nytt dokument</button></div></header>
+  <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeMobileMenu()"></div>
+  <header class="header"><div style="display:flex;align-items:center"><button class="hamburger" id="hamburger-btn" onclick="toggleMobileMenu()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button><h1 id="header-title">Dashboard</h1></div><div style="display:flex;align-items:center;gap:1rem"><div class="user-info-bar"><span class="user-name" id="user-display-name"></span><span id="user-role-badge" class="role-badge"></span><button class="logout-btn" onclick="doLogout()">Logga ut</button></div><button class="btn btn-primary" onclick="showView('upload')">+ Nytt dokument</button></div></header>
 
   <main class="main">
     <!-- Dashboard -->
@@ -534,7 +550,7 @@
         <select id="filter-type" onchange="loadDocuments()"><option value="">Alla typer</option><option value="invoice">Faktura</option><option value="receipt">Kvitto</option><option value="contract">Kontrakt</option></select>
         <button class="btn btn-secondary" onclick="loadDocuments()">Uppdatera</button>
       </div>
-      <div class="table-wrapper"><table><thead><tr><th>Filnamn</th><th>Typ</th><th>Leverantör</th><th>Belopp</th><th>Fakturanr</th><th>Datum</th><th>Skapad</th></tr></thead><tbody id="docs-tbody"></tbody></table>
+      <div class="table-wrapper"><table><thead><tr><th>Filnamn</th><th>Typ</th><th>Leverantör</th><th>Belopp</th><th>Fakturanr</th><th>Datum</th><th>Användare</th><th>Skapad</th></tr></thead><tbody id="docs-tbody"></tbody></table>
       <div class="pagination"><span id="pagination-info">—</span><div style="display:flex;gap:0.5rem;"><button class="btn btn-ghost btn-sm" id="btn-prev" onclick="prevPage()" disabled>←</button><button class="btn btn-ghost btn-sm" id="btn-next" onclick="nextPage()">→</button></div></div></div>
     </div>
 
@@ -779,6 +795,18 @@ function applyRoleVisibility(){
   if(rulesNav) rulesNav.style.display=(role==='admin'||role==='superuser')?'':'none';
 }
 
+/* ── Mobile menu ────────────────────────────────────────────── */
+function toggleMobileMenu(){
+  const sb=document.querySelector('.sidebar');
+  const ov=document.getElementById('sidebar-overlay');
+  sb.classList.toggle('mobile-open');
+  ov.classList.toggle('open');
+}
+function closeMobileMenu(){
+  document.querySelector('.sidebar').classList.remove('mobile-open');
+  document.getElementById('sidebar-overlay').classList.remove('open');
+}
+
 /* ── User management (admin) ─────────────────────────────────── */
 function showUsersTab(tab,btn){
   document.getElementById('users-tab').style.display=tab==='users'?'':'none';
@@ -887,7 +915,7 @@ const CCOL={mejeri:'#4a9eff',ost:'#f59e0b',glass:'#c084fc',kött:'#ef4444',chark
 function popSel(s,o){s.innerHTML='';(Array.isArray(o)?o:Object.entries(o)).forEach(([v,l])=>{const op=document.createElement('option');op.value=v;op.textContent=l;s.appendChild(op)})}
 function setRuleScope(sc,b){document.getElementById('rule-scope').value=sc;document.querySelectorAll('.scope-tab').forEach(t=>t.classList.remove('active'));b?.classList.add('active');const li=sc==='line_item';popSel(document.getElementById('rule-type'),li?LR_T:DR_T);popSel(document.getElementById('rule-cond-field'),li?LINE_CF:DOC_F);popSel(document.getElementById('rule-target'),li?LINE_F:DOC_F)}
 
-function showView(n){document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));document.getElementById(`view-${n}`).classList.add('active');document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));document.querySelector(`.nav-item[data-view="${n}"]`)?.classList.add('active');const t={dashboard:'Dashboard',analytics:'Analys',campaigns:'Kampanjer',documents:'Dokument',upload:'Ladda upp',detail:'Dokument',rules:'Regler',users:'Användare'};document.getElementById('header-title').textContent=t[n]||'Kvittoanalys';({dashboard:loadDashboard,documents:loadDocuments,rules:loadRules,analytics:loadAnalytics,campaigns:loadCampaigns,users:loadUsers})[n]?.()}
+function showView(n){closeMobileMenu();document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));document.getElementById(`view-${n}`).classList.add('active');document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));document.querySelector(`.nav-item[data-view="${n}"]`)?.classList.add('active');const t={dashboard:'Dashboard',analytics:'Analys',campaigns:'Kampanjer',documents:'Dokument',upload:'Ladda upp',detail:'Dokument',rules:'Regler',users:'Användare'};document.getElementById('header-title').textContent=t[n]||'Kvittoanalys';({dashboard:loadDashboard,documents:loadDocuments,rules:loadRules,analytics:loadAnalytics,campaigns:loadCampaigns,users:loadUsers})[n]?.()}
 function showToast(m,e){const t=document.getElementById('toast');t.textContent=m;t.className='toast show'+(e?' error':'');setTimeout(()=>t.className='toast',3000)}
 function esc(s){if(!s)return'';const d=document.createElement('div');d.textContent=s;return d.innerHTML}
 function fmtC(n){return n==null?'—':new Intl.NumberFormat('sv-SE',{minimumFractionDigits:2,maximumFractionDigits:2}).format(n)}
@@ -1457,8 +1485,8 @@ document.getElementById('camp-city').addEventListener('change',loadCampaigns);
 document.getElementById('camp-chain-filter').addEventListener('change',renderCampaigns);
 
 // Documents
-async function loadDocuments(){const s=document.getElementById('search-input').value,t=document.getElementById('filter-type').value;const p=new URLSearchParams({skip:currentPage*PS,limit:PS});if(s)p.set('search',s);if(t)p.set('document_type',t);const tb=document.getElementById('docs-tbody');tb.innerHTML='<tr><td colspan="7"><div class="loading"><div class="spinner"></div></div></td></tr>';
-  const d=await(await authFetch(`${API}/documents?${p}`)).json();tb.innerHTML=!d.documents.length?'<tr><td colspan="7"><div class="empty-state">Inga dokument</div></td></tr>':d.documents.map(x=>`<tr onclick="showDocument('${x.id}')" style="cursor:pointer"><td><strong>${esc(x.filename)}</strong></td><td>${typeBdg(x.document_type)}</td><td>${x.vendor?esc(x.vendor):'—'}</td><td class="amount">${x.total_amount!=null?fmtC(x.total_amount)+(x.currency?' '+x.currency:''):'—'}</td><td>${x.invoice_number||'—'}</td><td class="text-secondary">${x.invoice_date||'—'}</td><td class="text-secondary">${fmtD(x.created_at)}</td></tr>`).join('');
+async function loadDocuments(){const s=document.getElementById('search-input').value,t=document.getElementById('filter-type').value;const p=new URLSearchParams({skip:currentPage*PS,limit:PS});if(s)p.set('search',s);if(t)p.set('document_type',t);const tb=document.getElementById('docs-tbody');tb.innerHTML='<tr><td colspan="8"><div class="loading"><div class="spinner"></div></div></td></tr>';
+  const d=await(await authFetch(`${API}/documents?${p}`)).json();tb.innerHTML=!d.documents.length?'<tr><td colspan="8"><div class="empty-state">Inga dokument</div></td></tr>':d.documents.map(x=>`<tr onclick="showDocument('${x.id}')" style="cursor:pointer"><td><strong>${esc(x.filename)}</strong></td><td>${typeBdg(x.document_type)}</td><td>${x.vendor?esc(x.vendor):'—'}</td><td class="amount">${x.total_amount!=null?fmtC(x.total_amount)+(x.currency?' '+x.currency:''):'—'}</td><td>${x.invoice_number||'—'}</td><td class="text-secondary">${x.invoice_date||'—'}</td><td class="text-secondary">${x.uploaded_by||'—'}</td><td class="text-secondary">${fmtD(x.created_at)}</td></tr>`).join('');
   const s1=currentPage*PS+1,e=Math.min(s1+PS-1,d.total);document.getElementById('pagination-info').textContent=d.total>0?`${s1}–${e} av ${d.total}`:'';document.getElementById('btn-prev').disabled=currentPage===0;document.getElementById('btn-next').disabled=e>=d.total}
 function prevPage(){if(currentPage>0){currentPage--;loadDocuments()}}function nextPage(){currentPage++;loadDocuments()}function debounceSearch(){clearTimeout(sTimer);currentPage=0;sTimer=setTimeout(loadDocuments,350)}
 

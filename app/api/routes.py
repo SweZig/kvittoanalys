@@ -614,8 +614,9 @@ def _doc_summary(doc) -> dict[str, Any]:
         "invoice_number": doc.invoice_number, "invoice_date": doc.invoice_date,
         "analysis_type": doc.analysis_type,
         "created_at": doc.created_at.isoformat() if doc.created_at else None,
+        "user_id": doc.user_id,
+        "uploaded_by": doc.owner.display_name if doc.owner else None,
     }
-
 
 def _doc_detail(doc) -> dict[str, Any]:
     return {
