@@ -10,10 +10,11 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
+    LargeBinary,
     String,
     Text,
 )
-from sqlalchemy.orm import DeclarativeBase, relationship
+from sqlalchemy.orm import DeclarativeBase, deferred, relationship
 
 
 class Base(DeclarativeBase):
@@ -103,6 +104,9 @@ class Document(Base):
 
     raw_analysis = Column(Text, nullable=True)
     query_text = Column(Text, nullable=True)
+
+    file_preview = deferred(Column(LargeBinary, nullable=True))      # compressed JPEG preview
+    file_preview_type = Column(String(20), nullable=True)   # e.g. "image/jpeg"
 
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(

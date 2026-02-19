@@ -52,6 +52,10 @@ def _ensure_normalized(db: Session) -> None:
                       created_at DATETIME DEFAULT CURRENT_TIMESTAMP)""")
     _safe_migrate(db, "SELECT vendor_id FROM documents LIMIT 1",
                   "ALTER TABLE documents ADD COLUMN vendor_id INTEGER REFERENCES vendors(id)")
+    _safe_migrate(db, "SELECT file_preview_type FROM documents LIMIT 1",
+                  "ALTER TABLE documents ADD COLUMN file_preview_type VARCHAR(20)")
+    _safe_migrate(db, "SELECT file_preview FROM documents LIMIT 1",
+                  "ALTER TABLE documents ADD COLUMN file_preview BYTEA")
 
     result = normalize_existing_data(db)
     if result["descriptions_normalized"] or result["categories_normalized"]:

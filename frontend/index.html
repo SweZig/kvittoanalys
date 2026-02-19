@@ -98,6 +98,10 @@
     .inline-input{background:var(--bg-input);border:1px solid var(--accent);border-radius:var(--radius-sm);color:var(--text-primary);font-size:inherit;font-family:var(--font);padding:0.2rem 0.4rem;width:100%;min-width:60px;outline:none}
     .inline-input:focus{box-shadow:0 0 0 2px var(--accent-glow)}
     .detail-field-value.editable{display:inline-block;min-width:40px;min-height:1.2em}
+    .preview-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;cursor:zoom-out}
+    .preview-overlay img{max-width:95vw;max-height:92vh;border-radius:var(--radius);box-shadow:0 8px 40px rgba(0,0,0,0.5)}
+    .preview-overlay .close-preview{position:absolute;top:1rem;right:1.5rem;color:#fff;font-size:2rem;cursor:pointer;background:none;border:none;opacity:0.8}
+    .preview-overlay .close-preview:hover{opacity:1}
     .raw-text{background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);padding:1rem;font-size:0.85rem;line-height:1.7;color:var(--text-secondary);max-height:400px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;font-family:var(--mono)}
     .upload-zone{border:2px dashed var(--border);border-radius:var(--radius);padding:3rem 2rem;text-align:center;cursor:pointer;transition:all var(--transition);background:var(--bg-card);margin-bottom:1.5rem}
     .upload-zone:hover,.upload-zone.dragover{border-color:var(--accent);background:var(--accent-glow)}
@@ -1731,11 +1735,22 @@ async function showDocument(id){showView('detail');_editDocId=id;const el=docume
   const d=(await(await authFetch(`${API}/documents/${id}`)).json()).document;
   const isAdmin=currentUser?.role==='admin'||currentUser?.role==='superuser';
   const fr=isAdmin?(l,v,f)=>fRe(l,v,d.id,f):(l,v)=>fR(l,v);
-  el.innerHTML=`<div class="detail-header"><div><div class="detail-title">${esc(d.filename)}</div><div class="detail-meta">${typeBdg(d.document_type)}<span>${d.analysis_type}</span><span>${d.file_size_bytes?fmtB(d.file_size_bytes):''}</span><span>${fmtD(d.created_at)}</span>${d.uploaded_by?`<span>👤 ${esc(d.uploaded_by)}</span>`:''}</div></div><button class="btn btn-danger" onclick="deleteDoc('${d.id}')">Ta bort</button></div>
+  el.innerHTML=`<div class="detail-header"><div><div class="detail-title">${esc(d.filename)}</div><div class="detail-meta">${typeBdg(d.document_type)}<span>${d.analysis_type}</span><span>${d.file_size_bytes?fmtB(d.file_size_bytes):''}</span><span>${fmtD(d.created_at)}</span>${d.uploaded_by?`<span>👤 ${esc(d.uploaded_by)}</span>`:''}</div></div><div style="display:flex;gap:0.5rem">${d.has_preview?`<button class="btn btn-ghost" onclick="showPreview('${d.id}')">🖼️ Visa bild</button>`:''}<button class="btn btn-danger" onclick="deleteDoc('${d.id}')">Ta bort</button></div></div>
   <div class="detail-grid"><div class="detail-card"><h3>Dokumentinfo${isAdmin?' <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400">— klicka för att redigera</span>':''}</h3>${fr('Leverantör',d.vendor,'vendor')}${fr('Fakturanr',d.invoice_number,'invoice_number')}${fr('OCR',d.ocr_number,'ocr_number')}${fr('Fakturadatum',d.invoice_date,'invoice_date')}${fr('Förfallodatum',d.due_date,'due_date')}</div><div class="detail-card"><h3>Belopp</h3>${fr('Totalbelopp',d.total_amount!=null?fmtC(d.total_amount):null,'total_amount')}${fr('Moms',d.vat_amount!=null?fmtC(d.vat_amount):null,'vat_amount')}${fr('Valuta',d.currency,'currency')}${fr('Rabatt',d.discount,'discount')}</div></div>
   ${d.line_items?.length?`<div class="detail-card" style="margin-bottom:1.5rem"><h3>Rader (${d.line_items.length}) <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400">— klicka på ${isAdmin?'valfritt fält':'kategori'} för att ändra</span></h3><div class="table-wrapper" style="border:none"><table class="line-items-table"><thead><tr><th>Beskrivning</th><th>Kategori</th><th>Antal</th><th>Enhet</th><th>À-pris</th><th>Summa</th><th>Rabatt</th><th>Moms%</th><th>Vikt</th></tr></thead><tbody>${d.line_items.map(i=>{const e=(f,n)=>isAdmin?`onclick="inlineEditLine(this,${i.id},'${f}',${!!n})"`:'';return`<tr><td class="${isAdmin?'editable':''}" ${e('description',false)}>${esc(i.description||'—')}</td><td style="position:relative">${catBadge(i)}</td><td class="${isAdmin?'editable':''}" ${e('quantity',true)}>${i.quantity??'—'}</td><td class="${isAdmin?'editable':''}" ${e('unit',false)}>${i.unit||'—'}</td><td class="amount ${isAdmin?'editable':''}" ${e('unit_price',true)}>${i.unit_price!=null?fmtC(i.unit_price):'—'}</td><td class="amount ${isAdmin?'editable':''}" ${e('total_price',true)}>${i.total_price!=null?fmtC(i.total_price):'—'}</td><td class="amount ${isAdmin?'editable':''}" style="color:var(--accent-red,#ef4444)" ${e('discount',false)}>${i.discount||'—'}</td><td class="${isAdmin?'editable':''}" ${e('vat_rate',true)}>${i.vat_rate!=null?i.vat_rate+'%':'—'}</td><td class="${isAdmin?'editable':''}" ${e('weight',true)}>${i.weight!=null?i.weight+' kg':'—'}</td></tr>`}).join('')}</tbody></table></div></div>`:''}
   ${d.raw_analysis?`<div class="detail-card"><h3>Rå analys</h3><div class="raw-text">${esc(d.raw_analysis)}</div></div>`:''}`}
 async function deleteDoc(id){if(!confirm('Ta bort?'))return;await authFetch(`${API}/documents/${id}`,{method:'DELETE'});showView('documents')}
+function showPreview(docId){
+  const ov=document.createElement('div');ov.className='preview-overlay';ov.onclick=e=>{if(e.target===ov)ov.remove()};
+  ov.innerHTML=`<button class="close-preview" onclick="this.parentElement.remove()">×</button><div class="loading" style="color:#fff"><div class="spinner"></div></div>`;
+  document.body.appendChild(ov);
+  authFetch(`${API}/documents/${docId}/preview`).then(r=>{if(!r.ok)throw new Error();return r.blob()}).then(blob=>{
+    const url=URL.createObjectURL(blob);
+    ov.querySelector('.loading').outerHTML=`<img src="${url}" alt="Kvittobild" onload="URL.revokeObjectURL(this.src)">`;
+  }).catch(()=>{ov.querySelector('.loading').outerHTML='<div style="color:#fff;font-size:1.1rem">Ingen förhandsgranskning tillgänglig</div>'});
+  const esc=e=>{if(e.key==='Escape'){ov.remove();document.removeEventListener('keydown',esc)}};
+  document.addEventListener('keydown',esc);
+}
 
 // Rules
 let allRulesCache=[];

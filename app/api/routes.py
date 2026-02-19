@@ -6,7 +6,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -49,6 +49,7 @@ async def analyze_document(
             structured_data=structured_data,
             user_id=user.id if user else None,
         )
+        _save_preview(db, doc, file_path)
         return {"status": "success", "document_id": doc.id, "filename": file.filename,
                 "result": result, "structured_data": structured_data}
     except HTTPException:
@@ -73,6 +74,7 @@ async def extract_text(file: UploadFile = File(...), db: Session = Depends(get_d
             raw_analysis=result if isinstance(result, str) else str(result),
             user_id=user.id if user else None,
         )
+        _save_preview(db, doc, file_path)
         return {"status": "success", "document_id": doc.id, "filename": file.filename, "result": result}
     except HTTPException:
         raise
@@ -98,6 +100,7 @@ async def describe_image(
             raw_analysis=result if isinstance(result, str) else str(result),
             user_id=user.id if user else None,
         )
+        _save_preview(db, doc, file_path)
         return {"status": "success", "document_id": doc.id, "filename": file.filename, "result": result}
     except HTTPException:
         raise
@@ -124,6 +127,7 @@ async def custom_query(
             raw_analysis=result if isinstance(result, str) else str(result), query_text=query,
             user_id=user.id if user else None,
         )
+        _save_preview(db, doc, file_path)
         return {"status": "success", "document_id": doc.id, "filename": file.filename, "query": query, "result": result}
     except HTTPException:
         raise
@@ -149,6 +153,7 @@ async def extract_structured(
             raw_analysis=str(structured_data), structured_data=structured_data,
             user_id=user.id if user else None,
         )
+        _save_preview(db, doc, file_path)
         return {"status": "success", "document_id": doc.id, "filename": file.filename, "structured_data": structured_data}
     except HTTPException:
         raise
@@ -278,6 +283,21 @@ async def delete_document(document_id: str, db: Session = Depends(get_db)):
     return {"status": "success", "message": "Document deleted"}
 
 
+@router.get("/documents/{document_id}/preview", tags=["database"])
+async def get_document_preview(document_id: str, db: Session = Depends(get_db)):
+    """Return the stored preview image for a document."""
+    doc = crud.get_document(db, document_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if not doc.file_preview:
+        raise HTTPException(status_code=404, detail="No preview available")
+    return Response(
+        content=doc.file_preview,
+        media_type=doc.file_preview_type or "image/jpeg",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
 @router.post("/documents/manual", tags=["database"])
 async def manual_save(
     file: UploadFile = File(...), document_type: str = Form("other"),
@@ -302,6 +322,7 @@ async def manual_save(
             file_size_bytes=file_size, file_hash=file_hash, analysis_type="manual", language=language,
             structured_data=structured_data,
         )
+        _save_preview(db, doc, file_path)
         return {"status": "success", "document_id": doc.id, "filename": file.filename, "structured_data": structured_data}
     except HTTPException:
         raise
@@ -666,6 +687,77 @@ def _check_duplicate(db: Session, file_hash: str, filename: str):
         )
 
 
+_PREVIEW_MAX_DIM = 1200
+_PREVIEW_QUALITY = 75
+
+
+def _generate_preview(file_path: Path) -> tuple[bytes, str] | None:
+    """Generate a compressed JPEG preview from an image or PDF file.
+    Returns (jpeg_bytes, mime_type) or None if unsupported."""
+    suffix = file_path.suffix.lower()
+    try:
+        from PIL import Image, ImageEnhance
+        import io
+
+        img = None
+
+        if suffix in (".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff", ".tif"):
+            img = Image.open(file_path)
+
+        elif suffix == ".pdf":
+            try:
+                import fitz  # PyMuPDF
+                pdf = fitz.open(str(file_path))
+                page = pdf[0]
+                # Render at 150 DPI for good quality without huge size
+                mat = fitz.Matrix(150 / 72, 150 / 72)
+                pix = page.get_pixmap(matrix=mat)
+                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                pdf.close()
+            except ImportError:
+                return None  # PyMuPDF not installed
+
+        if img is None:
+            return None
+
+        # Convert to RGB
+        if img.mode in ("RGBA", "P", "LA"):
+            bg = Image.new("RGB", img.size, (255, 255, 255))
+            if img.mode in ("RGBA", "LA"):
+                bg.paste(img, mask=img.split()[-1])
+            else:
+                bg.paste(img)
+            img = bg
+        elif img.mode != "RGB":
+            img = img.convert("RGB")
+
+        # Resize if needed
+        w, h = img.size
+        if w > _PREVIEW_MAX_DIM or h > _PREVIEW_MAX_DIM:
+            ratio = min(_PREVIEW_MAX_DIM / w, _PREVIEW_MAX_DIM / h)
+            img = img.resize((int(w * ratio), int(h * ratio)), Image.LANCZOS)
+
+        # Compress to JPEG
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=_PREVIEW_QUALITY, optimize=True)
+        return buf.getvalue(), "image/jpeg"
+
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("Preview generation failed: %s", e)
+        return None
+
+
+def _save_preview(db: Session, doc: Document, file_path: Path) -> None:
+    """Generate and save a preview image on the document."""
+    preview = _generate_preview(file_path)
+    if preview:
+        data, mime = preview
+        doc.file_preview = data
+        doc.file_preview_type = mime
+        db.commit()
+
+
 def _doc_summary(doc) -> dict[str, Any]:
     return {
         "id": doc.id, "filename": doc.filename, "document_type": doc.document_type,
@@ -684,6 +776,7 @@ def _doc_detail(doc) -> dict[str, Any]:
         "language": doc.language, "ocr_number": doc.ocr_number, "due_date": doc.due_date,
         "vat_amount": doc.vat_amount, "discount": doc.discount,
         "raw_analysis": doc.raw_analysis, "query_text": doc.query_text,
+        "has_preview": doc.file_preview_type is not None,
         "updated_at": doc.updated_at.isoformat() if doc.updated_at else None,
         "extracted_fields": [
             {"field_name": ef.field_name, "field_value": ef.field_value, "confidence": ef.confidence}
