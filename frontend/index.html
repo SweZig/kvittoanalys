@@ -265,6 +265,23 @@
     }
     ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
     .hidden{display:none!important}
+    /* Impersonate */
+    .user-name.admin-clickable{cursor:pointer;padding:0.2rem 0.5rem;border-radius:var(--radius-sm);transition:all var(--transition)}
+    .user-name.admin-clickable:hover{background:var(--accent-glow);color:var(--accent)}
+    .user-name.admin-clickable::after{content:'▾';margin-left:0.3rem;font-size:0.7rem;opacity:0.5}
+    .impersonate-dropdown{position:absolute;top:100%;right:0;margin-top:0.5rem;background:var(--bg-card);border:1px solid var(--border-light);border-radius:var(--radius);box-shadow:0 8px 32px rgba(0,0,0,0.5);min-width:260px;max-height:350px;overflow:hidden;z-index:110;display:none}
+    .impersonate-dropdown.open{display:block}
+    .impersonate-dropdown .imp-search{width:calc(100% - 1rem);margin:0.5rem;padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-input);color:var(--text-primary);font-size:0.82rem;font-family:var(--font);outline:none}
+    .impersonate-dropdown .imp-search:focus{border-color:var(--accent)}
+    .imp-list{max-height:260px;overflow-y:auto;padding:0.25rem 0}
+    .imp-item{display:flex;align-items:center;justify-content:space-between;padding:0.5rem 0.75rem;cursor:pointer;font-size:0.85rem;transition:background var(--transition)}
+    .imp-item:hover{background:var(--accent-glow)}
+    .imp-item .imp-name{font-weight:500}.imp-item .imp-email{font-size:0.75rem;color:var(--text-muted)}
+    .imp-item .imp-role{font-size:0.7rem;padding:0.1rem 0.4rem;border-radius:99px;background:rgba(138,138,138,0.1);color:var(--text-muted)}
+    .imp-item.active{background:var(--accent-glow);color:var(--accent)}
+    .impersonate-banner{background:rgba(251,191,36,0.12);border:1px solid rgba(251,191,36,0.3);border-radius:var(--radius-sm);padding:0.5rem 1rem;margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;font-size:0.85rem;color:var(--accent-amber);font-weight:500}
+    .impersonate-banner button{background:none;border:1px solid rgba(251,191,36,0.4);color:var(--accent-amber);padding:0.2rem 0.6rem;border-radius:var(--radius-sm);cursor:pointer;font-family:var(--font);font-size:0.8rem;font-weight:600;transition:all var(--transition)}
+    .impersonate-banner button:hover{background:rgba(251,191,36,0.2)}
     .cat-bar-compare{height:6px;border-radius:2px;margin-top:2px;opacity:0.4}
     .cat-bar-total{border-top:1px solid var(--border);padding-top:0.75rem;margin-top:0.75rem}
 
@@ -398,9 +415,10 @@
     <div class="sidebar-footer"><span class="status-dot"></span><span>API ansluten</span></div>
   </nav>
   <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeMobileMenu()"></div>
-  <header class="header"><div style="display:flex;align-items:center"><button class="hamburger" id="hamburger-btn" onclick="toggleMobileMenu()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button><h1 id="header-title">Dashboard</h1></div><div style="display:flex;align-items:center;gap:1rem"><div class="user-info-bar"><span class="user-name" id="user-display-name"></span><span id="user-role-badge" class="role-badge"></span><button class="logout-btn" onclick="doLogout()">Logga ut</button></div><button class="btn btn-primary" onclick="showView('upload')">+ Nytt dokument</button></div></header>
+  <header class="header"><div style="display:flex;align-items:center"><button class="hamburger" id="hamburger-btn" onclick="toggleMobileMenu()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button><h1 id="header-title">Dashboard</h1></div><div style="display:flex;align-items:center;gap:1rem"><div class="user-info-bar" style="position:relative"><span class="user-name" id="user-display-name" onclick="toggleImpersonateDropdown(event)"></span><span id="user-role-badge" class="role-badge"></span><button class="logout-btn" onclick="doLogout()">Logga ut</button><div class="impersonate-dropdown" id="impersonate-dropdown"><input class="imp-search" id="imp-search" placeholder="Sök användare…" oninput="filterImpersonateList(this.value)"><div class="imp-list" id="imp-list"></div></div></div><button class="btn btn-primary" onclick="showView('upload')">+ Nytt dokument</button></div></header>
 
   <main class="main">
+    <div class="impersonate-banner" id="impersonate-banner" style="display:none"><span id="impersonate-label">Visar som: —</span><button onclick="stopImpersonating()">✕ Avsluta</button></div>
     <!-- Dashboard -->
     <div id="view-dashboard" class="view active">
       <div class="stats-grid">
@@ -548,6 +566,7 @@
       <div class="toolbar">
         <div class="search-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" id="search-input" placeholder="Sök filnamn, leverantör, fakturanummer…" oninput="debounceSearch()"></div>
         <select id="filter-type" onchange="loadDocuments()"><option value="">Alla typer</option><option value="invoice">Faktura</option><option value="receipt">Kvitto</option><option value="contract">Kontrakt</option></select>
+        <select id="filter-user" onchange="loadDocuments()" class="admin-only" style="display:none;padding:0.4rem 0.6rem;border-radius:var(--radius);border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:0.82rem;"><option value="">Alla användare</option></select>
         <button class="btn btn-secondary" onclick="loadDocuments()">Uppdatera</button>
       </div>
       <div class="table-wrapper"><table><thead><tr><th>Filnamn</th><th>Typ</th><th>Leverantör</th><th>Belopp</th><th>Fakturanr</th><th>Datum</th><th>Användare</th><th>Skapad</th></tr></thead><tbody id="docs-tbody"></tbody></table>
@@ -669,10 +688,13 @@
 /* ── Auth state ──────────────────────────────────────────────── */
 let authToken = localStorage.getItem('ka_token');
 let currentUser = null;
+let impersonateUserId = null;
+let _allUsers = [];
 
 function authHeaders(){
   const h={'Content-Type':'application/json'};
   if(authToken) h['Authorization']=`Bearer ${authToken}`;
+  if(impersonateUserId) h['X-Impersonate-User-Id']=String(impersonateUserId);
   return h;
 }
 
@@ -680,6 +702,10 @@ async function authFetch(url, opts={}){
   if(authToken){
     opts.headers = opts.headers || {};
     opts.headers['Authorization'] = `Bearer ${authToken}`;
+  }
+  if(impersonateUserId){
+    opts.headers = opts.headers || {};
+    opts.headers['X-Impersonate-User-Id'] = String(impersonateUserId);
   }
   const r = await fetch(url, opts);
   if(r.status===401){doLogout(); throw new Error('Sessionen har gått ut');}
@@ -763,7 +789,8 @@ async function doResetPassword(){
 }
 
 function doLogout(){
-  authToken=null;currentUser=null;localStorage.removeItem('ka_token');
+  authToken=null;currentUser=null;impersonateUserId=null;_allUsers=[];_userFilterPopulated=false;localStorage.removeItem('ka_token');
+  document.getElementById('impersonate-banner').style.display='none';
   document.getElementById('login-screen').style.display='flex';
   document.getElementById('app-main').style.display='none';
   showAuthForm('login');
@@ -778,7 +805,11 @@ async function enterApp(){
     }
     document.getElementById('login-screen').style.display='none';
     document.getElementById('app-main').style.display='grid';
-    document.getElementById('user-display-name').textContent=currentUser.display_name||currentUser.email;
+    const nameEl=document.getElementById('user-display-name');
+    nameEl.textContent=currentUser.display_name||currentUser.email;
+    // Admin gets clickable name for impersonation
+    if(currentUser.role==='admin'){nameEl.classList.add('admin-clickable');}
+    else{nameEl.classList.remove('admin-clickable');}
     const rb=document.getElementById('user-role-badge');
     rb.textContent=currentUser.role;
     rb.className=`role-badge role-${currentUser.role}`;
@@ -805,6 +836,89 @@ function toggleMobileMenu(){
 function closeMobileMenu(){
   document.querySelector('.sidebar').classList.remove('mobile-open');
   document.getElementById('sidebar-overlay').classList.remove('open');
+}
+
+/* ── Impersonate (admin only) ──────────────────────────────── */
+async function toggleImpersonateDropdown(e){
+  e.stopPropagation();
+  if(!currentUser||currentUser.role!=='admin')return;
+  const dd=document.getElementById('impersonate-dropdown');
+  if(dd.classList.contains('open')){dd.classList.remove('open');return;}
+  // Load users if not cached
+  if(!_allUsers.length){
+    try{
+      const d=await(await authFetch('/api/v1/auth/users')).json();
+      _allUsers=d.users||[];
+    }catch(e){return;}
+  }
+  renderImpersonateList(_allUsers);
+  dd.classList.add('open');
+  setTimeout(()=>document.getElementById('imp-search').focus(),50);
+}
+function renderImpersonateList(users){
+  const list=document.getElementById('imp-list');
+  // Show "Alla (admin)" option first to stop impersonating
+  let html='';
+  if(impersonateUserId){
+    html+=`<div class="imp-item" onclick="stopImpersonating()" style="border-bottom:1px solid var(--border);color:var(--accent-green)"><span class="imp-name">👤 Visa som mig själv (admin)</span></div>`;
+  }
+  html+=users.map(u=>`<div class="imp-item${impersonateUserId===u.id?' active':''}" onclick="impersonateUser(${u.id},'${esc(u.display_name||u.email)}')">
+    <div><span class="imp-name">${esc(u.display_name||u.email)}</span><br><span class="imp-email">${esc(u.email)}</span></div>
+    <span class="imp-role">${u.role}</span>
+  </div>`).join('');
+  list.innerHTML=html;
+}
+function filterImpersonateList(q){
+  const lower=q.toLowerCase();
+  const filtered=_allUsers.filter(u=>(u.display_name||'').toLowerCase().includes(lower)||u.email.toLowerCase().includes(lower));
+  renderImpersonateList(filtered);
+}
+function impersonateUser(userId,name){
+  impersonateUserId=userId;
+  document.getElementById('impersonate-dropdown').classList.remove('open');
+  document.getElementById('impersonate-banner').style.display='flex';
+  document.getElementById('impersonate-label').textContent=`Visar som: ${name}`;
+  document.getElementById('user-display-name').textContent=name;
+  // Refresh current view
+  _refreshCurrentView();
+  showToast(`Visar appen som ${name}`);
+}
+function stopImpersonating(){
+  impersonateUserId=null;
+  document.getElementById('impersonate-dropdown').classList.remove('open');
+  document.getElementById('impersonate-banner').style.display='none';
+  document.getElementById('user-display-name').textContent=currentUser.display_name||currentUser.email;
+  _refreshCurrentView();
+  showToast('Tillbaka till admin-vy');
+}
+function _refreshCurrentView(){
+  const active=document.querySelector('.view.active');
+  if(!active)return;
+  const id=active.id.replace('view-','');
+  ({dashboard:loadDashboard,documents:loadDocuments,rules:loadRules,analytics:loadAnalytics,campaigns:loadCampaigns,users:loadUsers})[id]?.();
+}
+// Close impersonate dropdown on outside click
+document.addEventListener('click',function(e){
+  const dd=document.getElementById('impersonate-dropdown');
+  if(dd&&dd.classList.contains('open')&&!dd.contains(e.target)){dd.classList.remove('open');}
+});
+
+/* ── Populate user filter dropdown (admin only) ──────────── */
+let _userFilterPopulated=false;
+async function _populateUserFilter(){
+  if(!currentUser||currentUser.role!=='admin'||_userFilterPopulated)return;
+  const sel=document.getElementById('filter-user');
+  if(!sel)return;
+  try{
+    if(!_allUsers.length){
+      const d=await(await authFetch('/api/v1/auth/users')).json();
+      _allUsers=d.users||[];
+    }
+    const prev=sel.value;
+    sel.innerHTML='<option value="">Alla användare</option>'+_allUsers.map(u=>`<option value="${u.id}">${esc(u.display_name||u.email)}</option>`).join('');
+    sel.value=prev;
+    _userFilterPopulated=true;
+  }catch(e){}
 }
 
 /* ── User management (admin) ─────────────────────────────────── */
@@ -1485,7 +1599,9 @@ document.getElementById('camp-city').addEventListener('change',loadCampaigns);
 document.getElementById('camp-chain-filter').addEventListener('change',renderCampaigns);
 
 // Documents
-async function loadDocuments(){const s=document.getElementById('search-input').value,t=document.getElementById('filter-type').value;const p=new URLSearchParams({skip:currentPage*PS,limit:PS});if(s)p.set('search',s);if(t)p.set('document_type',t);const tb=document.getElementById('docs-tbody');tb.innerHTML='<tr><td colspan="8"><div class="loading"><div class="spinner"></div></div></td></tr>';
+async function loadDocuments(){const s=document.getElementById('search-input').value,t=document.getElementById('filter-type').value,fu=document.getElementById('filter-user').value;const p=new URLSearchParams({skip:currentPage*PS,limit:PS});if(s)p.set('search',s);if(t)p.set('document_type',t);if(fu)p.set('filter_user_id',fu);const tb=document.getElementById('docs-tbody');tb.innerHTML='<tr><td colspan="8"><div class="loading"><div class="spinner"></div></div></td></tr>';
+  // Populate user filter for admin
+  _populateUserFilter();
   const d=await(await authFetch(`${API}/documents?${p}`)).json();tb.innerHTML=!d.documents.length?'<tr><td colspan="8"><div class="empty-state">Inga dokument</div></td></tr>':d.documents.map(x=>`<tr onclick="showDocument('${x.id}')" style="cursor:pointer"><td><strong>${esc(x.filename)}</strong></td><td>${typeBdg(x.document_type)}</td><td>${x.vendor?esc(x.vendor):'—'}</td><td class="amount">${x.total_amount!=null?fmtC(x.total_amount)+(x.currency?' '+x.currency:''):'—'}</td><td>${x.invoice_number||'—'}</td><td class="text-secondary">${x.invoice_date||'—'}</td><td class="text-secondary">${x.uploaded_by||'—'}</td><td class="text-secondary">${fmtD(x.created_at)}</td></tr>`).join('');
   const s1=currentPage*PS+1,e=Math.min(s1+PS-1,d.total);document.getElementById('pagination-info').textContent=d.total>0?`${s1}–${e} av ${d.total}`:'';document.getElementById('btn-prev').disabled=currentPage===0;document.getElementById('btn-next').disabled=e>=d.total}
 function prevPage(){if(currentPage>0){currentPage--;loadDocuments()}}function nextPage(){currentPage++;loadDocuments()}function debounceSearch(){clearTimeout(sTimer);currentPage=0;sTimer=setTimeout(loadDocuments,350)}

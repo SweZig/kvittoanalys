@@ -41,23 +41,47 @@ def _get_current_user(
     return user
 
 
+def _maybe_impersonate(
+    real_user: User, db: Session, request: Request,
+) -> User:
+    """If admin sends X-Impersonate-User-Id header, return that user instead."""
+    imp_id = request.headers.get("x-impersonate-user-id")
+    if not imp_id or real_user.role != "admin":
+        return real_user
+    try:
+        target = db.query(User).filter(User.id == int(imp_id)).first()
+        if target:
+            return target
+    except (ValueError, TypeError):
+        pass
+    return real_user
+
+
 def get_current_user(
     db: Session = Depends(get_db),
     authorization: str | None = Header(None),
+    request: Request = None,
 ) -> User:
-    """Public dependency for use in other routers."""
-    return _get_current_user(db, authorization)
+    """Public dependency for use in other routers. Supports admin impersonation."""
+    user = _get_current_user(db, authorization)
+    if request:
+        return _maybe_impersonate(user, db, request)
+    return user
 
 
 def get_optional_user(
     db: Session = Depends(get_db),
     authorization: str | None = Header(None),
+    request: Request = None,
 ) -> User | None:
     """Returns user if logged in, None otherwise (for gradual migration)."""
     if not authorization or not authorization.startswith("Bearer "):
         return None
     try:
-        return _get_current_user(db, authorization)
+        user = _get_current_user(db, authorization)
+        if request:
+            return _maybe_impersonate(user, db, request)
+        return user
     except HTTPException:
         return None
 

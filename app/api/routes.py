@@ -164,13 +164,16 @@ async def extract_structured(
 async def list_documents(
     skip: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=200),
     document_type: str | None = Query(None), vendor: str | None = Query(None),
-    search: str | None = Query(None), db: Session = Depends(get_db),
+    search: str | None = Query(None), filter_user_id: int | None = Query(None),
+    db: Session = Depends(get_db),
     user: User | None = Depends(get_optional_user),
 ):
     # Non-admin users only see their own documents
     user_id_filter = None
     if user and user.role != "admin":
         user_id_filter = user.id
+    elif user and user.role == "admin" and filter_user_id:
+        user_id_filter = filter_user_id
     docs = crud.list_documents(db, skip=skip, limit=limit, document_type=document_type,
                                vendor=vendor, search=search, user_id=user_id_filter)
     total = crud.count_documents(db, document_type=document_type, vendor=vendor,

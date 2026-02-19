@@ -26,7 +26,7 @@ VIKTIGA REGLER FÖR KORREKT TOLKNING:
 
 1. BELOPP:
    - "Att betala" eller "Summa att betala" eller "Total" = total_amount (detta är ALLTID det slutgiltiga beloppet)
-   - "Netto" eller "Summa exkl. moms" = nettoblopp (INTE total_amount)
+   - "Netto" eller "Summa exkl. moms" = nettobelopp (INTE total_amount)
    - "Moms" eller "Varav moms" = vat_amount
    - total_amount ska ALLTID vara det belopp kunden faktiskt betalar (inklusive moms)
    - Om du ser "Totalt inkl. moms: 1250 kr" → total_amount = 1250.0
@@ -174,12 +174,17 @@ class StructuredExtractor:
 
         response = self.client.messages.create(
             model=settings.claude_model,
-            max_tokens=settings.claude_max_tokens,
+            max_tokens=8192,
             messages=[{"role": "user", "content": messages_content}],
         )
 
         raw_text = response.content[0].text
         data = self._parse_json(raw_text)
+
+        # Log if we hit the fallback
+        if "free_text" in data and data.get("document_type") == "other" and not data.get("vendor"):
+            stop = response.stop_reason
+            print(f"⚠️ Structured extraction fell back to free_text. stop_reason={stop}, response length={len(raw_text)}")
 
         # Post-process: clean up common issues
         data = self._post_process(data)
@@ -253,26 +258,40 @@ class StructuredExtractor:
     @staticmethod
     def _parse_json(text: str) -> dict[str, Any]:
         """Robustly parse JSON from Claude's response."""
+        # Step 1: Try direct parse (Claude returned clean JSON)
+        cleaned = text.strip()
         try:
-            return json.loads(text)
+            return json.loads(cleaned)
         except json.JSONDecodeError:
             pass
 
-        match = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", text, re.DOTALL)
-        if match:
+        # Step 2: Strip markdown code fences (```json ... ``` or ``` ... ```)
+        # Handle various whitespace patterns including \r\n
+        stripped = re.sub(r"^```(?:json)?[ \t]*\r?\n?", "", cleaned)
+        stripped = re.sub(r"\r?\n?```\s*$", "", stripped).strip()
+        if stripped != cleaned:
             try:
-                return json.loads(match.group(1))
+                return json.loads(stripped)
             except json.JSONDecodeError:
                 pass
 
+        # Step 3: Find JSON object anywhere in text
         match = re.search(r"\{.*\}", text, re.DOTALL)
         if match:
+            json_str = match.group(0)
             try:
-                return json.loads(match.group(0))
+                return json.loads(json_str)
             except json.JSONDecodeError:
-                pass
+                # Step 4: Try to fix truncated JSON (missing closing brackets)
+                fixed = _fix_truncated_json(json_str)
+                if fixed:
+                    try:
+                        return json.loads(fixed)
+                    except json.JSONDecodeError:
+                        pass
 
-        return {"free_text": text, "document_type": "other"}
+        print(f"⚠️ JSON parse failed, raw text starts with: {text[:300]}")
+        return {"free_text": text, "document_type": "other", "line_items": []}
 
     @staticmethod
     def _post_process(data: dict[str, Any]) -> dict[str, Any]:
@@ -336,6 +355,52 @@ class StructuredExtractor:
         return data
 
 
+def _fix_truncated_json(text: str) -> str | None:
+    """Try to fix truncated JSON by closing open brackets/braces."""
+    # Count unmatched brackets
+    open_braces = 0
+    open_brackets = 0
+    in_string = False
+    escape = False
+
+    for ch in text:
+        if escape:
+            escape = False
+            continue
+        if ch == '\\' and in_string:
+            escape = True
+            continue
+        if ch == '"' and not escape:
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch == '{':
+            open_braces += 1
+        elif ch == '}':
+            open_braces -= 1
+        elif ch == '[':
+            open_brackets += 1
+        elif ch == ']':
+            open_brackets -= 1
+
+    if open_braces <= 0 and open_brackets <= 0:
+        return None  # Not a truncation issue
+
+    # Remove trailing incomplete item (partial JSON after last comma)
+    fixed = text.rstrip()
+    # Remove trailing comma or incomplete key-value
+    fixed = re.sub(r',\s*"[^"]*"?\s*:?\s*("?[^"{}[\]]*"?)?\s*$', '', fixed)
+    # Also handle trailing incomplete array item
+    fixed = re.sub(r',\s*\{[^}]*$', '', fixed)
+
+    # Close open brackets and braces
+    fixed += ']' * max(0, open_brackets)
+    fixed += '}' * max(0, open_braces)
+
+    return fixed
+
+
 def _fix_weight(item: dict[str, Any]) -> None:
     """Calculate actual weight when kilo-priced items show weight as 1.00."""
     unit = (item.get("unit") or "").lower().strip()
@@ -367,11 +432,7 @@ def _is_pant_item(item: dict[str, Any]) -> bool:
 
 
 def _fix_pant_descriptions(items: list[dict[str, Any]]) -> None:
-    """Split items where 'Pant' got merged with another product name.
-
-    E.g. 'Pant Entrecôte' → split into 'Pant' + 'Entrecôte'
-    E.g. 'Coca-Cola Pant' → split into 'Coca-Cola' + 'Pant'
-    """
+    """Split items where 'Pant' got merged with another product name."""
     inserts: list[tuple[int, dict[str, Any]]] = []
 
     for i, item in enumerate(items):
@@ -379,18 +440,15 @@ def _fix_pant_descriptions(items: list[dict[str, Any]]) -> None:
         if not desc:
             continue
 
-        # Case 1: "Pant Xxx" — pant at start followed by a product name
         m = re.match(r"^(\+?\s*pant)\s+(.+)$", desc, re.IGNORECASE)
         if m:
             rest = m.group(2).strip()
-            # Only split if rest is NOT a valid pant suffix (number, kr, öre, +)
             if not re.match(r"^(\d+[\s,.]?\d*\s*(kr|öre)?|\+)$", rest, re.IGNORECASE):
                 item["description"] = rest
                 item.pop("is_pant", None)
                 inserts.append((i, _make_pant_row()))
                 continue
 
-        # Case 2: "Xxx Pant" — pant at end of product name
         m2 = re.match(r"^(.+)\s+(pant\+?)\s*$", desc, re.IGNORECASE)
         if m2:
             product = m2.group(1).strip()
@@ -399,7 +457,6 @@ def _fix_pant_descriptions(items: list[dict[str, Any]]) -> None:
                 item.pop("is_pant", None)
                 inserts.append((i + 1, _make_pant_row()))
 
-    # Insert new pant rows (reverse to preserve indices)
     for idx, new_item in reversed(inserts):
         items.insert(idx, new_item)
 
@@ -438,11 +495,9 @@ def _merge_pant_rows(items: list[dict[str, Any]]) -> None:
     if pant_count == 0:
         return
 
-    # Remove pant rows (reverse order to preserve indices)
     for i in reversed(to_remove):
         items.pop(i)
 
-    # Add one combined pant row
     items.append({
         "description": "Pant",
         "quantity": float(pant_count),
@@ -474,10 +529,8 @@ def _is_discount_item(item: dict[str, Any]) -> bool:
         return True
     desc = (item.get("description") or "").strip()
     price = item.get("total_price")
-    # Negative price + discount-like description
     if isinstance(price, (int, float)) and price < 0 and _DISCOUNT_PATTERNS.search(desc):
         return True
-    # Pure negative amount with generic discount name
     if isinstance(price, (int, float)) and price < 0 and len(desc) < 30:
         if _DISCOUNT_PATTERNS.search(desc):
             return True
@@ -485,20 +538,7 @@ def _is_discount_item(item: dict[str, Any]) -> bool:
 
 
 def _apply_discount_rows(items: list[dict[str, Any]]) -> None:
-    """Link discount rows to their preceding product(s).
-
-    On Willys/Hemköp receipts discounts appear as separate rows:
-        Arla Mellanmjölk     15,90
-        Rabatt               -3,00
-        Felix Ketchup        29,90
-
-    This function:
-    1. Finds discount rows (negative price, discount-like description)
-    2. Applies the discount to the preceding non-discount, non-pant product
-    3. Sets discount field on the product (e.g. "Rabatt -3,00 kr")
-    4. Adjusts product total_price to be the net price
-    5. Removes the discount row from items
-    """
+    """Link discount rows to their preceding product(s)."""
     to_remove: list[int] = []
 
     for i, item in enumerate(items):
@@ -511,7 +551,6 @@ def _apply_discount_rows(items: list[dict[str, Any]]) -> None:
 
         discount_desc = (item.get("description") or "Rabatt").strip()
 
-        # Find the preceding non-discount, non-pant product
         target = None
         for j in range(i - 1, -1, -1):
             if j in to_remove:
@@ -522,18 +561,15 @@ def _apply_discount_rows(items: list[dict[str, Any]]) -> None:
             break
 
         if target is not None:
-            # Apply discount to product
             orig_price = target.get("total_price")
             if isinstance(orig_price, (int, float)):
                 target["total_price"] = round(orig_price + discount_amount, 2)
 
-            # Build discount description
             existing = target.get("discount") or ""
             new_disc = f"{discount_desc} {discount_amount:.2f} kr"
             target["discount"] = f"{existing}; {new_disc}".lstrip("; ") if existing else new_disc
 
         to_remove.append(i)
 
-    # Remove discount rows (reverse to preserve indices)
     for i in reversed(to_remove):
         items.pop(i)
