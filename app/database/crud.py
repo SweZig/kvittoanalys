@@ -1292,13 +1292,13 @@ def get_vendor_price_comparison(
     query = (
         db.query(
             LineItem.description,
-            LineItem.category,
+            func.max(LineItem.category).label("category"),
             Document.vendor,
             func.avg(LineItem.unit_price).label("avg_price"),
             func.min(LineItem.unit_price).label("min_price"),
             func.max(LineItem.unit_price).label("max_price"),
             func.count(LineItem.id).label("count"),
-            LineItem.unit,
+            func.max(LineItem.unit).label("unit"),
         )
         .join(Document, LineItem.document_id == Document.id)
         .join(sub, LineItem.description == sub.c.description)
@@ -1378,7 +1378,7 @@ def get_price_trends(
     prod_q = (
         db.query(
             LineItem.description,
-            LineItem.category,
+            func.max(LineItem.category).label("category"),
             func.count(LineItem.id).label("cnt"),
         )
         .filter(LineItem.description.isnot(None), LineItem.unit_price.isnot(None))
