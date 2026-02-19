@@ -795,6 +795,30 @@ def delete_document(db: Session, document_id: str) -> bool:
     return True
 
 
+def delete_documents_by_user(db: Session, user_id: int | None = None) -> int:
+    """Delete all documents (and cascaded line_items/extracted_fields) for a user.
+    If user_id is None, delete ALL documents."""
+    q = db.query(Document)
+    if user_id is not None:
+        q = q.filter(Document.user_id == user_id)
+    docs = q.all()
+    count = len(docs)
+    for doc in docs:
+        db.delete(doc)
+    db.commit()
+    return count
+
+
+def get_user_document_counts(db: Session) -> dict[int, int]:
+    """Return {user_id: doc_count} for all users."""
+    rows = (
+        db.query(Document.user_id, func.count(Document.id))
+        .group_by(Document.user_id)
+        .all()
+    )
+    return {uid or 0: cnt for uid, cnt in rows}
+
+
 def get_stats(db: Session, user_id: int | None = None) -> dict[str, Any]:
     doc_q = db.query(Document)
     li_q = db.query(LineItem)

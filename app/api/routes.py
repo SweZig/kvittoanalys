@@ -268,19 +268,33 @@ async def price_trends(
     return {"status": "success", **result}
 
 
+@router.get("/documents/user-counts", tags=["database"])
+async def get_document_user_counts(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin")),
+):
+    """Get document count per user. Admin only."""
+    counts = crud.get_user_document_counts(db)
+    return {"status": "success", "counts": counts}
+
+
+@router.delete("/documents", tags=["database"])
+async def delete_documents_bulk(
+    user_id: int | None = Query(None, description="Delete for specific user, or all if omitted"),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin")),
+):
+    """Delete all documents for a user (or all documents). Admin only."""
+    count = crud.delete_documents_by_user(db, user_id=user_id)
+    return {"status": "success", "deleted": count}
+
+
 @router.get("/documents/{document_id}", tags=["database"])
 async def get_document(document_id: str, db: Session = Depends(get_db)):
     doc = crud.get_document(db, document_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
     return {"status": "success", "document": _doc_detail(doc)}
-
-
-@router.delete("/documents/{document_id}", tags=["database"])
-async def delete_document(document_id: str, db: Session = Depends(get_db)):
-    if not crud.delete_document(db, document_id):
-        raise HTTPException(status_code=404, detail="Document not found")
-    return {"status": "success", "message": "Document deleted"}
 
 
 @router.get("/documents/{document_id}/preview", tags=["database"])
@@ -296,6 +310,13 @@ async def get_document_preview(document_id: str, db: Session = Depends(get_db)):
         media_type=doc.file_preview_type or "image/jpeg",
         headers={"Cache-Control": "public, max-age=86400"},
     )
+
+
+@router.delete("/documents/{document_id}", tags=["database"])
+async def delete_document(document_id: str, db: Session = Depends(get_db)):
+    if not crud.delete_document(db, document_id):
+        raise HTTPException(status_code=404, detail="Document not found")
+    return {"status": "success", "message": "Document deleted"}
 
 
 @router.post("/documents/manual", tags=["database"])

@@ -313,7 +313,7 @@
     .login-box select{width:100%;padding:0.6rem 0.8rem;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:0.9rem;margin-bottom:0.9rem;font-family:var(--font)}
 
     /* ── User management ─────────────────────── */
-    .user-row{display:grid;grid-template-columns:1fr 120px 100px 80px 100px;align-items:center;gap:0.5rem;padding:0.6rem 0.8rem;border-bottom:1px solid var(--border);font-size:0.85rem}
+    .user-row{display:grid;grid-template-columns:1fr 120px 100px 80px 80px 120px;align-items:center;gap:0.5rem;padding:0.6rem 0.8rem;border-bottom:1px solid var(--border);font-size:0.85rem}
     .user-row:hover{background:var(--bg-card-hover)}
     .user-row .email{color:var(--text-primary);font-weight:500}
     .user-row .role-badge{padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:600;text-transform:uppercase}
@@ -626,12 +626,15 @@
         </div>
       </div>
       <div id="users-tab">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:1rem">
+          <button class="btn btn-danger" style="font-size:0.78rem" onclick="deleteAllDocuments()">🗑️ Radera alla dokument</button>
+        </div>
         <div id="pending-users" style="margin-bottom:1.5rem;display:none">
           <h4 style="color:var(--accent-amber);margin-bottom:0.5rem">⏳ Väntande godkännande</h4>
           <div id="pending-users-list"></div>
         </div>
-        <div style="border-bottom:2px solid var(--border);padding:0.4rem 0.8rem;font-size:0.75rem;color:var(--text-muted);display:grid;grid-template-columns:1fr 120px 100px 80px 100px;gap:0.5rem">
-          <span>E-post</span><span>Namn</span><span>Roll</span><span>Status</span><span>Åtgärd</span>
+        <div style="border-bottom:2px solid var(--border);padding:0.4rem 0.8rem;font-size:0.75rem;color:var(--text-muted);display:grid;grid-template-columns:1fr 120px 100px 80px 80px 120px;gap:0.5rem">
+          <span>E-post</span><span>Namn</span><span>Roll</span><span>Status</span><span>Dok</span><span>Åtgärd</span>
         </div>
         <div id="users-list"></div>
       </div>
@@ -942,8 +945,12 @@ function showUsersTab(tab,btn){
 
 async function loadUsers(){
   try{
-    const d=await(await authFetch('/api/v1/auth/users')).json();
-    const users=d.users||[];
+    const [ud,cd]=await Promise.all([
+      (await authFetch('/api/v1/auth/users')).json(),
+      (await authFetch(`${API}/documents/user-counts`)).json(),
+    ]);
+    const users=ud.users||[];
+    const counts=cd.counts||{};
     const pending=users.filter(u=>!u.is_approved);
     const active=users.filter(u=>u.is_approved);
     const pendDiv=document.getElementById('pending-users');
@@ -953,20 +960,25 @@ async function loadUsers(){
       pendList.innerHTML=pending.map(u=>`<div class="user-row">
         <span class="email">${esc(u.email)}</span><span>${esc(u.display_name||'')}</span>
         <span class="role-badge role-${u.role}">${u.role}</span><span style="color:var(--accent-amber)">Väntande</span>
+        <span>—</span>
         <button class="btn btn-ghost" style="font-size:0.8rem;padding:2px 8px" onclick="approveUser(${u.id})">✓ Godkänn</button>
       </div>`).join('');
     }else{pendDiv.style.display='none';}
-    document.getElementById('users-list').innerHTML=active.map(u=>`<div class="user-row">
+    document.getElementById('users-list').innerHTML=active.map(u=>{
+      const dc=counts[u.id]||0;
+      return`<div class="user-row">
       <span class="email">${esc(u.email)}</span><span>${esc(u.display_name||'')}</span>
       <span class="role-badge role-${u.role}">${u.role}</span>
       <span style="color:${u.is_active?'var(--accent-green)':'var(--accent-rose)'}">${u.is_active?'Aktiv':'Inaktiv'}</span>
+      <span style="font-weight:500">${dc}</span>
       <span style="display:flex;gap:4px">
         <select onchange="changeRole(${u.id},this.value)" style="font-size:0.75rem;padding:1px 4px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text-primary)">
           ${['user','superuser','admin'].map(r=>`<option value="${r}"${u.role===r?' selected':''}>${r}</option>`).join('')}
         </select>
         <button class="btn btn-ghost" style="font-size:0.75rem;padding:1px 6px" onclick="toggleActive(${u.id})">${u.is_active?'🚫':'✓'}</button>
+        ${dc>0?`<button class="btn btn-ghost" style="font-size:0.75rem;padding:1px 6px;color:var(--accent-rose)" onclick="deleteUserDocs(${u.id},'${esc(u.display_name||u.email)}',${dc})">🗑️</button>`:''}
       </span>
-    </div>`).join('');
+    </div>`}).join('');
   }catch(e){console.error('loadUsers',e);}
 }
 
@@ -981,6 +993,23 @@ async function changeRole(id,role){
 async function toggleActive(id){
   await authFetch(`/api/v1/auth/users/${id}/toggle-active`,{method:'PUT'});
   showToast('Status ändrad');loadUsers();
+}
+async function deleteUserDocs(userId,name,count){
+  if(!confirm(`Radera alla ${count} dokument för ${name}?\n\nDetta tar bort alla kvitton, rader och extraherade fält.\nAnvändaren och regler behålls.`))return;
+  try{
+    const r=await authFetch(`${API}/documents?user_id=${userId}`,{method:'DELETE'});
+    const d=await r.json();
+    showToast(`${d.deleted} dokument raderade för ${name}`);loadUsers();
+  }catch(e){showToast('Kunde inte radera',true)}
+}
+async function deleteAllDocuments(){
+  if(!confirm('⚠️ Radera ALLA dokument i systemet?\n\nDetta tar bort alla kvitton, rader och extraherade fält för ALLA användare.\nAnvändare, regler och leverantörer behålls.'))return;
+  if(!confirm('Är du helt säker? Detta kan inte ångras.'))return;
+  try{
+    const r=await authFetch(`${API}/documents`,{method:'DELETE'});
+    const d=await r.json();
+    showToast(`${d.deleted} dokument raderade`);loadUsers();
+  }catch(e){showToast('Kunde inte radera',true)}
 }
 
 async function loadSuggestions(){
