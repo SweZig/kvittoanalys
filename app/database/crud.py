@@ -376,6 +376,15 @@ def update_document_fields(
             setattr(doc, key, value)
             changed[key] = {"old": old, "new": value}
     if changed:
+        # If vendor name was changed, re-link to vendor record
+        if "vendor" in changed:
+            new_vendor_name = changed["vendor"]["new"]
+            if new_vendor_name:
+                vendor_obj = get_or_create_vendor(db, new_vendor_name)
+                if vendor_obj:
+                    doc.vendor_id = vendor_obj.id
+            else:
+                doc.vendor_id = None
         db.commit()
     return {"document_id": document_id, "changed": changed}
 
@@ -680,6 +689,109 @@ def cleanup_discount_rows(db: Session) -> dict[str, Any]:
     return stats
 
 
+def link_discount_to_product(
+    db: Session, *,
+    discount_description: str,
+    product_description: str,
+) -> dict[str, Any]:
+    """Manually link a discount row to a product row.
+    For each document that contains both, applies the discount amount
+    to the product and removes the discount line item."""
+    from collections import defaultdict
+
+    norm_disc = _fmt(discount_description)
+    norm_prod = _fmt(product_description)
+    stats = {"linked": 0, "deleted": 0, "skipped": 0}
+
+    # Find all discount line items
+    disc_items = db.query(LineItem).filter(LineItem.description == norm_disc).all()
+    if not disc_items:
+        return stats
+
+    # Group by document
+    by_doc: dict[str, list[LineItem]] = defaultdict(list)
+    for item in disc_items:
+        by_doc[item.document_id].append(item)
+
+    for doc_id, discounts in by_doc.items():
+        # Find the product line item(s) in this document
+        products = (
+            db.query(LineItem)
+            .filter(LineItem.document_id == doc_id, LineItem.description == norm_prod)
+            .all()
+        )
+        if not products:
+            stats["skipped"] += len(discounts)
+            continue
+
+        target = products[0]  # Link to first matching product in document
+        for disc in discounts:
+            amount = disc.total_price or 0
+            # Apply discount to product
+            if target.discount:
+                target.discount = f"{target.discount}, {amount:.2f} kr"
+            else:
+                target.discount = f"{amount:.2f} kr"
+            # Adjust product total_price
+            if target.total_price is not None and amount:
+                target.total_price = round(target.total_price + amount, 2)
+            db.delete(disc)
+            stats["linked"] += 1
+            stats["deleted"] += 1
+
+    db.commit()
+    return stats
+
+
+def split_line_item(
+    db: Session, *,
+    line_item_id: int,
+    new_description: str,
+    new_quantity: float | None = None,
+    new_total_price: float | None = None,
+) -> dict[str, Any] | None:
+    """Split a line item into two: the original keeps its description,
+    a new row is created with new_description.
+    If new_quantity/new_total_price given, they are subtracted from original."""
+    original = db.query(LineItem).filter(LineItem.id == line_item_id).first()
+    if not original:
+        return None
+
+    # Create new line item as copy
+    new_item = LineItem(
+        document_id=original.document_id,
+        description=_fmt(new_description),
+        quantity=new_quantity if new_quantity is not None else original.quantity,
+        unit=original.unit,
+        unit_price=original.unit_price,
+        total_price=new_total_price if new_total_price is not None else None,
+        vat_rate=original.vat_rate,
+        category=original.category,
+    )
+
+    # Adjust original if quantities/prices provided
+    if new_quantity is not None and original.quantity is not None:
+        original.quantity = max(0, round(original.quantity - new_quantity, 4))
+    if new_total_price is not None and original.total_price is not None:
+        original.total_price = round(original.total_price - new_total_price, 2)
+    # Recalculate unit_price for original if we have both
+    if original.quantity and original.total_price:
+        original.unit_price = round(original.total_price / original.quantity, 2)
+    if new_item.quantity and new_item.total_price:
+        new_item.unit_price = round(new_item.total_price / new_item.quantity, 2)
+
+    db.add(new_item)
+    db.commit()
+    db.refresh(new_item)
+
+    return {
+        "original_id": original.id,
+        "new_id": new_item.id,
+        "original_description": original.description,
+        "new_description": new_item.description,
+    }
+
+
 def merge_products(
     db: Session, *,
     source_descriptions: list[str],
@@ -962,21 +1074,23 @@ def get_or_create_vendor(db: Session, vendor_name: str) -> Vendor | None:
     return vendor
 
 
-def list_vendors(db: Session) -> list[dict[str, Any]]:
-    """Get all vendors with document count and total amount."""
+def list_vendors(db: Session, user_id: int | None = None) -> list[dict[str, Any]]:
+    """Get all vendors with document count and total amount.
+    If user_id is set, only count documents belonging to that user."""
     vendors = db.query(Vendor).all()
     result = []
     for v in vendors:
-        stats = (
-            db.query(
-                func.count(Document.id),
-                func.sum(Document.total_amount),
-            )
-            .filter(Document.vendor_id == v.id)
-            .first()
-        )
+        q = db.query(
+            func.count(Document.id),
+            func.sum(Document.total_amount),
+        ).filter(Document.vendor_id == v.id)
+        if user_id is not None:
+            q = q.filter(Document.user_id == user_id)
+        stats = q.first()
         doc_count = stats[0] if stats else 0
         total_amount = stats[1] if stats else 0
+        if user_id is not None and doc_count == 0:
+            continue  # Skip vendors with no documents for this user
         result.append({
             "id": v.id,
             "name": v.name,
@@ -1291,7 +1405,7 @@ def normalize_existing_data(db: Session) -> dict[str, int]:
 
 def get_vendor_price_comparison(
     db: Session, *, search: str | None = None, category: str | None = None,
-    vendor: str | None = None,
+    vendor: str | None = None, user_id: int | None = None,
     min_vendors: int = 2, skip: int = 0, limit: int = 50,
 ) -> dict[str, Any]:
     """Compare prices for same products across different vendors.
@@ -1308,6 +1422,8 @@ def get_vendor_price_comparison(
         .filter(LineItem.unit_price.isnot(None))
         .filter(LineItem.description.notin_(_PANT_DESCRIPTIONS))
     )
+    if user_id is not None:
+        sub = sub.filter(Document.user_id == user_id)
     if category:
         sub = sub.filter(LineItem.category == _fmt(category))
     sub = (
@@ -1333,6 +1449,8 @@ def get_vendor_price_comparison(
         .filter(Document.vendor.isnot(None), LineItem.unit_price.isnot(None))
     )
 
+    if user_id is not None:
+        query = query.filter(Document.user_id == user_id)
     if search:
         query = query.filter(LineItem.description.ilike(f"%{search}%"))
     if category:
@@ -1398,7 +1516,7 @@ def get_vendor_price_comparison(
 
 def get_price_trends(
     db: Session, *, search: str | None = None, category: str | None = None,
-    vendor: str | None = None, top_n: int = 10,
+    vendor: str | None = None, user_id: int | None = None, top_n: int = 10,
 ) -> dict[str, Any]:
     """Get price trends for top products over time."""
 
@@ -1412,8 +1530,13 @@ def get_price_trends(
         .filter(LineItem.description.isnot(None), LineItem.unit_price.isnot(None))
         .filter(LineItem.description.notin_(_PANT_DESCRIPTIONS))
     )
-    if vendor:
-        prod_q = prod_q.join(Document, LineItem.document_id == Document.id).filter(Document.vendor == vendor)
+    needs_join = vendor or user_id is not None
+    if needs_join:
+        prod_q = prod_q.join(Document, LineItem.document_id == Document.id)
+        if vendor:
+            prod_q = prod_q.filter(Document.vendor == vendor)
+        if user_id is not None:
+            prod_q = prod_q.filter(Document.user_id == user_id)
     if search:
         prod_q = prod_q.filter(LineItem.description.ilike(f"%{search}%"))
     if category:
@@ -1429,7 +1552,7 @@ def get_price_trends(
 
     trends = []
     for desc, cat, cnt in top_products:
-        rows = (
+        rows_q = (
             db.query(
                 Document.invoice_date,
                 Document.created_at,
@@ -1438,9 +1561,10 @@ def get_price_trends(
             )
             .join(Document, LineItem.document_id == Document.id)
             .filter(LineItem.description == desc, LineItem.unit_price.isnot(None))
-            .order_by(Document.created_at.asc())
-            .all()
         )
+        if user_id is not None:
+            rows_q = rows_q.filter(Document.user_id == user_id)
+        rows = rows_q.order_by(Document.created_at.asc()).all()
 
         points = []
         for inv_date, created, vendor, price in rows:

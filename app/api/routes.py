@@ -248,9 +248,12 @@ async def vendor_price_comparison(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
+    user: User | None = Depends(get_optional_user),
 ):
+    user_id_filter = user.id if user and user.role != "admin" else None
     result = crud.get_vendor_price_comparison(
         db, search=search, category=category, vendor=vendor,
+        user_id=user_id_filter,
         min_vendors=min_vendors, skip=skip, limit=limit,
     )
     return {"status": "success", **result}
@@ -263,8 +266,11 @@ async def price_trends(
     vendor: str | None = Query(None),
     top_n: int = Query(10, ge=1, le=50),
     db: Session = Depends(get_db),
+    user: User | None = Depends(get_optional_user),
 ):
-    result = crud.get_price_trends(db, search=search, category=category, vendor=vendor, top_n=top_n)
+    user_id_filter = user.id if user and user.role != "admin" else None
+    result = crud.get_price_trends(db, search=search, category=category, vendor=vendor,
+                                    user_id=user_id_filter, top_n=top_n)
     return {"status": "success", **result}
 
 
@@ -490,6 +496,48 @@ async def merge_products(
     return {"status": "success", **result}
 
 
+class DiscountLink(BaseModel):
+    discount_description: str
+    product_description: str
+
+
+@router.put("/products/link-discount", tags=["database"])
+async def link_discount(
+    data: DiscountLink, db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin")),
+):
+    """Link a discount row to a product row. Admin only."""
+    result = crud.link_discount_to_product(
+        db, discount_description=data.discount_description,
+        product_description=data.product_description,
+    )
+    return {"status": "success", **result}
+
+
+class LineItemSplit(BaseModel):
+    new_description: str
+    new_quantity: float | None = None
+    new_total_price: float | None = None
+
+
+@router.post("/line-items/{line_item_id}/split", tags=["database"])
+async def split_line_item(
+    line_item_id: int, data: LineItemSplit, db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin")),
+):
+    """Split a line item into two: original keeps its description, a new row
+    is created with the new description. Quantities/prices are adjusted."""
+    result = crud.split_line_item(
+        db, line_item_id=line_item_id,
+        new_description=data.new_description,
+        new_quantity=data.new_quantity,
+        new_total_price=data.new_total_price,
+    )
+    if result is None:
+        raise HTTPException(status_code=404, detail="Line item not found")
+    return {"status": "success", **result}
+
+
 # ── Rules ───────────────────────────────────────────────────────────
 
 class RuleCreate(BaseModel):
@@ -574,8 +622,12 @@ async def apply_rules_to_all(db: Session = Depends(get_db)):
 # ── Vendors ─────────────────────────────────────────────────────────
 
 @router.get("/vendors", tags=["vendors"])
-async def list_vendors(db: Session = Depends(get_db)):
-    vendors = crud.list_vendors(db)
+async def list_vendors(
+    db: Session = Depends(get_db),
+    user: User | None = Depends(get_optional_user),
+):
+    user_id_filter = user.id if user and user.role != "admin" else None
+    vendors = crud.list_vendors(db, user_id=user_id_filter)
     return {"status": "success", "vendors": vendors}
 
 

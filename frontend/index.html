@@ -467,7 +467,7 @@
       </div>
       <div id="cat-chart" class="detail-card" style="margin-bottom:1rem;padding:1.5rem;"></div>
       <div id="migrate-btn-wrap" style="margin-bottom:1rem;display:none;"><button class="btn btn-ghost btn-sm" onclick="migrateCategories()" id="migrate-btn">🔄 Migrera kategorier till ny struktur</button></div>
-      <div id="discount-cleanup-wrap" style="margin-bottom:1rem;"><button class="btn btn-ghost btn-sm" onclick="cleanupDiscounts()" id="discount-btn" title="Koppla ihop rabattrader (t.ex. Willys plus:nötfärs) med rätt produkt och ta bort dubbletter">🔗 Länka rabattrader till produkter</button></div>
+      <div id="discount-cleanup-wrap" style="display:none"></div>
 
       <!-- Global filter bar -->
       <div class="analytics-filter-bar">
@@ -501,7 +501,8 @@
         </div>
         <div id="merge-bar" class="merge-bar" style="display:none;">
           <span id="merge-count">0 valda</span>
-          <button class="btn btn-primary btn-sm" onclick="openMergeModal()">🔗 Slå ihop</button>
+          <button class="btn btn-primary btn-sm" id="merge-btn" onclick="openMergeModal()">🔗 Slå ihop</button>
+          <button class="btn btn-primary btn-sm" id="discount-link-btn" onclick="doDiscountLink()" style="display:none">💰 Koppla rabatt</button>
           <button class="btn btn-ghost btn-sm" onclick="clearMergeSelection()">Avmarkera</button>
         </div>
         <div class="table-wrapper" style="margin-bottom:1.5rem;">
@@ -1117,6 +1118,24 @@ async function inlineEditLine(el,lineId,field,isNum){
   inp.addEventListener('blur',save);
   inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();inp.blur()}if(e.key==='Escape'){inp.value=old;inp.blur()}});
 }
+async function splitLineItem(lineId,desc,qty,total){
+  const newDesc=prompt(`Splitta "${desc}"\n\nAnge nytt produktnamn för den utsplittade raden:`,desc);
+  if(!newDesc)return;
+  const newQty=prompt(`Antal för "${newDesc}"?\n(Nuvarande total: ${qty}, lämna tomt för att dela lika)`,Math.ceil(qty/2));
+  if(newQty===null)return;
+  const newTotal=prompt(`Summa (kr) för "${newDesc}"?\n(Nuvarande total: ${fmtC(total)} kr, lämna tomt för att dela lika)`,Math.round(total/2*100)/100);
+  if(newTotal===null)return;
+  try{
+    const body={new_description:newDesc};
+    if(newQty!=='')body.new_quantity=parseFloat(newQty);
+    if(newTotal!=='')body.new_total_price=parseFloat(newTotal);
+    const r=await authFetch(`${API}/line-items/${lineId}/split`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!r.ok){showToast(`Fel ${r.status}`,true);return}
+    const d=await r.json();
+    showToast(`Rad splittad → "${d.new_description}" ✓`);
+    showDocument(_editDocId);
+  }catch(e){showToast('Fel: '+e.message,true)}
+}
 function fL(f){return{...DOC_F,...LINE_F}[f]||f||'—'}
 function opL(o){return{contains:'innehåller',equals:'=',starts_with:'börjar med',ends_with:'slutar med',regex:'regex',greater_than:'>',less_than:'<',always:'alltid'}[o]||o}
 function aL(a){return{set:'Sätt',set_if_empty:'Om tomt',replace:'Ersätt',strip_chars:'Rensa',format_number:'Format',multiply:'×',recalculate:'Räkna om'}[a]||a}
@@ -1198,14 +1217,24 @@ async function migrateCategories(){
   else showToast('❌ '+JSON.stringify(d),true)}catch(e){showToast('❌ '+e.message,true)}
   finally{btn.disabled=false;btn.textContent='🔄 Migrera kategorier till ny struktur'}
 }
-async function cleanupDiscounts(){
-  if(!confirm('Koppla ihop rabattrader med produkter?\n\nRader som "Willys plus:nötfärs" och "Rabatt:lättdryck" kopplas till rätt produkt och rabatten visas på produktraden istället.'))return;
-  const btn=document.getElementById('discount-btn');btn.disabled=true;btn.textContent='⏳ Rensar…';
-  try{const r=await authFetch('/api/v1/line-items/cleanup-discounts',{method:'POST'});const d=await r.json();
-  if(d.status==='success'){showToast(`✅ ${d.linked} rabatter kopplade, ${d.deleted} rader borttagna${d.unmatched?' ('+d.unmatched+' omatchade)':''}`);
-  document.getElementById('discount-cleanup-wrap').style.display='none';loadAnalytics()}
-  else showToast('❌ '+JSON.stringify(d),true)}catch(e){showToast('❌ '+e.message,true)}
-  finally{btn.disabled=false;btn.textContent='🔗 Länka rabattrader till produkter'}
+async function doDiscountLink(){
+  const checks=[...document.querySelectorAll('.prod-check:checked')];
+  if(checks.length!==2)return;
+  const discCheck=checks.find(c=>parseFloat(c.dataset.spent)<0);
+  const prodCheck=checks.find(c=>parseFloat(c.dataset.spent)>=0);
+  if(!discCheck||!prodCheck)return;
+  const discDesc=decodeURIComponent(escape(atob(discCheck.dataset.desc)));
+  const prodDesc=decodeURIComponent(escape(atob(prodCheck.dataset.desc)));
+  if(!confirm(`Koppla rabatt "${discDesc}" till produkt "${prodDesc}"?\n\nRabattbeloppet läggs på produktraden och rabattraden tas bort.`))return;
+  try{
+    const r=await authFetch(`${API}/products/link-discount`,{method:'PUT',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({discount_description:discDesc,product_description:prodDesc})});
+    if(!r.ok){showToast(`Fel ${r.status}`,true);return}
+    const d=await r.json();
+    clearMergeSelection();
+    showToast(`✅ ${d.linked} rabatter kopplade, ${d.deleted} rader borttagna${d.skipped?' ('+d.skipped+' hoppade)':''}`);
+    loadProducts();
+  }catch(e){showToast('Fel: '+e.message,true)}
 }
 async function loadAnalytics(){
   try{
@@ -1312,7 +1341,7 @@ async function loadProducts(){
   catch(e){document.getElementById('prod-tbody').innerHTML='<tr><td colspan="9"><div class="empty-state">Kunde inte ladda produkter</div></td></tr>';console.error('loadProducts error:',e)}}
 function renderProds(d){const tb=document.getElementById('prod-tbody');
   tb.innerHTML=!d.products.length?'<tr><td colspan="10"><div class="empty-state">Inga produkter</div></td></tr>'
-    :d.products.map(p=>{const sd=btoa(unescape(encodeURIComponent(p.description)));return`<tr><td><input type="checkbox" class="prod-check" data-desc="${sd}" onchange="updateMergeBar()"></td><td><a href="#" class="prod-link" onclick="showProductDocs('${esc(p.description.replace(/'/g,"\\'"))}');return false"><strong>${esc(p.description)}</strong></a></td><td style="position:relative">${prodCatBadge(p.description,p.category)}</td><td>${p.purchase_count}</td><td>${p.total_quantity}${p.unit?' '+p.unit:''}</td><td class="amount">${fmtC(p.total_spent)} kr</td><td class="amount">${fmtC(p.avg_unit_price)}</td><td class="text-muted">${p.min_unit_price!=null?fmtC(p.min_unit_price):'—'}</td><td class="text-muted">${p.max_unit_price!=null?fmtC(p.max_unit_price):'—'}</td><td><button class="btn btn-ghost btn-sm" onclick="showPrice('${esc(p.description.replace(/'/g,"\\'"))}')">📈</button></td></tr>`}).join('');
+    :d.products.map(p=>{const sd=btoa(unescape(encodeURIComponent(p.description)));return`<tr><td><input type="checkbox" class="prod-check" data-desc="${sd}" data-spent="${p.total_spent}" onchange="updateMergeBar()"></td><td><a href="#" class="prod-link" onclick="showProductDocs('${esc(p.description.replace(/'/g,"\\'"))}');return false"><strong>${esc(p.description)}</strong></a></td><td style="position:relative">${prodCatBadge(p.description,p.category)}</td><td>${p.purchase_count}</td><td>${p.total_quantity}${p.unit?' '+p.unit:''}</td><td class="amount">${fmtC(p.total_spent)} kr</td><td class="amount">${fmtC(p.avg_unit_price)}</td><td class="text-muted">${p.min_unit_price!=null?fmtC(p.min_unit_price):'—'}</td><td class="text-muted">${p.max_unit_price!=null?fmtC(p.max_unit_price):'—'}</td><td><button class="btn btn-ghost btn-sm" onclick="showPrice('${esc(p.description.replace(/'/g,"\\'"))}')">📈</button></td></tr>`}).join('');
   if(PS>0){const s=prodPage*PS+1,e=Math.min(s+PS-1,d.total);document.getElementById('prod-pag').textContent=d.total>0?`${s}–${e} av ${d.total}`:'';
   document.getElementById('prod-prev').disabled=prodPage===0;document.getElementById('prod-next').disabled=e>=d.total}
   else{document.getElementById('prod-pag').textContent=d.total>0?`Alla ${d.total}`:'';document.getElementById('prod-prev').disabled=true;document.getElementById('prod-next').disabled=true}
@@ -1328,9 +1357,22 @@ function toggleAllProducts(checked){
 }
 function updateMergeBar(){
   const sel=getSelectedProducts();
+  const checks=[...document.querySelectorAll('.prod-check:checked')];
   const bar=document.getElementById('merge-bar');
-  if(sel.length>=2){bar.style.display='flex';document.getElementById('merge-count').textContent=sel.length+' valda'}
-  else{bar.style.display='none'}
+  const mergeBtn=document.getElementById('merge-btn');
+  const discBtn=document.getElementById('discount-link-btn');
+  if(sel.length>=2){
+    bar.style.display='flex';
+    document.getElementById('merge-count').textContent=sel.length+' valda';
+    // Detect discount: exactly 2 selected, one has negative total_spent
+    const hasDiscount=sel.length===2&&checks.some(c=>parseFloat(c.dataset.spent)<0);
+    const hasProduct=sel.length===2&&checks.some(c=>parseFloat(c.dataset.spent)>=0);
+    if(hasDiscount&&hasProduct){
+      discBtn.style.display='';mergeBtn.style.display='';
+    }else{
+      discBtn.style.display='none';mergeBtn.style.display='';
+    }
+  }else{bar.style.display='none'}
 }
 function clearMergeSelection(){
   document.querySelectorAll('.prod-check').forEach(c=>c.checked=false);
@@ -1766,7 +1808,7 @@ async function showDocument(id){showView('detail');_editDocId=id;const el=docume
   const fr=isAdmin?(l,v,f)=>fRe(l,v,d.id,f):(l,v)=>fR(l,v);
   el.innerHTML=`<div class="detail-header"><div><div class="detail-title">${esc(d.filename)}</div><div class="detail-meta">${typeBdg(d.document_type)}<span>${d.analysis_type}</span><span>${d.file_size_bytes?fmtB(d.file_size_bytes):''}</span><span>${fmtD(d.created_at)}</span>${d.uploaded_by?`<span>👤 ${esc(d.uploaded_by)}</span>`:''}</div></div><div style="display:flex;gap:0.5rem">${d.has_preview?`<button class="btn btn-ghost" onclick="showPreview('${d.id}')">🖼️ Visa bild</button>`:''}<button class="btn btn-danger" onclick="deleteDoc('${d.id}')">Ta bort</button></div></div>
   <div class="detail-grid"><div class="detail-card"><h3>Dokumentinfo${isAdmin?' <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400">— klicka för att redigera</span>':''}</h3>${fr('Leverantör',d.vendor,'vendor')}${fr('Fakturanr',d.invoice_number,'invoice_number')}${fr('OCR',d.ocr_number,'ocr_number')}${fr('Fakturadatum',d.invoice_date,'invoice_date')}${fr('Förfallodatum',d.due_date,'due_date')}</div><div class="detail-card"><h3>Belopp</h3>${fr('Totalbelopp',d.total_amount!=null?fmtC(d.total_amount):null,'total_amount')}${fr('Moms',d.vat_amount!=null?fmtC(d.vat_amount):null,'vat_amount')}${fr('Valuta',d.currency,'currency')}${fr('Rabatt',d.discount,'discount')}</div></div>
-  ${d.line_items?.length?`<div class="detail-card" style="margin-bottom:1.5rem"><h3>Rader (${d.line_items.length}) <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400">— klicka på ${isAdmin?'valfritt fält':'kategori'} för att ändra</span></h3><div class="table-wrapper" style="border:none"><table class="line-items-table"><thead><tr><th>Beskrivning</th><th>Kategori</th><th>Antal</th><th>Enhet</th><th>À-pris</th><th>Summa</th><th>Rabatt</th><th>Moms%</th><th>Vikt</th></tr></thead><tbody>${d.line_items.map(i=>{const e=(f,n)=>isAdmin?`onclick="inlineEditLine(this,${i.id},'${f}',${!!n})"`:'';return`<tr><td class="${isAdmin?'editable':''}" ${e('description',false)}>${esc(i.description||'—')}</td><td style="position:relative">${catBadge(i)}</td><td class="${isAdmin?'editable':''}" ${e('quantity',true)}>${i.quantity??'—'}</td><td class="${isAdmin?'editable':''}" ${e('unit',false)}>${i.unit||'—'}</td><td class="amount ${isAdmin?'editable':''}" ${e('unit_price',true)}>${i.unit_price!=null?fmtC(i.unit_price):'—'}</td><td class="amount ${isAdmin?'editable':''}" ${e('total_price',true)}>${i.total_price!=null?fmtC(i.total_price):'—'}</td><td class="amount ${isAdmin?'editable':''}" style="color:var(--accent-red,#ef4444)" ${e('discount',false)}>${i.discount||'—'}</td><td class="${isAdmin?'editable':''}" ${e('vat_rate',true)}>${i.vat_rate!=null?i.vat_rate+'%':'—'}</td><td class="${isAdmin?'editable':''}" ${e('weight',true)}>${i.weight!=null?i.weight+' kg':'—'}</td></tr>`}).join('')}</tbody></table></div></div>`:''}
+  ${d.line_items?.length?`<div class="detail-card" style="margin-bottom:1.5rem"><h3>Rader (${d.line_items.length}) <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400">— klicka på ${isAdmin?'valfritt fält':'kategori'} för att ändra</span></h3><div class="table-wrapper" style="border:none"><table class="line-items-table"><thead><tr><th>Beskrivning</th><th>Kategori</th><th>Antal</th><th>Enhet</th><th>À-pris</th><th>Summa</th><th>Rabatt</th><th>Moms%</th><th>Vikt</th>${isAdmin?'<th></th>':''}</tr></thead><tbody>${d.line_items.map(i=>{const e=(f,n)=>isAdmin?`onclick="inlineEditLine(this,${i.id},'${f}',${!!n})"`:'';return`<tr><td class="${isAdmin?'editable':''}" ${e('description',false)}>${esc(i.description||'—')}</td><td style="position:relative">${catBadge(i)}</td><td class="${isAdmin?'editable':''}" ${e('quantity',true)}>${i.quantity??'—'}</td><td class="${isAdmin?'editable':''}" ${e('unit',false)}>${i.unit||'—'}</td><td class="amount ${isAdmin?'editable':''}" ${e('unit_price',true)}>${i.unit_price!=null?fmtC(i.unit_price):'—'}</td><td class="amount ${isAdmin?'editable':''}" ${e('total_price',true)}>${i.total_price!=null?fmtC(i.total_price):'—'}</td><td class="amount ${isAdmin?'editable':''}" style="color:var(--accent-red,#ef4444)" ${e('discount',false)}>${i.discount||'—'}</td><td class="${isAdmin?'editable':''}" ${e('vat_rate',true)}>${i.vat_rate!=null?i.vat_rate+'%':'—'}</td><td class="${isAdmin?'editable':''}" ${e('weight',true)}>${i.weight!=null?i.weight+' kg':'—'}</td>${isAdmin?`<td><button class="btn btn-ghost btn-sm" style="font-size:0.7rem;padding:1px 5px" onclick="splitLineItem(${i.id},'${esc(i.description||'')}',${i.quantity||0},${i.total_price||0})" title="Splitta rad">✂️</button></td>`:''}</tr>`}).join('')}</tbody></table></div></div>`:''}
   ${d.raw_analysis?`<div class="detail-card"><h3>Rå analys</h3><div class="raw-text">${esc(d.raw_analysis)}</div></div>`:''}`}
 async function deleteDoc(id){if(!confirm('Ta bort?'))return;await authFetch(`${API}/documents/${id}`,{method:'DELETE'});showView('documents')}
 function showPreview(docId){
