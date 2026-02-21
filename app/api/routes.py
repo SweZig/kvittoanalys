@@ -6,7 +6,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -968,3 +968,198 @@ def _word_overlap(a: str, b: str) -> bool:
     if not words_a or not words_b:
         return False
     return len(words_a & words_b) >= 1
+
+
+# ── Inbound email (receive receipts via email) ──────────────────────
+
+import json
+import re
+import urllib.request
+
+def _resend_api_get(path: str) -> dict | None:
+    """Call Resend API GET endpoint."""
+    try:
+        req = urllib.request.Request(
+            f"https://api.resend.com{path}",
+            headers={
+                "Authorization": f"Bearer {settings.resend_api_key}",
+                "User-Agent": "Kvittoanalys/1.0",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return json.loads(resp.read())
+    except Exception as e:
+        print(f"⚠️ Resend API GET {path} failed: {e}")
+        return None
+
+
+def _download_url(url: str) -> bytes | None:
+    """Download file from URL, return bytes."""
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Kvittoanalys/1.0"})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return resp.read()
+    except Exception as e:
+        print(f"⚠️ Download failed {url}: {e}")
+        return None
+
+
+def _parse_email_address(from_field: str) -> str:
+    """Extract email from 'Name <email>' or plain email format."""
+    match = re.search(r'<([^>]+)>', from_field)
+    if match:
+        return match.group(1).lower().strip()
+    return from_field.lower().strip()
+
+
+_INBOUND_SUPPORTED_TYPES = {
+    "application/pdf": ".pdf",
+    "image/png": ".png",
+    "image/jpeg": ".jpg",
+    "image/jpg": ".jpg",
+    "image/gif": ".gif",
+    "image/webp": ".webp",
+    "image/bmp": ".bmp",
+    "image/tiff": ".tiff",
+}
+
+
+@router.post("/inbound-email")
+async def inbound_email(request: Request, db: Session = Depends(get_db)):
+    """Receive inbound email webhook from Resend."""
+    try:
+        event = await request.json()
+    except Exception:
+        return {"status": "ok"}
+
+    if event.get("type") != "email.received":
+        return {"status": "ok", "message": "ignored event type"}
+
+    data = event.get("data", {})
+    email_id = data.get("email_id")
+    from_raw = data.get("from", "")
+    subject = data.get("subject", "")
+    attachment_meta = data.get("attachments", [])
+
+    sender_email = _parse_email_address(from_raw)
+    print(f"📨 Inbound email from {sender_email}, subject: {subject}, attachments: {len(attachment_meta)}")
+
+    # Look up user by sender email
+    user = db.query(User).filter(User.email == sender_email).first()
+    if not user:
+        print(f"⚠️ Inbound email from unknown sender: {sender_email} — ignoring")
+        return {"status": "ok", "message": "unknown sender"}
+
+    if not user.is_verified or not user.is_active:
+        print(f"⚠️ Inbound email from unverified/inactive user: {sender_email} — ignoring")
+        return {"status": "ok", "message": "user not active"}
+
+    processed = 0
+    errors = []
+
+    # Process attachments (PDF / images)
+    if attachment_meta:
+        # Fetch attachment download URLs from Resend API
+        att_list = _resend_api_get(f"/emails/receiving/{email_id}/attachments")
+        attachments = att_list.get("data", []) if att_list else []
+
+        for att in attachments:
+            content_type = att.get("content_type", "")
+            filename = att.get("filename", "attachment")
+            download_url = att.get("download_url")
+
+            if not download_url:
+                continue
+
+            # Check if supported file type
+            ext = _INBOUND_SUPPORTED_TYPES.get(content_type)
+            if not ext:
+                print(f"  ⏭️ Skipping unsupported attachment: {filename} ({content_type})")
+                continue
+
+            # Download the file
+            file_bytes = _download_url(download_url)
+            if not file_bytes:
+                errors.append(f"Kunde inte ladda ned {filename}")
+                continue
+
+            # Save to temp file and process
+            try:
+                file_hash = hashlib.sha256(file_bytes).hexdigest()
+                existing = crud.check_duplicate(db, file_hash)
+                if existing:
+                    print(f"  ⏭️ Duplicate: {filename} (already uploaded as {existing.filename})")
+                    continue
+
+                file_path = settings.upload_path / f"{uuid.uuid4()}{ext}"
+                file_path.write_bytes(file_bytes)
+
+                content_blocks = loader.load_file(file_path)
+                result, structured_data = await asyncio.gather(
+                    asyncio.to_thread(lambda: analyzer.analyze(content_blocks, language="swedish")),
+                    asyncio.to_thread(lambda: extractor.extract(content_blocks, language="swedish")),
+                )
+                doc = crud.save_document(
+                    db, filename=filename, file_extension=ext,
+                    file_size_bytes=len(file_bytes), file_hash=file_hash,
+                    analysis_type="analyze", language="swedish",
+                    raw_analysis=result if isinstance(result, str) else str(result),
+                    structured_data=structured_data,
+                    user_id=user.id,
+                )
+                _save_preview(db, doc, file_path)
+                file_path.unlink(missing_ok=True)
+                processed += 1
+                print(f"  ✅ Processed: {filename} → document {doc.id}")
+            except Exception as e:
+                errors.append(f"Fel vid bearbetning av {filename}: {e}")
+                print(f"  ❌ Error processing {filename}: {e}")
+                if 'file_path' in dir() and file_path.exists():
+                    file_path.unlink(missing_ok=True)
+
+    # If no supported attachments, check for text receipt in email body
+    if processed == 0 and not attachment_meta:
+        email_data = _resend_api_get(f"/emails/receiving/{email_id}")
+        if email_data:
+            body_text = email_data.get("text") or ""
+            body_html = email_data.get("html") or ""
+
+            # Use text body, or strip HTML tags as fallback
+            receipt_text = body_text.strip()
+            if not receipt_text and body_html:
+                receipt_text = re.sub(r'<[^>]+>', '', body_html).strip()
+
+            if receipt_text and len(receipt_text) > 20:
+                # Create a text-based document from the email body
+                try:
+                    text_bytes = receipt_text.encode("utf-8")
+                    file_hash = hashlib.sha256(text_bytes).hexdigest()
+                    existing = crud.check_duplicate(db, file_hash)
+                    if not existing:
+                        # Use structured extractor on the text content
+                        content_blocks = [{"type": "text", "text": receipt_text}]
+                        result, structured_data = await asyncio.gather(
+                            asyncio.to_thread(lambda: analyzer.analyze(content_blocks, language="swedish")),
+                            asyncio.to_thread(lambda: extractor.extract(content_blocks, language="swedish")),
+                        )
+                        doc = crud.save_document(
+                            db, filename=f"email-kvitto-{email_id[:8]}.txt",
+                            file_extension=".txt",
+                            file_size_bytes=len(text_bytes), file_hash=file_hash,
+                            analysis_type="analyze", language="swedish",
+                            raw_analysis=result if isinstance(result, str) else str(result),
+                            structured_data=structured_data,
+                            user_id=user.id,
+                        )
+                        processed += 1
+                        print(f"  ✅ Processed email body as text receipt → document {doc.id}")
+                    else:
+                        print(f"  ⏭️ Duplicate text receipt")
+                except Exception as e:
+                    errors.append(f"Fel vid bearbetning av mailtext: {e}")
+                    print(f"  ❌ Error processing email body: {e}")
+            else:
+                print(f"  ⚠️ Email body too short or empty, nothing to process")
+
+    print(f"📨 Inbound result: {processed} processed, {len(errors)} errors")
+    return {"status": "ok", "processed": processed, "errors": errors}
