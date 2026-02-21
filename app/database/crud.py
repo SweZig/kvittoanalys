@@ -68,6 +68,9 @@ def _ensure_normalized(db: Session) -> None:
     if bf["documents_linked"]:
         log.info("Backfilled vendors: %s", bf)
 
+    # Auto-detect and backfill product groups for ungrouped items
+    _backfill_product_groups(db)
+
 
 def _safe_migrate(db: Session, check_sql: str, migrate_sql: str) -> None:
     """Run a migration SQL if the check SQL fails."""
@@ -151,6 +154,13 @@ def save_document(
         vendor = get_or_create_vendor(db, doc.vendor)
         if vendor:
             doc.vendor_id = vendor.id
+
+    # Auto-assign product groups based on existing groups
+    for line in doc.line_items:
+        if line.description and not line.product_group:
+            group = _assign_product_group_for_item(db, line.description)
+            if group:
+                line.product_group = group
 
     db.add(doc)
     db.commit()
@@ -1147,6 +1157,54 @@ def backfill_vendors(db: Session) -> dict[str, int]:
     if linked:
         db.commit()
     return {"vendors_created": created, "documents_linked": linked}
+
+
+def _backfill_product_groups(db: Session) -> None:
+    """Auto-detect and apply product groups for ungrouped line items."""
+    # Only run if there are ungrouped items
+    ungrouped_count = (
+        db.query(LineItem)
+        .filter(LineItem.description.isnot(None))
+        .filter((LineItem.product_group.is_(None)) | (LineItem.product_group == ""))
+        .count()
+    )
+    if ungrouped_count == 0:
+        return
+
+    groups = auto_detect_product_groups(db)
+    if groups:
+        result = apply_product_groups(db, groups)
+        if result["line_items_updated"]:
+            log.info("Auto-assigned product groups: %s groups, %s items",
+                     result["groups_applied"], result["line_items_updated"])
+
+
+def _assign_product_group_for_item(db: Session, description: str) -> str | None:
+    """Find matching product group for a description based on existing groups."""
+    if not description:
+        return None
+    desc_lower = description.lower().strip()
+
+    # Get all existing group names
+    existing_groups = (
+        db.query(LineItem.product_group)
+        .filter(LineItem.product_group.isnot(None))
+        .filter(LineItem.product_group != "")
+        .distinct().all()
+    )
+
+    best_match = None
+    best_len = 0
+    for (group_name,) in existing_groups:
+        gn_lower = group_name.lower().strip()
+        # Check if description starts with group name
+        if desc_lower.startswith(gn_lower) and len(gn_lower) > best_len:
+            # Make sure it's a word boundary (not matching "Oxfi" in "Oxfilé")
+            if len(desc_lower) == len(gn_lower) or desc_lower[len(gn_lower)] in (' ', '-', ',', '/'):
+                best_match = group_name
+                best_len = len(gn_lower)
+
+    return best_match
 
 
 def merge_vendors(
