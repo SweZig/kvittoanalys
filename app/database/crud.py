@@ -56,6 +56,8 @@ def _ensure_normalized(db: Session) -> None:
                   "ALTER TABLE documents ADD COLUMN file_preview_type VARCHAR(20)")
     _safe_migrate(db, "SELECT file_preview FROM documents LIMIT 1",
                   "ALTER TABLE documents ADD COLUMN file_preview BYTEA")
+    _safe_migrate(db, "SELECT product_group FROM line_items LIMIT 1",
+                  "ALTER TABLE line_items ADD COLUMN product_group VARCHAR(255)")
 
     result = normalize_existing_data(db)
     if result["descriptions_normalized"] or result["categories_normalized"]:
@@ -1382,6 +1384,7 @@ def get_products(
             func.max(LineItem.unit_price).label("max_unit_price"),
             func.sum(LineItem.quantity).label("total_quantity"),
             func.max(LineItem.unit).label("unit"),
+            func.max(LineItem.product_group).label("product_group"),
         )
         .group_by(LineItem.description)
         .order_by(func.sum(LineItem.total_price).desc())
@@ -1392,7 +1395,7 @@ def get_products(
     rows = q.all()
 
     products = []
-    for desc, cat, count, total_spent, avg_price, min_price, max_price, total_qty, unit in rows:
+    for desc, cat, count, total_spent, avg_price, min_price, max_price, total_qty, unit, pgroup in rows:
         products.append({
             "description": _fmt(desc),
             "category": _fmt(cat),
@@ -1403,9 +1406,188 @@ def get_products(
             "max_unit_price": round(max_price or 0, 2) if max_price else None,
             "total_quantity": round(total_qty or 0, 2),
             "unit": unit,
+            "product_group": _fmt(pgroup) if pgroup else None,
         })
 
     return {"total": total, "products": products}
+
+
+def _find_common_prefix(words_a: list[str], words_b: list[str]) -> list[str]:
+    """Find common prefix words between two word lists."""
+    prefix = []
+    for wa, wb in zip(words_a, words_b):
+        if wa.lower() == wb.lower():
+            prefix.append(wa)
+        else:
+            break
+    return prefix
+
+
+def _clean_group_name(name: str) -> str:
+    """Clean group name: remove trailing price/weight info."""
+    # Remove trailing patterns like "249kr/kg", "ca", numbers, units
+    name = re.sub(r'\s+\d+[\.,]?\d*\s*(kr|:-|sek|g|kg|ml|cl|l|st|/kg|kr/kg)\s*$', '', name, flags=re.IGNORECASE)
+    name = re.sub(r'\s+(ca|st|o)$', '', name, flags=re.IGNORECASE)
+    return name.strip()
+
+
+def auto_detect_product_groups(db: Session, min_group_size: int = 2, min_prefix_len: int = 4) -> dict[str, list[str]]:
+    """Detect product groups based on common prefix words.
+    Returns dict of group_name -> [descriptions]."""
+    descs = [
+        row[0] for row in
+        db.query(LineItem.description)
+        .filter(LineItem.description.isnot(None))
+        .filter(LineItem.description.notin_(_PANT_DESCRIPTIONS))
+        .distinct().all()
+        if row[0] and row[0].strip()
+    ]
+
+    # Build word-prefix index
+    # Key = first word (lowered), Value = list of (full description, words)
+    from collections import defaultdict
+    by_first_word = defaultdict(list)
+    for desc in descs:
+        words = desc.strip().split()
+        if words and len(words[0]) >= 3:
+            by_first_word[words[0].lower()].append((desc, words))
+
+    groups = {}  # group_name -> set of descriptions
+
+    for first_word, entries in by_first_word.items():
+        if len(entries) < min_group_size:
+            continue
+
+        # Find longest common prefix among all entries sharing first word
+        # Try grouping by progressively longer prefixes
+        # Start with just first word, then try first two, etc.
+        best_prefix_groups = {}
+
+        for i, (desc_a, words_a) in enumerate(entries):
+            for desc_b, words_b in entries[i + 1:]:
+                prefix = _find_common_prefix(words_a, words_b)
+                if prefix:
+                    prefix_str = _clean_group_name(" ".join(prefix))
+                    if len(prefix_str) >= min_prefix_len:
+                        if prefix_str not in best_prefix_groups:
+                            best_prefix_groups[prefix_str] = set()
+                        best_prefix_groups[prefix_str].add(desc_a)
+                        best_prefix_groups[prefix_str].add(desc_b)
+
+        # Merge: if a longer prefix group is subset of shorter, keep shorter
+        # Sort by name length (shortest = broadest group)
+        sorted_prefixes = sorted(best_prefix_groups.keys(), key=len)
+        for prefix_str in sorted_prefixes:
+            members = best_prefix_groups[prefix_str]
+            if len(members) >= min_group_size:
+                # Check this prefix isn't too broad (single word matching everything)
+                # Only single-word groups if they have multi-word descriptions
+                has_variants = any(d != prefix_str for d in members)
+                if has_variants:
+                    # Add to groups, preferring longer prefix if all members match
+                    if prefix_str not in groups:
+                        groups[prefix_str] = set()
+                    groups[prefix_str].update(members)
+
+    # Remove single-product groups and duplicates
+    # If a product appears in multiple groups, prefer the broadest (shortest name)
+    product_to_group = {}
+    for gname in sorted(groups.keys(), key=len):  # shortest first = broadest
+        for desc in groups[gname]:
+            if desc not in product_to_group:
+                product_to_group[desc] = gname
+
+    # Rebuild groups from assignment
+    final_groups = defaultdict(list)
+    for desc, gname in product_to_group.items():
+        final_groups[gname].append(desc)
+
+    # Filter: only groups with min_group_size members
+    return {
+        gname: sorted(members)
+        for gname, members in final_groups.items()
+        if len(members) >= min_group_size
+    }
+
+
+def apply_product_groups(db: Session, groups: dict[str, list[str]]) -> dict[str, int]:
+    """Apply product group assignments to line items."""
+    updated = 0
+    for group_name, descriptions in groups.items():
+        for desc in descriptions:
+            count = (
+                db.query(LineItem)
+                .filter(LineItem.description == desc)
+                .filter(
+                    (LineItem.product_group.is_(None)) | (LineItem.product_group == "")
+                )
+                .update({LineItem.product_group: group_name}, synchronize_session="fetch")
+            )
+            updated += count
+    db.commit()
+    return {"groups_applied": len(groups), "line_items_updated": updated}
+
+
+def set_product_group(db: Session, description: str, group_name: str | None) -> int:
+    """Set product_group for all line items with given description."""
+    count = (
+        db.query(LineItem)
+        .filter(LineItem.description == _fmt(description))
+        .update({LineItem.product_group: group_name}, synchronize_session="fetch")
+    )
+    db.commit()
+    return count
+
+
+def get_product_groups_summary(
+    db: Session, *, user_id: int | None = None,
+    date_from: str | None = None, date_to: str | None = None,
+) -> list[dict[str, Any]]:
+    """Get aggregated product group stats."""
+    base = (
+        db.query(LineItem)
+        .filter(LineItem.product_group.isnot(None))
+        .filter(LineItem.product_group != "")
+    )
+    needs_join = user_id is not None or date_from or date_to
+    if needs_join:
+        base = base.join(Document, LineItem.document_id == Document.id)
+        if user_id is not None:
+            base = base.filter(Document.user_id == user_id)
+        if date_from or date_to:
+            eff = func.coalesce(func.date(Document.invoice_date), func.date(Document.created_at))
+            if date_from:
+                base = base.filter(eff >= date_from)
+            if date_to:
+                base = base.filter(eff <= date_to)
+
+    rows = (
+        base.with_entities(
+            LineItem.product_group,
+            func.count(func.distinct(LineItem.description)).label("variant_count"),
+            func.count(LineItem.id).label("purchase_count"),
+            func.sum(LineItem.total_price).label("total_spent"),
+            func.avg(LineItem.unit_price).label("avg_unit_price"),
+            func.min(LineItem.unit_price).label("min_unit_price"),
+            func.max(LineItem.unit_price).label("max_unit_price"),
+        )
+        .group_by(LineItem.product_group)
+        .order_by(func.sum(LineItem.total_price).desc())
+        .all()
+    )
+
+    return [
+        {
+            "group_name": gname,
+            "variant_count": vcnt,
+            "purchase_count": pcnt,
+            "total_spent": round(total or 0, 2),
+            "avg_unit_price": round(avg or 0, 2),
+            "min_unit_price": round(mn or 0, 2) if mn else None,
+            "max_unit_price": round(mx or 0, 2) if mx else None,
+        }
+        for gname, vcnt, pcnt, total, avg, mn, mx in rows
+    ]
 
 
 def get_product_price_history(db: Session, description: str) -> list[dict[str, Any]]:

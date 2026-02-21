@@ -155,6 +155,7 @@ class LineItem(Base):
     weight = Column(String(100), nullable=True)
     packaging = Column(String(100), nullable=True)
     category = Column(String(100), nullable=True)  # product category set by rules
+    product_group = Column(String(255), nullable=True)  # product family grouping
 
     document = relationship("Document", back_populates="line_items")
 

@@ -528,6 +528,57 @@ async def link_discount(
     return {"status": "success", **result}
 
 
+# ── Product groups ───────────────────────────────────────────────────
+
+@router.get("/products/groups", tags=["analytics"])
+async def get_product_groups(
+    user_id: int | None = Query(None),
+    date_from: str | None = Query(None),
+    date_to: str | None = Query(None),
+    db: Session = Depends(get_db),
+    user: User | None = Depends(get_optional_user),
+):
+    """Get product group summaries."""
+    uid = user_id if user_id is not None else (user.id if user and user.role != "admin" else None)
+    return crud.get_product_groups_summary(db, user_id=uid, date_from=date_from, date_to=date_to)
+
+
+@router.post("/products/groups/auto-detect", tags=["database"])
+async def auto_detect_groups(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin")),
+):
+    """Auto-detect product groups based on common prefixes. Returns suggestions."""
+    groups = crud.auto_detect_product_groups(db)
+    return {"groups": {k: v for k, v in sorted(groups.items(), key=lambda x: len(x[1]), reverse=True)}}
+
+
+@router.post("/products/groups/apply", tags=["database"])
+async def apply_groups(
+    data: dict, db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin")),
+):
+    """Apply product group assignments. Body: {"groups": {"Oxfilé": ["Oxfilé skivad", ...], ...}}"""
+    groups = data.get("groups", {})
+    result = crud.apply_product_groups(db, groups)
+    return {"status": "success", **result}
+
+
+class ProductGroupSet(BaseModel):
+    description: str
+    group_name: str | None = None
+
+
+@router.put("/products/groups/set", tags=["database"])
+async def set_group(
+    data: ProductGroupSet, db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin")),
+):
+    """Set product_group for a specific product."""
+    count = crud.set_product_group(db, data.description, data.group_name)
+    return {"status": "success", "line_items_updated": count}
+
+
 class LineItemSplit(BaseModel):
     new_description: str
     new_quantity: float | None = None

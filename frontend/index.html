@@ -183,6 +183,16 @@
     .cat-badge.no-cat{background:rgba(138,138,138,0.12);color:var(--text-muted);border:1px dashed var(--border-light)}
     .prod-link{color:var(--text-primary);text-decoration:none;transition:color var(--transition)}
     .prod-link:hover{color:var(--accent);text-decoration:underline}
+    .group-header{background:var(--bg-secondary);cursor:pointer;font-weight:600}
+    .group-header:hover{background:var(--bg-primary)}
+    .group-header td{border-bottom:2px solid var(--border-color)}
+    .group-member{background:var(--bg-primary)}
+    .group-member td:nth-child(2){padding-left:2rem}
+    .group-toggle-icon{display:inline-block;transition:transform 0.15s;margin-right:0.3rem;font-size:0.8em}
+    .group-toggle-icon.open{transform:rotate(90deg)}
+    .group-badge{display:inline-block;padding:0.1rem 0.5rem;border-radius:9999px;font-size:0.75rem;background:var(--accent);color:white;margin-left:0.5rem;font-weight:400}
+    .group-edit-btn{opacity:0;transition:opacity 0.15s}
+    tr:hover .group-edit-btn{opacity:1}
     .prod-docs-list{display:flex;flex-direction:column;gap:0.5rem;max-height:400px;overflow-y:auto}
     .prod-doc-card{display:flex;align-items:center;justify-content:space-between;padding:0.75rem 1rem;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;transition:all var(--transition)}
     .prod-doc-card:hover{border-color:var(--accent);background:rgba(99,102,241,0.05)}
@@ -526,6 +536,10 @@
       <div id="analytics-products">
         <div class="toolbar">
           <div class="search-box" style="max-width:300px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" id="prod-search" placeholder="Sök produkt…" oninput="debounceProducts()"></div>
+          <div style="display:flex;gap:0.5rem;align-items:center;">
+            <button class="btn btn-ghost btn-sm" id="group-toggle" onclick="toggleGroupView()" title="Visa grupperad/platt">📁 Gruppera</button>
+            <button class="btn btn-ghost btn-sm admin-only" id="group-auto-btn" onclick="autoDetectGroups()" title="Auto-detektera grupper" style="display:none">🔍 Auto-grupper</button>
+          </div>
         </div>
         <div id="merge-bar" class="merge-bar" style="display:none;">
           <span id="merge-count">0 valda</span>
@@ -1107,6 +1121,7 @@ async function suggestCategory(desc, currentCat){
 
 const API='/api/v1';
 let currentPage=0,prodPage=0;let PS=20;let sTimer=null,pTimer=null,vcTimer=null,ptTimer=null,rTimer=null;let curRuleScope='';let curAnalyticsTab='products';
+let groupViewActive=false;let _lastProductData=null;
 
 const DOC_F={vendor:'Leverantör',document_type:'Dokumenttyp',currency:'Valuta',invoice_number:'Fakturanr',ocr_number:'OCR',total_amount:'Totalbelopp',vat_amount:'Moms',invoice_date:'Fakturadatum',due_date:'Förfallodatum',discount:'Rabatt',filename:'Filnamn'};
 const LINE_F={description:'Beskrivning',quantity:'Antal',unit:'Enhet',unit_price:'À-pris',total_price:'Radsumma',vat_rate:'Momssats',discount:'Rabatt',weight:'Vikt',packaging:'Förp.',category:'Kategori'};
@@ -1550,18 +1565,109 @@ function reloadActiveTab(){
 }
 async function loadProducts(){
   const c=getGlobalCategory(),v=getGlobalVendor(),s=document.getElementById('prod-search').value;
-  const p=new URLSearchParams({skip:prodPage*PS,limit:PS});if(c)p.set('category',c);if(v)p.set('vendor',v);if(s)p.set('search',s);
+  const effectiveLimit=groupViewActive?0:PS;
+  const p=new URLSearchParams({skip:groupViewActive?0:prodPage*PS,limit:effectiveLimit});if(c)p.set('category',c);if(v)p.set('vendor',v);if(s)p.set('search',s);
   if(_timelineDateFilter){p.set('date_from',_timelineDateFilter.from);p.set('date_to',_timelineDateFilter.to)}
   document.getElementById('prod-tbody').innerHTML='<tr><td colspan="9"><div class="loading"><div class="spinner"></div></div></td></tr>';
   try{renderProds(await(await authFetch(`${API}/documents/products?${p}`)).json())}
   catch(e){document.getElementById('prod-tbody').innerHTML='<tr><td colspan="9"><div class="empty-state">Kunde inte ladda produkter</div></td></tr>';console.error('loadProducts error:',e)}}
-function renderProds(d){const tb=document.getElementById('prod-tbody');
+function renderProds(d){_lastProductData=d;const tb=document.getElementById('prod-tbody');
+  if(groupViewActive){renderGroupedProds(d,tb);return}
   tb.innerHTML=!d.products.length?'<tr><td colspan="10"><div class="empty-state">Inga produkter</div></td></tr>'
-    :d.products.map(p=>{const sd=btoa(unescape(encodeURIComponent(p.description)));return`<tr><td><input type="checkbox" class="prod-check" data-desc="${sd}" data-spent="${p.total_spent}" onchange="updateMergeBar()"></td><td><a href="#" class="prod-link" onclick="showProductDocs('${esc(p.description.replace(/'/g,"\\'"))}');return false"><strong>${esc(p.description)}</strong></a></td><td style="position:relative">${prodCatBadge(p.description,p.category)}</td><td>${p.purchase_count}</td><td>${p.total_quantity}${p.unit?' '+p.unit:''}</td><td class="amount">${fmtC(p.total_spent)} kr</td><td class="amount">${fmtC(p.avg_unit_price)}</td><td class="text-muted">${p.min_unit_price!=null?fmtC(p.min_unit_price):'—'}</td><td class="text-muted">${p.max_unit_price!=null?fmtC(p.max_unit_price):'—'}</td><td><button class="btn btn-ghost btn-sm" onclick="showPrice('${esc(p.description.replace(/'/g,"\\'"))}')">📈</button></td></tr>`}).join('');
+    :d.products.map(p=>{const sd=btoa(unescape(encodeURIComponent(p.description)));return`<tr><td><input type="checkbox" class="prod-check" data-desc="${sd}" data-spent="${p.total_spent}" onchange="updateMergeBar()"></td><td><a href="#" class="prod-link" onclick="showProductDocs('${esc(p.description.replace(/'/g,"\\'"))}');return false"><strong>${esc(p.description)}</strong></a>${p.product_group?`<span class="text-muted" style="font-size:0.75rem;margin-left:0.4rem">(${esc(p.product_group)})</span>`:''}</td><td style="position:relative">${prodCatBadge(p.description,p.category)}</td><td>${p.purchase_count}</td><td>${p.total_quantity}${p.unit?' '+p.unit:''}</td><td class="amount">${fmtC(p.total_spent)} kr</td><td class="amount">${fmtC(p.avg_unit_price)}</td><td class="text-muted">${p.min_unit_price!=null?fmtC(p.min_unit_price):'—'}</td><td class="text-muted">${p.max_unit_price!=null?fmtC(p.max_unit_price):'—'}</td><td><button class="btn btn-ghost btn-sm" onclick="showPrice('${esc(p.description.replace(/'/g,"\\'"))}')">📈</button></td></tr>`}).join('');
   if(PS>0){const s=prodPage*PS+1,e=Math.min(s+PS-1,d.total);document.getElementById('prod-pag').textContent=d.total>0?`${s}–${e} av ${d.total}`:'';
   document.getElementById('prod-prev').disabled=prodPage===0;document.getElementById('prod-next').disabled=e>=d.total}
   else{document.getElementById('prod-pag').textContent=d.total>0?`Alla ${d.total}`:'';document.getElementById('prod-prev').disabled=true;document.getElementById('prod-next').disabled=true}
   document.getElementById('prod-select-all').checked=false;updateMergeBar()}
+
+function renderGroupedProds(d,tb){
+  if(!d.products.length){tb.innerHTML='<tr><td colspan="10"><div class="empty-state">Inga produkter</div></td></tr>';return}
+  // Group products: those with product_group go into groups, rest are ungrouped
+  const groups={};const ungrouped=[];
+  d.products.forEach(p=>{
+    if(p.product_group){
+      if(!groups[p.product_group])groups[p.product_group]={products:[],total_spent:0,purchase_count:0,total_quantity:0,min_price:Infinity,max_price:0,prices:[]};
+      const g=groups[p.product_group];g.products.push(p);g.total_spent+=p.total_spent;g.purchase_count+=p.purchase_count;g.total_quantity+=p.total_quantity;
+      if(p.min_unit_price!=null&&p.min_unit_price<g.min_price)g.min_price=p.min_unit_price;
+      if(p.max_unit_price!=null&&p.max_unit_price>g.max_price)g.max_price=p.max_unit_price;
+      if(p.avg_unit_price)g.prices.push(p.avg_unit_price);
+    }else{ungrouped.push(p)}
+  });
+  // Sort groups by total_spent desc
+  const sortedGroups=Object.entries(groups).sort((a,b)=>b[1].total_spent-a[1].total_spent);
+  let html='';
+  sortedGroups.forEach(([gname,g])=>{
+    const avg=g.prices.length?g.prices.reduce((a,b)=>a+b,0)/g.prices.length:0;
+    const gid='grp-'+btoa(unescape(encodeURIComponent(gname))).replace(/[=+/]/g,'');
+    html+=`<tr class="group-header" onclick="toggleGroup('${gid}')">
+      <td></td><td><span class="group-toggle-icon" id="icon-${gid}">▶</span><strong>${esc(gname)}</strong><span class="group-badge">${g.products.length} varianter</span></td>
+      <td></td><td>${g.purchase_count}</td><td>${g.total_quantity.toFixed(1)}</td>
+      <td class="amount"><strong>${fmtC(g.total_spent)} kr</strong></td><td class="amount">${fmtC(avg)}</td>
+      <td class="text-muted">${g.min_price<Infinity?fmtC(g.min_price):'—'}</td><td class="text-muted">${g.max_price>0?fmtC(g.max_price):'—'}</td><td></td></tr>`;
+    g.products.forEach(p=>{
+      const sd=btoa(unescape(encodeURIComponent(p.description)));
+      html+=`<tr class="group-member ${gid}" style="display:none"><td><input type="checkbox" class="prod-check" data-desc="${sd}" data-spent="${p.total_spent}" onchange="updateMergeBar()"></td><td><a href="#" class="prod-link" onclick="showProductDocs('${esc(p.description.replace(/'/g,"\\'"))}');return false">${esc(p.description)}</a></td><td style="position:relative">${prodCatBadge(p.description,p.category)}</td><td>${p.purchase_count}</td><td>${p.total_quantity}${p.unit?' '+p.unit:''}</td><td class="amount">${fmtC(p.total_spent)} kr</td><td class="amount">${fmtC(p.avg_unit_price)}</td><td class="text-muted">${p.min_unit_price!=null?fmtC(p.min_unit_price):'—'}</td><td class="text-muted">${p.max_unit_price!=null?fmtC(p.max_unit_price):'—'}</td><td><button class="btn btn-ghost btn-sm" onclick="showPrice('${esc(p.description.replace(/'/g,"\\'"))}')">📈</button></td></tr>`;
+    });
+  });
+  // Ungrouped
+  ungrouped.forEach(p=>{
+    const sd=btoa(unescape(encodeURIComponent(p.description)));
+    html+=`<tr><td><input type="checkbox" class="prod-check" data-desc="${sd}" data-spent="${p.total_spent}" onchange="updateMergeBar()"></td><td><a href="#" class="prod-link" onclick="showProductDocs('${esc(p.description.replace(/'/g,"\\'"))}');return false"><strong>${esc(p.description)}</strong></a></td><td style="position:relative">${prodCatBadge(p.description,p.category)}</td><td>${p.purchase_count}</td><td>${p.total_quantity}${p.unit?' '+p.unit:''}</td><td class="amount">${fmtC(p.total_spent)} kr</td><td class="amount">${fmtC(p.avg_unit_price)}</td><td class="text-muted">${p.min_unit_price!=null?fmtC(p.min_unit_price):'—'}</td><td class="text-muted">${p.max_unit_price!=null?fmtC(p.max_unit_price):'—'}</td><td><button class="btn btn-ghost btn-sm" onclick="showPrice('${esc(p.description.replace(/'/g,"\\'"))}')">📈</button></td></tr>`;
+  });
+  tb.innerHTML=html;
+  if(PS>0){const s=prodPage*PS+1,e=Math.min(s+PS-1,d.total);document.getElementById('prod-pag').textContent=d.total>0?`${s}–${e} av ${d.total}`:'';
+  document.getElementById('prod-prev').disabled=prodPage===0;document.getElementById('prod-next').disabled=e>=d.total}
+  else{document.getElementById('prod-pag').textContent=d.total>0?`Alla ${d.total}`:'';document.getElementById('prod-prev').disabled=true;document.getElementById('prod-next').disabled=true}
+  document.getElementById('prod-select-all').checked=false;updateMergeBar()}
+
+function toggleGroup(gid){
+  const rows=document.querySelectorAll('.'+gid);const icon=document.getElementById('icon-'+gid);
+  const show=rows[0]&&rows[0].style.display==='none';
+  rows.forEach(r=>r.style.display=show?'':'none');
+  if(icon)icon.classList.toggle('open',show)}
+
+function toggleGroupView(){
+  groupViewActive=!groupViewActive;
+  const btn=document.getElementById('group-toggle');
+  btn.textContent=groupViewActive?'📋 Platt lista':'📁 Gruppera';
+  btn.classList.toggle('active',groupViewActive);
+  if(_lastProductData)renderProds(_lastProductData);else loadProducts()}
+
+async function autoDetectGroups(){
+  if(!confirm('Auto-detektera produktgrupper baserat på gemensamma prefix?\n\nDetta tilldelar grupper till produkter som saknar grupp.'))return;
+  const btn=document.getElementById('group-auto-btn');btn.disabled=true;btn.textContent='⏳ Detekterar…';
+  try{
+    const r=await authFetch(`${API}/products/groups/auto-detect`,{method:'POST'});
+    const d=await r.json();const groups=d.groups||{};
+    const count=Object.keys(groups).length;const total=Object.values(groups).reduce((s,v)=>s+v.length,0);
+    if(!count){alert('Inga nya grupper hittades.');return}
+    // Show preview
+    let preview=`Hittade ${count} grupper med ${total} produkter:\n\n`;
+    Object.entries(groups).slice(0,10).forEach(([g,members])=>{
+      preview+=`📁 ${g} (${members.length} st)\n`;
+      members.slice(0,3).forEach(m=>preview+=`   • ${m}\n`);
+      if(members.length>3)preview+=`   … och ${members.length-3} till\n`;
+    });
+    if(count>10)preview+=`\n… och ${count-10} grupper till`;
+    preview+='\n\nTilldela dessa grupper?';
+    if(!confirm(preview))return;
+    const r2=await authFetch(`${API}/products/groups/apply`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({groups})});
+    const d2=await r2.json();
+    alert(`✅ ${d2.groups_applied} grupper tilldelade, ${d2.line_items_updated} rader uppdaterade`);
+    loadProducts();
+  }catch(e){alert('Fel: '+e.message)}
+  finally{btn.disabled=false;btn.textContent='🔍 Auto-grupper'}
+}
+
+async function setProductGroup(desc,currentGroup){
+  const g=prompt(`Ange produktgrupp för "${desc}":\n\n(Lämna tomt för att ta bort grupp)`,currentGroup||'');
+  if(g===null)return;
+  try{
+    await authFetch(`${API}/products/groups/set`,{method:'PUT',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({description:desc,group_name:g||null})});
+    loadProducts();
+  }catch(e){alert('Fel: '+e.message)}
+}
 function debounceProducts(){clearTimeout(pTimer);prodPage=0;pTimer=setTimeout(loadProducts,350)}
 
 // Merge products
