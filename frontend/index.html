@@ -195,6 +195,8 @@
     tr.drag-over{outline:2px solid var(--accent);outline-offset:-2px;background:var(--accent-glow) !important}
     tr[draggable="true"]{cursor:grab}
     tr[draggable="true"]:active{cursor:grabbing}
+    .group-header[draggable="true"]{cursor:grab}
+    .group-header.drag-over{outline:2px solid var(--accent);background:var(--accent-glow) !important}
     .ungroup-btn{opacity:0;font-size:0.7rem;padding:1px 4px;transition:opacity 0.15s;cursor:pointer;color:var(--text-muted)}
     tr:hover .ungroup-btn{opacity:1}
     .group-name-editable{cursor:pointer;border-bottom:1px dashed var(--text-muted)}
@@ -1622,7 +1624,7 @@ function renderGroupedProds(d,tb){
     const gid='grp-'+btoa(unescape(encodeURIComponent(gname))).replace(/[=+/]/g,'');
     const gkey=btoa(unescape(encodeURIComponent(gname)));
     // Group header: click to expand, drop target, editable name
-    html+=`<tr class="group-header"${isAdm?` ondragover="prodDragOver(event)" ondragleave="prodDragLeave(event)" ondrop="prodDrop(event,'${gkey}','group')"`:''}>
+    html+=`<tr class="group-header"${isAdm?` ${groupDragAttr(gname).trim()} ondragover="prodDragOver(event)" ondragleave="prodDragLeave(event)" ondrop="prodDrop(event,'${gkey}','group')"`:''}>
       <td></td><td onclick="toggleGroup('${gid}')"><span class="group-toggle-icon" id="icon-${gid}">▶</span>${isAdm?`<strong class="group-name-editable" data-group-name="${esc(gname)}" onclick="event.stopPropagation();renameGroup('${esc(gname.replace(/'/g,"\\'"))}')" title="Klicka för att byta namn">${esc(gname)}</strong>`:`<strong>${esc(gname)}</strong>`}<span class="group-badge">${g.products.length} varianter</span></td>
       <td></td><td>${g.purchase_count}</td><td>${g.total_quantity.toFixed(1)}</td>
       <td class="amount"><strong>${fmtC(g.total_spent)} kr</strong></td><td class="amount">${fmtC(avg)}</td>
@@ -1660,12 +1662,17 @@ function toggleGroupView(){
   if(_lastProductData)renderProds(_lastProductData);else loadProducts()}
 
 /* ── Drag & drop product grouping (admin, desktop only) ───────── */
-let _dragDesc=null;
+let _dragDesc=null;let _dragType=null; // 'product' or 'group'
 function isDragAdmin(){return currentUser&&currentUser.role==='admin'&&window.innerWidth>768}
 function dragAttr(desc){
   if(!isDragAdmin())return '';
   const sd=btoa(unescape(encodeURIComponent(desc)));
-  return ` draggable="true" ondragstart="prodDragStart(event,'${sd}')" ondragend="prodDragEnd(event)"`;
+  return ` draggable="true" ondragstart="prodDragStart(event,'${sd}','product')" ondragend="prodDragEnd(event)"`;
+}
+function groupDragAttr(groupName){
+  if(!isDragAdmin())return '';
+  const gk=btoa(unescape(encodeURIComponent(groupName)));
+  return ` draggable="true" ondragstart="prodDragStart(event,'${gk}','group')" ondragend="prodDragEnd(event)"`;
 }
 function dropAttr(desc,groupName){
   if(!isDragAdmin())return '';
@@ -1673,13 +1680,13 @@ function dropAttr(desc,groupName){
   const type=groupName?'group':'product';
   return ` ondragover="prodDragOver(event)" ondragleave="prodDragLeave(event)" ondrop="prodDrop(event,'${key}','${type}')"`;
 }
-function prodDragStart(e,sd){
-  _dragDesc=decodeProdKey(sd);
+function prodDragStart(e,sd,dragType){
+  _dragDesc=decodeProdKey(sd);_dragType=dragType;
   e.dataTransfer.effectAllowed='move';
   e.dataTransfer.setData('text/plain',sd);
   e.target.closest('tr').classList.add('dragging');
 }
-function prodDragEnd(e){_dragDesc=null;e.target.closest('tr')?.classList.remove('dragging');document.querySelectorAll('.drag-over').forEach(el=>el.classList.remove('drag-over'))}
+function prodDragEnd(e){_dragDesc=null;_dragType=null;e.target.closest('tr')?.classList.remove('dragging');document.querySelectorAll('.drag-over').forEach(el=>el.classList.remove('drag-over'))}
 function prodDragOver(e){
   e.preventDefault();e.dataTransfer.dropEffect='move';
   const tr=e.target.closest('tr');
@@ -1689,13 +1696,17 @@ function prodDragLeave(e){e.target.closest('tr')?.classList.remove('drag-over')}
 async function prodDrop(e,targetKey,type){
   e.preventDefault();
   document.querySelectorAll('.drag-over').forEach(el=>el.classList.remove('drag-over'));
-  const dragDesc=_dragDesc;if(!dragDesc)return;
+  const dragDesc=_dragDesc;const dragType=_dragType;if(!dragDesc)return;
   const targetVal=decodeProdKey(targetKey);
-  if(type==='group'){
-    // Drop onto group header → add to group
+  if(dragType==='group'&&type==='group'){
+    // Group → Group: merge source group into target group
+    if(dragDesc===targetVal)return;
+    await mergeGroups(dragDesc,targetVal);
+  }else if(type==='group'){
+    // Product → Group header: add to group
     await addToGroup(dragDesc,targetVal);
   }else{
-    // Drop onto another product → create new group
+    // Product → Product: create new group
     if(dragDesc===targetVal)return;
     await createGroupFromDrop(dragDesc,targetVal);
   }
@@ -1733,6 +1744,17 @@ async function removeFromGroup(desc){
   try{
     await authFetch(`${API}/products/groups/set`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({description:desc,group_name:null})});
     showToast(`Borttagen ur grupp`);loadProducts();
+  }catch(e){showToast('Fel: '+e.message,true)}
+}
+async function mergeGroups(sourceGroup,targetGroup){
+  // Move all members of sourceGroup into targetGroup
+  const members=(_lastProductData?.products||[]).filter(p=>p.product_group===sourceGroup);
+  if(!members.length){showToast('Gruppen är tom',true);return}
+  try{
+    for(const m of members){
+      await authFetch(`${API}/products/groups/set`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({description:m.description,group_name:targetGroup})});
+    }
+    showToast(`🔗 "${sourceGroup}" (${members.length} st) → "${targetGroup}"`);loadProducts();
   }catch(e){showToast('Fel: '+e.message,true)}
 }
 async function renameGroup(oldName){
