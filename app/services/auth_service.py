@@ -84,6 +84,8 @@ def send_email_resend(
     try:
         import urllib.request
 
+        print(f"📧 Sending via Resend to {to}, from={from_addr}, key={api_key[:8]}...")
+
         payload = json.dumps({
             "from": from_addr,
             "to": [to],
@@ -104,7 +106,14 @@ def send_email_resend(
             print(f"✅ Email sent to {to} via Resend (id: {result.get('id', '?')})")
             return True
     except Exception as e:
-        print(f"⚠️ Resend email failed to {to}: {e}")
+        # Try to read error body for details
+        body = ""
+        if hasattr(e, 'read'):
+            try:
+                body = e.read().decode()
+            except Exception:
+                pass
+        print(f"⚠️ Resend email failed to {to}: {e} — {body}")
         return False
 
 
