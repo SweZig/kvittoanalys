@@ -221,6 +221,8 @@ async def product_list(
     category: str | None = Query(None),
     vendor: str | None = Query(None),
     search: str | None = Query(None),
+    date_from: str | None = Query(None),
+    date_to: str | None = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(0, ge=0, le=5000),
     db: Session = Depends(get_db),
@@ -228,7 +230,8 @@ async def product_list(
 ):
     user_id_filter = user.id if user and user.role != "admin" else None
     result = crud.get_products(db, category=category, vendor=vendor, search=search,
-                               skip=skip, limit=limit, user_id=user_id_filter)
+                               skip=skip, limit=limit, user_id=user_id_filter,
+                               date_from=date_from, date_to=date_to)
     return {"status": "success", **result}
 
 

@@ -102,14 +102,15 @@
     .preview-overlay img{max-width:95vw;max-height:92vh;border-radius:var(--radius);box-shadow:0 8px 40px rgba(0,0,0,0.5)}
     .preview-overlay .close-preview{position:absolute;top:1rem;right:1.5rem;color:#fff;font-size:2rem;cursor:pointer;background:none;border:none;opacity:0.8}
     .preview-overlay .close-preview:hover{opacity:1}
-    .stacked-chart{display:flex;align-items:flex-end;gap:4px;height:280px;padding:0 0.5rem;overflow-x:auto}
+    .stacked-chart{display:flex;align-items:flex-end;gap:4px;height:280px;padding:0 0.5rem;overflow-x:auto;position:relative}
     .stacked-col{display:flex;flex-direction:column-reverse;align-items:center;min-width:40px;flex:1;max-width:80px;cursor:pointer;position:relative}
     .stacked-col:hover .stacked-tooltip{display:block}
     .stacked-seg{width:100%;min-height:1px;transition:opacity 0.15s}
     .stacked-col:hover .stacked-seg{opacity:0.85}
-    .stacked-label{font-size:0.65rem;color:var(--text-muted);margin-top:6px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:72px}
-    .stacked-total{font-size:0.7rem;color:var(--text-secondary);font-weight:600;margin-bottom:4px}
-    .stacked-tooltip{display:none;position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:0.5rem;font-size:0.75rem;z-index:10;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,0.3)}
+    .stacked-label{font-size:0.65rem;color:var(--text-muted);margin-top:6px;text-align:center;white-space:nowrap;overflow:visible;max-width:none;line-height:1.2}
+    .stacked-total{font-size:0.7rem;color:var(--text-secondary);font-weight:600;margin-bottom:4px;white-space:nowrap}
+    .stacked-tooltip{display:none;position:fixed;top:120px;left:50%;transform:translateX(-50%);background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:0.6rem 0.8rem;font-size:0.78rem;z-index:100;white-space:nowrap;box-shadow:0 8px 24px rgba(0,0,0,0.4);pointer-events:none}
+    .stacked-col.active .stacked-seg{outline:2px solid var(--accent);outline-offset:-1px}
     .stacked-legend{display:flex;flex-wrap:wrap;gap:0.5rem 1rem;margin-top:1rem;font-size:0.75rem}
     .stacked-legend-item{display:flex;align-items:center;gap:0.3rem}
     .stacked-legend-dot{width:10px;height:10px;border-radius:2px}
@@ -1202,7 +1203,7 @@ function _periodDates(){
   return{from,to,label,prevFrom:pFrom.toISOString().slice(0,10),prevTo:pTo.toISOString().slice(0,10)};
 }
 function setPeriod(p,btn){
-  curPeriod=p;periodOffset=0;
+  curPeriod=p;periodOffset=0;_timelineDateFilter=null;
   document.querySelectorAll('#period-tabs .filter-chip').forEach(c=>c.classList.remove('active'));
   btn.classList.add('active');
   // Timeline shows all periods at once - no nav arrows needed
@@ -1219,6 +1220,7 @@ function setPeriod(p,btn){
 function shiftPeriod(dir){periodOffset+=dir;if(chartMode==='timeline')loadTimeline();else loadCatChart()}
 function setChartMode(mode,btn){
   chartMode=mode;
+  _timelineDateFilter=null; // clear period selection when switching modes
   btn.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
   document.getElementById('cat-chart').style.display=mode==='category'?'':'none';
@@ -1306,14 +1308,15 @@ function switchAnalyticsTab(btn,tab){
   curAnalyticsTab=tab;
   reloadActiveTab();
 }
-function renderCatChart(cats,prevCats,pd){const el=document.getElementById('cat-chart');if(!cats.length){el.innerHTML='<div class="chart-mode-tabs"><button class="active" onclick="setChartMode(\'category\',this)">Per kategori</button><button onclick="setChartMode(\'timeline\',this)">Per månad</button></div><div class="text-muted">Inga kategorier ännu</div>';return}
+function renderCatChart(cats,prevCats,pd){const el=document.getElementById('cat-chart');const _tl={week:'vecka',month:'månad',quarter:'kvartal',year:'år'}[curPeriod==='all'?'month':curPeriod]||'månad';
+  if(!cats.length){el.innerHTML=`<div class="chart-mode-tabs"><button class="active" onclick="setChartMode('category',this)">Per kategori</button><button onclick="setChartMode('timeline',this)">Per ${_tl}</button></div><div class="text-muted">Inga kategorier ännu</div>`;return}
   const total=cats.reduce((s,c)=>s+c.total_amount,0);
   const mx=Math.max(...cats.map(c=>c.total_amount));
   const prevMap={};if(prevCats)prevCats.forEach(c=>{prevMap[c.category]=c.total_amount});
   const prevTotal=prevCats?prevCats.reduce((s,c)=>s+c.total_amount,0):0;
   const prevMx=prevCats?Math.max(...prevCats.map(c=>c.total_amount),1):1;
   // Header with mode tabs and total toggle
-  let html=`<div class="chart-mode-tabs"><button class="${chartMode==='category'?'active':''}" onclick="setChartMode('category',this)">Per kategori</button><button class="${chartMode==='timeline'?'active':''}" onclick="setChartMode('timeline',this)">Per månad</button></div>`;
+  let html=`<div class="chart-mode-tabs"><button class="${chartMode==='category'?'active':''}" onclick="setChartMode('category',this)">Per kategori</button><button class="${chartMode==='timeline'?'active':''}" onclick="setChartMode('timeline',this)">Per ${_tl}</button></div>`;
   html+=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
     <h3 style="font-size:0.82rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin:0;">Utgifter per kategori${pd&&pd.label&&pd.label!=='Totalt'?' — '+pd.label:''}</h3>
     <label style="display:flex;align-items:center;gap:0.35rem;font-size:0.78rem;color:var(--text-secondary);cursor:pointer;">
@@ -1345,20 +1348,71 @@ function renderCatChart(cats,prevCats,pd){const el=document.getElementById('cat-
 // Timeline stacked bar chart
 async function loadTimeline(){
   const el=document.getElementById('timeline-chart');
-  el.innerHTML='<div class="chart-mode-tabs"><button class="'+(chartMode==='category'?'active':'')+'" onclick="setChartMode(\'category\',this)">Per kategori</button><button class="'+(chartMode==='timeline'?'active':'')+'" onclick="setChartMode(\'timeline\',this)">Per månad</button></div><div class="loading"><div class="spinner"></div></div>';
+  const p=curPeriod==='all'?'month':curPeriod;
+  const pLabel={week:'vecka',month:'månad',quarter:'kvartal',year:'år'}[p]||p;
+  el.innerHTML=`<div class="chart-mode-tabs"><button class="${chartMode==='category'?'active':''}" onclick="setChartMode('category',this)">Per kategori</button><button class="${chartMode==='timeline'?'active':''}" onclick="setChartMode('timeline',this)">Per ${pLabel}</button></div><div class="loading"><div class="spinner"></div></div>`;
   try{
-    const p=curPeriod==='all'?'month':curPeriod;
     const r=await authFetch(`${API}/documents/categories/timeline?period=${p}`);
     const d=await r.json();
     renderTimeline(d.periods||[],p);
   }catch(e){console.error('loadTimeline',e);el.innerHTML='<div class="text-muted">Kunde inte ladda tidslinje</div>'}
 }
+let _timelineDateFilter=null; // {from,to} when a period bar is clicked
+function _periodKeyToDates(pk,period){
+  // Convert period_key back to date range for filtering
+  if(period==='month'){
+    // "2025-03" → from:2025-03-01, to:2025-03-31
+    const [y,m]=pk.split('-');
+    const from=`${y}-${m}-01`;
+    const to=new Date(+y,+m,0).toISOString().slice(0,10);
+    return{from,to};
+  }else if(period==='week'){
+    // "2025-W08" → ISO week
+    const match=pk.match(/(\d{4})-W(\d+)/);
+    if(!match)return null;
+    const y=+match[1],w=+match[2];
+    const jan4=new Date(y,0,4);
+    const d=new Date(jan4);
+    d.setDate(jan4.getDate()-(jan4.getDay()||7)+1+(w-1)*7);
+    const from=d.toISOString().slice(0,10);
+    const e=new Date(d);e.setDate(e.getDate()+6);
+    return{from,to:e.toISOString().slice(0,10)};
+  }else if(period==='quarter'){
+    // "2025-Q2"
+    const match=pk.match(/(\d{4})-Q(\d)/);
+    if(!match)return null;
+    const y=+match[1],q=+match[2];
+    const from=`${y}-${String((q-1)*3+1).padStart(2,'0')}-01`;
+    const to=new Date(y,(q)*3,0).toISOString().slice(0,10);
+    return{from,to};
+  }else if(period==='year'){
+    return{from:`${pk}-01-01`,to:`${pk}-12-31`};
+  }
+  return null;
+}
+function selectTimelinePeriod(pk,period){
+  const dates=_periodKeyToDates(pk,period);
+  if(!dates)return;
+  // Toggle: click same bar again to deselect
+  if(_timelineDateFilter&&_timelineDateFilter.pk===pk){
+    _timelineDateFilter=null;
+    document.querySelectorAll('.stacked-col').forEach(c=>c.classList.remove('active'));
+  }else{
+    _timelineDateFilter={...dates,pk};
+    document.querySelectorAll('.stacked-col').forEach(c=>c.classList.remove('active'));
+    const cols=document.querySelectorAll('.stacked-col');
+    cols.forEach(c=>{if(c.dataset.pk===pk)c.classList.add('active')});
+  }
+  prodPage=0;updateFilterTags();loadProducts();
+}
 function renderTimeline(periods,period){
   const el=document.getElementById('timeline-chart');
-  const periodLabels={week:'vecka',month:'månad',quarter:'kvartal',year:'år'};
-  let html=`<div class="chart-mode-tabs"><button class="${chartMode==='category'?'active':''}" onclick="setChartMode('category',this)">Per kategori</button><button class="${chartMode==='timeline'?'active':''}" onclick="setChartMode('timeline',this)">Per månad</button></div>`;
-  html+=`<h3 style="font-size:0.82rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin:0 0 1rem 0;">Utgifter per ${periodLabels[period]||period}</h3>`;
+  const pLabel={week:'vecka',month:'månad',quarter:'kvartal',year:'år'}[period]||period;
+  let html=`<div class="chart-mode-tabs"><button class="${chartMode==='category'?'active':''}" onclick="setChartMode('category',this)">Per kategori</button><button class="${chartMode==='timeline'?'active':''}" onclick="setChartMode('timeline',this)">Per ${pLabel}</button></div>`;
+  html+=`<h3 style="font-size:0.82rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin:0 0 1rem 0;">Utgifter per ${pLabel}</h3>`;
   if(!periods.length){el.innerHTML=html+'<div class="text-muted">Ingen data</div>';return}
+  // 1. Sort periods chronologically
+  periods.sort((a,b)=>a.period_key.localeCompare(b.period_key));
   // Collect all categories
   const allCats=new Set();
   periods.forEach(p=>p.categories.forEach(c=>allCats.add(c.category)));
@@ -1370,25 +1424,24 @@ function renderTimeline(periods,period){
   html+='<div class="stacked-chart">';
   periods.forEach((p,i)=>{
     const total=totals[i];
-    html+='<div class="stacked-col">';
-    html+=`<div class="stacked-total">${total>=1000?Math.round(total/1000)+'k':fmtC(total)}</div>`;
-    // Tooltip
+    const isActive=_timelineDateFilter&&_timelineDateFilter.pk===p.period_key;
+    html+=`<div class="stacked-col${isActive?' active':''}" data-pk="${esc(p.period_key)}" onclick="selectTimelinePeriod('${esc(p.period_key)}','${period}')">`;
+    // Tooltip (positioned fixed via CSS)
     html+='<div class="stacked-tooltip">';
-    html+=`<strong>${p.period_key}</strong><br>`;
+    html+=`<strong>${_formatPeriodLabel(p.period_key,period,true)}</strong><br>`;
     p.categories.sort((a,b)=>b.total_amount-a.total_amount).forEach(c=>{
       html+=`<span style="color:${catCol(c.category)}">■</span> ${catL(c.category)}: ${fmtC(c.total_amount)} kr<br>`;
     });
     html+=`<strong>Totalt: ${fmtC(total)} kr</strong></div>`;
-    // Segments
+    // Label at bottom (first in DOM → bottom with column-reverse)
+    html+=`<div class="stacked-label">${_formatPeriodLabel(p.period_key,period,false)}</div>`;
+    // Segments (middle - stacked upward)
     p.categories.sort((a,b)=>b.total_amount-a.total_amount).forEach(c=>{
       const h=maxTotal>0?(c.total_amount/maxTotal)*240:0;
       html+=`<div class="stacked-seg" style="height:${Math.max(h,1)}px;background:${catCol(c.category)}"></div>`;
     });
-    // Label
-    let lbl=p.period_key;
-    if(period==='month'&&lbl.length>=7)lbl=lbl.slice(5); // "2025-03" → "03"
-    else if(period==='week')lbl=lbl.replace(/^\d{4}-/,''); // "2025-W08" → "W08"
-    html+=`<div class="stacked-label">${lbl}</div>`;
+    // Value at top (last in DOM → top with column-reverse)
+    html+=`<div class="stacked-total">${total>=1000?Math.round(total/1000)+'k':fmtC(total)}</div>`;
     html+='</div>';
   });
   html+='</div>';
@@ -1397,6 +1450,31 @@ function renderTimeline(periods,period){
   catList.forEach(c=>{html+=`<div class="stacked-legend-item"><div class="stacked-legend-dot" style="background:${catCol(c)}"></div>${catL(c)}</div>`});
   html+='</div>';
   el.innerHTML=html;
+}
+function _formatPeriodLabel(pk,period,full){
+  // 5: Better time labels
+  if(period==='month'){
+    // "2025-03" → "mar-25" (short) or "Mars 2025" (full)
+    const [y,m]=pk.split('-');
+    if(full){const d=new Date(+y,+m-1);return d.toLocaleDateString('sv-SE',{year:'numeric',month:'long'})}
+    const months=['jan','feb','mar','apr','maj','jun','jul','aug','sep','okt','nov','dec'];
+    return `${months[+m-1]}-${y.slice(2)}`;
+  }else if(period==='week'){
+    // "2025-W08" → "v08-25" (short) or "Vecka 8, 2025" (full)
+    const match=pk.match(/(\d{4})-W(\d+)/);
+    if(!match)return pk;
+    if(full)return `Vecka ${+match[2]}, ${match[1]}`;
+    return `v${match[2]}-${match[1].slice(2)}`;
+  }else if(period==='quarter'){
+    // "2025-Q2" → "Q2-25" (short) or "Q2 2025" (full)
+    const match=pk.match(/(\d{4})-Q(\d)/);
+    if(!match)return pk;
+    if(full)return `Q${match[2]} ${match[1]}`;
+    return `Q${match[2]}-${match[1].slice(2)}`;
+  }else if(period==='year'){
+    return pk;
+  }
+  return pk;
 }
 function populateCatFilters(cats){
   const opts='<option value="">Alla kategorier</option>'+cats.map(c=>`<option value="${esc(c.category)}">${catL(c.category)} (${c.count})</option>`).join('');
@@ -1418,6 +1496,7 @@ function setGlobalVendor(v){
 }
 function filterByCat(c){setGlobalCategory(c)}
 function resetFilters(){
+  _timelineDateFilter=null;
   document.getElementById('global-cat-filter').value='';
   document.getElementById('global-vendor-filter').value='';
   document.getElementById('prod-search').value='';
@@ -1427,14 +1506,15 @@ function resetFilters(){
 }
 function changePageSize(v){PS=v;prodPage=0;if(curAnalyticsTab==='products')loadProducts()}
 function updateFilterTags(){
-  const c=getGlobalCategory(),v=getGlobalVendor();
+  const c=getGlobalCategory(),v=getGlobalVendor(),tf=_timelineDateFilter;
   const bar=document.getElementById('active-filters');
   const tags=document.getElementById('active-filter-tags');
-  if(!c&&!v){bar.style.display='none';return}
+  if(!c&&!v&&!tf){bar.style.display='none';return}
   bar.style.display='flex';
   let html='';
   if(c)html+=`<span class="filter-tag">${catL(c)}</span>`;
   if(v)html+=`<span class="filter-tag filter-tag-vendor">${esc(v)}</span>`;
+  if(tf)html+=`<span class="filter-tag" style="background:var(--accent-glow);border-color:var(--accent)">📅 ${tf.from} → ${tf.to}</span>`;
   tags.innerHTML=html;
 }
 function reloadActiveTab(){
@@ -1446,6 +1526,7 @@ function reloadActiveTab(){
 async function loadProducts(){
   const c=getGlobalCategory(),v=getGlobalVendor(),s=document.getElementById('prod-search').value;
   const p=new URLSearchParams({skip:prodPage*PS,limit:PS});if(c)p.set('category',c);if(v)p.set('vendor',v);if(s)p.set('search',s);
+  if(_timelineDateFilter){p.set('date_from',_timelineDateFilter.from);p.set('date_to',_timelineDateFilter.to)}
   document.getElementById('prod-tbody').innerHTML='<tr><td colspan="9"><div class="loading"><div class="spinner"></div></div></td></tr>';
   try{renderProds(await(await authFetch(`${API}/documents/products?${p}`)).json())}
   catch(e){document.getElementById('prod-tbody').innerHTML='<tr><td colspan="9"><div class="empty-state">Kunde inte ladda produkter</div></td></tr>';console.error('loadProducts error:',e)}}

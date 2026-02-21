@@ -1312,6 +1312,7 @@ def get_products(
     db: Session, *, category: str | None = None, vendor: str | None = None,
     search: str | None = None, skip: int = 0, limit: int = 0,
     user_id: int | None = None,
+    date_from: str | None = None, date_to: str | None = None,
 ) -> dict[str, Any]:
     """Get product-level aggregation: grouped by normalized description.
     limit=0 means return all."""
@@ -1321,13 +1322,19 @@ def get_products(
         .filter(LineItem.description.isnot(None))
         .filter(LineItem.description.notin_(_PANT_DESCRIPTIONS))
     )
-    needs_join = vendor or user_id is not None
+    needs_join = vendor or user_id is not None or date_from or date_to
     if needs_join:
         base = base.join(Document, LineItem.document_id == Document.id)
         if vendor:
             base = base.filter(Document.vendor == vendor)
         if user_id is not None:
             base = base.filter(Document.user_id == user_id)
+        if date_from or date_to:
+            eff = func.coalesce(func.date(Document.invoice_date), func.date(Document.created_at))
+            if date_from:
+                base = base.filter(eff >= date_from)
+            if date_to:
+                base = base.filter(eff <= date_to)
     if search:
         base = base.filter(LineItem.description.ilike(f"%{search}%"))
     if category:
