@@ -191,6 +191,16 @@
     .group-toggle-icon{display:inline-block;transition:transform 0.15s;margin-right:0.3rem;font-size:0.8em}
     .group-toggle-icon.open{transform:rotate(90deg)}
     .group-badge{display:inline-block;padding:0.1rem 0.5rem;border-radius:9999px;font-size:0.75rem;background:var(--accent);color:white;margin-left:0.5rem;font-weight:400}
+    tr.dragging{opacity:0.4}
+    tr.drag-over{outline:2px solid var(--accent);outline-offset:-2px;background:var(--accent-glow) !important}
+    tr[draggable="true"]{cursor:grab}
+    tr[draggable="true"]:active{cursor:grabbing}
+    .ungroup-btn{opacity:0;font-size:0.7rem;padding:1px 4px;transition:opacity 0.15s;cursor:pointer;color:var(--text-muted)}
+    tr:hover .ungroup-btn{opacity:1}
+    .group-name-editable{cursor:pointer;border-bottom:1px dashed var(--text-muted)}
+    .group-name-editable:hover{border-bottom-color:var(--accent);color:var(--accent)}
+    .group-name-input{font-weight:700;font-size:inherit;background:var(--bg-primary);border:1px solid var(--accent);border-radius:4px;padding:1px 6px;outline:none;color:var(--text-primary);min-width:100px}
+    .drag-hint{font-size:0.72rem;color:var(--text-muted);margin-left:0.5rem;font-weight:400}
     .prod-docs-list{display:flex;flex-direction:column;gap:0.5rem;max-height:400px;overflow-y:auto}
     .prod-doc-card{display:flex;align-items:center;justify-content:space-between;padding:0.75rem 1rem;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;transition:all var(--transition)}
     .prod-doc-card:hover{border-color:var(--accent);background:rgba(99,102,241,0.05)}
@@ -536,12 +546,12 @@
           <div class="search-box" style="max-width:300px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" id="prod-search" placeholder="Sök produkt…" oninput="debounceProducts()"></div>
           <div style="display:flex;gap:0.5rem;align-items:center;">
             <button class="btn btn-ghost btn-sm" id="group-toggle" onclick="toggleGroupView()" title="Visa grupperad/platt">📁 Gruppera</button>
+            <span class="drag-hint admin-only" style="display:none" id="drag-hint">Dra produkter till varandra för att gruppera</span>
           </div>
         </div>
         <div id="merge-bar" class="merge-bar" style="display:none;">
           <span id="merge-count">0 valda</span>
           <button class="btn btn-primary btn-sm" id="merge-btn" onclick="openMergeModal()">🔗 Slå ihop</button>
-          <button class="btn btn-primary btn-sm admin-only" id="group-selected-btn" onclick="groupSelectedProducts()" style="display:none">📁 Gruppera</button>
           <button class="btn btn-primary btn-sm" id="discount-link-btn" onclick="doDiscountLink()" style="display:none">💰 Koppla rabatt</button>
           <button class="btn btn-ghost btn-sm" onclick="clearMergeSelection()">Avmarkera</button>
         </div>
@@ -1586,7 +1596,7 @@ async function loadProducts(){
 function renderProds(d){_lastProductData=d;const tb=document.getElementById('prod-tbody');
   if(groupViewActive){renderGroupedProds(d,tb);return}
   tb.innerHTML=!d.products.length?'<tr><td colspan="10"><div class="empty-state">Inga produkter</div></td></tr>'
-    :d.products.map(p=>{const sd=btoa(unescape(encodeURIComponent(p.description)));return`<tr><td><input type="checkbox" class="prod-check" data-desc="${sd}" data-spent="${p.total_spent}" onchange="updateMergeBar()"></td><td><a href="#" class="prod-link" onclick="showProductDocs('${esc(p.description.replace(/'/g,"\\'"))}');return false"><strong>${esc(p.description)}</strong></a>${p.product_group?`<span class="text-muted" style="font-size:0.75rem;margin-left:0.4rem">(${esc(p.product_group)})</span>`:''}</td><td style="position:relative">${prodCatBadge(p.description,p.category)}</td><td>${p.purchase_count}</td><td>${p.total_quantity}${p.unit?' '+p.unit:''}</td><td class="amount">${fmtC(p.total_spent)} kr</td><td class="amount">${fmtC(p.avg_unit_price)}</td><td class="text-muted">${p.min_unit_price!=null?fmtC(p.min_unit_price):'—'}</td><td class="text-muted">${p.max_unit_price!=null?fmtC(p.max_unit_price):'—'}</td><td><button class="btn btn-ghost btn-sm" onclick="showPrice('${esc(p.description.replace(/'/g,"\\'"))}')">📈</button></td></tr>`}).join('');
+    :d.products.map(p=>{const sd=btoa(unescape(encodeURIComponent(p.description)));return`<tr${dragAttr(p.description)}${dropAttr(p.description,null)}><td><input type="checkbox" class="prod-check" data-desc="${sd}" data-spent="${p.total_spent}" onchange="updateMergeBar()"></td><td><a href="#" class="prod-link" onclick="showProductDocs('${esc(p.description.replace(/'/g,"\\'"))}');return false"><strong>${esc(p.description)}</strong></a>${p.product_group?`<span class="text-muted" style="font-size:0.75rem;margin-left:0.4rem">(${esc(p.product_group)})</span>`:''}</td><td style="position:relative">${prodCatBadge(p.description,p.category)}</td><td>${p.purchase_count}</td><td>${p.total_quantity}${p.unit?' '+p.unit:''}</td><td class="amount">${fmtC(p.total_spent)} kr</td><td class="amount">${fmtC(p.avg_unit_price)}</td><td class="text-muted">${p.min_unit_price!=null?fmtC(p.min_unit_price):'—'}</td><td class="text-muted">${p.max_unit_price!=null?fmtC(p.max_unit_price):'—'}</td><td><button class="btn btn-ghost btn-sm" onclick="showPrice('${esc(p.description.replace(/'/g,"\\'"))}')">📈</button></td></tr>`}).join('');
   if(PS>0){const s=prodPage*PS+1,e=Math.min(s+PS-1,d.total);document.getElementById('prod-pag').textContent=d.total>0?`${s}–${e} av ${d.total}`:'';
   document.getElementById('prod-prev').disabled=prodPage===0;document.getElementById('prod-next').disabled=e>=d.total}
   else{document.getElementById('prod-pag').textContent=d.total>0?`Alla ${d.total}`:'';document.getElementById('prod-prev').disabled=true;document.getElementById('prod-next').disabled=true}
@@ -1594,7 +1604,7 @@ function renderProds(d){_lastProductData=d;const tb=document.getElementById('pro
 
 function renderGroupedProds(d,tb){
   if(!d.products.length){tb.innerHTML='<tr><td colspan="10"><div class="empty-state">Inga produkter</div></td></tr>';return}
-  // Group products: those with product_group go into groups, rest are ungrouped
+  const isAdm=isDragAdmin();
   const groups={};const ungrouped=[];
   d.products.forEach(p=>{
     if(p.product_group){
@@ -1605,26 +1615,30 @@ function renderGroupedProds(d,tb){
       if(p.avg_unit_price)g.prices.push(p.avg_unit_price);
     }else{ungrouped.push(p)}
   });
-  // Sort groups by total_spent desc
   const sortedGroups=Object.entries(groups).sort((a,b)=>b[1].total_spent-a[1].total_spent);
   let html='';
   sortedGroups.forEach(([gname,g])=>{
     const avg=g.prices.length?g.prices.reduce((a,b)=>a+b,0)/g.prices.length:0;
     const gid='grp-'+btoa(unescape(encodeURIComponent(gname))).replace(/[=+/]/g,'');
-    html+=`<tr class="group-header" onclick="toggleGroup('${gid}')">
-      <td></td><td><span class="group-toggle-icon" id="icon-${gid}">▶</span><strong>${esc(gname)}</strong><span class="group-badge">${g.products.length} varianter</span></td>
+    const gkey=btoa(unescape(encodeURIComponent(gname)));
+    // Group header: click to expand, drop target, editable name
+    html+=`<tr class="group-header"${isAdm?` ondragover="prodDragOver(event)" ondragleave="prodDragLeave(event)" ondrop="prodDrop(event,'${gkey}','group')"`:''}>
+      <td></td><td onclick="toggleGroup('${gid}')"><span class="group-toggle-icon" id="icon-${gid}">▶</span>${isAdm?`<strong class="group-name-editable" data-group-name="${esc(gname)}" onclick="event.stopPropagation();renameGroup('${esc(gname.replace(/'/g,"\\'"))}')" title="Klicka för att byta namn">${esc(gname)}</strong>`:`<strong>${esc(gname)}</strong>`}<span class="group-badge">${g.products.length} varianter</span></td>
       <td></td><td>${g.purchase_count}</td><td>${g.total_quantity.toFixed(1)}</td>
       <td class="amount"><strong>${fmtC(g.total_spent)} kr</strong></td><td class="amount">${fmtC(avg)}</td>
       <td class="text-muted">${g.min_price<Infinity?fmtC(g.min_price):'—'}</td><td class="text-muted">${g.max_price>0?fmtC(g.max_price):'—'}</td><td></td></tr>`;
     g.products.forEach(p=>{
       const sd=btoa(unescape(encodeURIComponent(p.description)));
-      html+=`<tr class="group-member ${gid}" style="display:none"><td><input type="checkbox" class="prod-check" data-desc="${sd}" data-spent="${p.total_spent}" onchange="updateMergeBar()"></td><td><a href="#" class="prod-link" onclick="showProductDocs('${esc(p.description.replace(/'/g,"\\'"))}');return false">${esc(p.description)}</a></td><td style="position:relative">${prodCatBadge(p.description,p.category)}</td><td>${p.purchase_count}</td><td>${p.total_quantity}${p.unit?' '+p.unit:''}</td><td class="amount">${fmtC(p.total_spent)} kr</td><td class="amount">${fmtC(p.avg_unit_price)}</td><td class="text-muted">${p.min_unit_price!=null?fmtC(p.min_unit_price):'—'}</td><td class="text-muted">${p.max_unit_price!=null?fmtC(p.max_unit_price):'—'}</td><td><button class="btn btn-ghost btn-sm" onclick="showPrice('${esc(p.description.replace(/'/g,"\\'"))}')">📈</button></td></tr>`;
+      html+=`<tr class="group-member ${gid}" style="display:none"${dragAttr(p.description)}><td><input type="checkbox" class="prod-check" data-desc="${sd}" data-spent="${p.total_spent}" onchange="updateMergeBar()"></td><td style="padding-left:2rem"><a href="#" class="prod-link" onclick="showProductDocs('${esc(p.description.replace(/'/g,"\\'"))}');return false">${esc(p.description)}</a>${isAdm?`<button class="ungroup-btn btn btn-ghost btn-sm" onclick="event.stopPropagation();removeFromGroup('${esc(p.description.replace(/'/g,"\\'"))}')" title="Ta bort ur grupp">✕</button>`:''}</td><td style="position:relative">${prodCatBadge(p.description,p.category)}</td><td>${p.purchase_count}</td><td>${p.total_quantity}${p.unit?' '+p.unit:''}</td><td class="amount">${fmtC(p.total_spent)} kr</td><td class="amount">${fmtC(p.avg_unit_price)}</td><td class="text-muted">${p.min_unit_price!=null?fmtC(p.min_unit_price):'—'}</td><td class="text-muted">${p.max_unit_price!=null?fmtC(p.max_unit_price):'—'}</td><td><button class="btn btn-ghost btn-sm" onclick="showPrice('${esc(p.description.replace(/'/g,"\\'"))}')">📈</button></td></tr>`;
     });
   });
-  // Ungrouped
+  // Ungrouped products
+  if(ungrouped.length&&sortedGroups.length){
+    html+=`<tr><td colspan="10" style="padding:0.5rem 1rem;font-size:0.8rem;color:var(--text-muted);font-weight:500">Ogrupperade${isAdm?'<span class="drag-hint">— dra till en grupp eller till en annan produkt</span>':''}</td></tr>`;
+  }
   ungrouped.forEach(p=>{
     const sd=btoa(unescape(encodeURIComponent(p.description)));
-    html+=`<tr><td><input type="checkbox" class="prod-check" data-desc="${sd}" data-spent="${p.total_spent}" onchange="updateMergeBar()"></td><td><a href="#" class="prod-link" onclick="showProductDocs('${esc(p.description.replace(/'/g,"\\'"))}');return false"><strong>${esc(p.description)}</strong></a></td><td style="position:relative">${prodCatBadge(p.description,p.category)}</td><td>${p.purchase_count}</td><td>${p.total_quantity}${p.unit?' '+p.unit:''}</td><td class="amount">${fmtC(p.total_spent)} kr</td><td class="amount">${fmtC(p.avg_unit_price)}</td><td class="text-muted">${p.min_unit_price!=null?fmtC(p.min_unit_price):'—'}</td><td class="text-muted">${p.max_unit_price!=null?fmtC(p.max_unit_price):'—'}</td><td><button class="btn btn-ghost btn-sm" onclick="showPrice('${esc(p.description.replace(/'/g,"\\'"))}')">📈</button></td></tr>`;
+    html+=`<tr${dragAttr(p.description)}${dropAttr(p.description,null)}><td><input type="checkbox" class="prod-check" data-desc="${sd}" data-spent="${p.total_spent}" onchange="updateMergeBar()"></td><td><a href="#" class="prod-link" onclick="showProductDocs('${esc(p.description.replace(/'/g,"\\'"))}');return false"><strong>${esc(p.description)}</strong></a></td><td style="position:relative">${prodCatBadge(p.description,p.category)}</td><td>${p.purchase_count}</td><td>${p.total_quantity}${p.unit?' '+p.unit:''}</td><td class="amount">${fmtC(p.total_spent)} kr</td><td class="amount">${fmtC(p.avg_unit_price)}</td><td class="text-muted">${p.min_unit_price!=null?fmtC(p.min_unit_price):'—'}</td><td class="text-muted">${p.max_unit_price!=null?fmtC(p.max_unit_price):'—'}</td><td><button class="btn btn-ghost btn-sm" onclick="showPrice('${esc(p.description.replace(/'/g,"\\'"))}')">📈</button></td></tr>`;
   });
   tb.innerHTML=html;
   if(PS>0){const s=prodPage*PS+1,e=Math.min(s+PS-1,d.total);document.getElementById('prod-pag').textContent=d.total>0?`${s}–${e} av ${d.total}`:'';
@@ -1645,63 +1659,107 @@ function toggleGroupView(){
   btn.classList.toggle('active',groupViewActive);
   if(_lastProductData)renderProds(_lastProductData);else loadProducts()}
 
-async function groupSelectedProducts(){
-  const sel=getSelectedProducts();if(sel.length<2)return;
-  // Fetch existing groups
-  let existingGroups=[];
-  try{
-    const r=await authFetch(`${API}/products/groups?limit=0`);
-    if(r.ok){const d=await r.json();existingGroups=(d.groups||[]).map(g=>g.group_name).sort()}
-  }catch(e){}
-  // Build modal
-  const modal=document.createElement('div');modal.className='modal-backdrop open';modal.id='group-modal';
-  const selHtml=sel.slice(0,8).map(s=>`<span class="cat-badge" style="cursor:default;font-size:0.78rem">${esc(s)}</span>`).join('')+(sel.length>8?`<span class="text-muted" style="font-size:0.78rem">… +${sel.length-8} till</span>`:'');
-  let groupListHtml='';
-  if(existingGroups.length){
-    groupListHtml=`<div style="margin:0.75rem 0"><label style="font-size:0.8rem;color:var(--text-secondary)">Befintliga grupper:</label><div style="display:flex;flex-wrap:wrap;gap:0.3rem;margin-top:0.3rem;max-height:120px;overflow-y:auto">${existingGroups.map(g=>`<button class="cat-badge" style="cursor:pointer" onclick="document.getElementById('group-name-input').value='${esc(g)}'">${esc(g)}</button>`).join('')}</div></div>`;
+/* ── Drag & drop product grouping (admin, desktop only) ───────── */
+let _dragDesc=null;
+function isDragAdmin(){return currentUser&&currentUser.role==='admin'&&window.innerWidth>768}
+function dragAttr(desc){
+  if(!isDragAdmin())return '';
+  const sd=btoa(unescape(encodeURIComponent(desc)));
+  return ` draggable="true" ondragstart="prodDragStart(event,'${sd}')" ondragend="prodDragEnd(event)"`;
+}
+function dropAttr(desc,groupName){
+  if(!isDragAdmin())return '';
+  const key=groupName?btoa(unescape(encodeURIComponent(groupName))):btoa(unescape(encodeURIComponent(desc)));
+  const type=groupName?'group':'product';
+  return ` ondragover="prodDragOver(event)" ondragleave="prodDragLeave(event)" ondrop="prodDrop(event,'${key}','${type}')"`;
+}
+function prodDragStart(e,sd){
+  _dragDesc=decodeProdKey(sd);
+  e.dataTransfer.effectAllowed='move';
+  e.dataTransfer.setData('text/plain',sd);
+  e.target.closest('tr').classList.add('dragging');
+}
+function prodDragEnd(e){_dragDesc=null;e.target.closest('tr')?.classList.remove('dragging');document.querySelectorAll('.drag-over').forEach(el=>el.classList.remove('drag-over'))}
+function prodDragOver(e){
+  e.preventDefault();e.dataTransfer.dropEffect='move';
+  const tr=e.target.closest('tr');
+  if(tr&&!tr.classList.contains('dragging'))tr.classList.add('drag-over');
+}
+function prodDragLeave(e){e.target.closest('tr')?.classList.remove('drag-over')}
+async function prodDrop(e,targetKey,type){
+  e.preventDefault();
+  document.querySelectorAll('.drag-over').forEach(el=>el.classList.remove('drag-over'));
+  const dragDesc=_dragDesc;if(!dragDesc)return;
+  const targetVal=decodeProdKey(targetKey);
+  if(type==='group'){
+    // Drop onto group header → add to group
+    await addToGroup(dragDesc,targetVal);
+  }else{
+    // Drop onto another product → create new group
+    if(dragDesc===targetVal)return;
+    await createGroupFromDrop(dragDesc,targetVal);
   }
-  modal.innerHTML=`<div class="modal" style="max-width:480px"><h3 style="margin-bottom:0.5rem">📁 Gruppera produkter</h3><div style="display:flex;flex-wrap:wrap;gap:0.3rem;margin-bottom:1rem">${selHtml}</div><div style="margin-bottom:1rem"><button class="btn btn-primary btn-sm" onclick="doAutoGroup()" id="auto-group-btn">🔍 Auto-gruppera valda</button><span class="text-muted" style="font-size:0.75rem;margin-left:0.5rem">Detekterar gemensamma prefix</span></div><div style="border-top:1px solid var(--border);padding-top:0.75rem"><label style="font-size:0.85rem;font-weight:500">Eller ange gruppnamn manuellt:</label><input type="text" id="group-name-input" class="form-input" style="margin-top:0.3rem" placeholder="T.ex. Oxfilé, Mjölk…">${groupListHtml}</div><div style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:1rem"><button class="btn btn-ghost btn-sm" onclick="closeGroupModal()">Avbryt</button><button class="btn btn-primary btn-sm" onclick="applyManualGroup()">Tilldela grupp</button></div></div>`;
-  document.body.appendChild(modal);
-  document.getElementById('group-name-input').focus();
 }
-function closeGroupModal(){const m=document.getElementById('group-modal');if(m)m.remove()}
-async function doAutoGroup(){
-  const btn=document.getElementById('auto-group-btn');btn.disabled=true;btn.textContent='⏳ Detekterar…';
-  try{
-    const r=await authFetch(`${API}/products/groups/auto-detect`,{method:'POST'});
-    const d=await r.json();const groups=d.groups||{};
-    const count=Object.keys(groups).length;const total=Object.values(groups).reduce((s,v)=>s+v.length,0);
-    if(!count){showToast('Inga nya grupper hittades');btn.disabled=false;btn.textContent='🔍 Auto-gruppera valda';return}
-    let preview=`Hittade ${count} grupper med ${total} produkter:\n\n`;
-    Object.entries(groups).slice(0,10).forEach(([g,members])=>{
-      preview+=`📁 ${g} (${members.length} st)\n`;
-      members.slice(0,3).forEach(m=>preview+=`   • ${m}\n`);
-      if(members.length>3)preview+=`   … och ${members.length-3} till\n`;
-    });
-    if(count>10)preview+=`\n… och ${count-10} grupper till`;
-    preview+='\n\nTilldela dessa grupper?';
-    if(!confirm(preview))return;
-    const r2=await authFetch(`${API}/products/groups/apply`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({groups})});
-    const d2=await r2.json();
-    showToast(`✅ ${d2.groups_applied} grupper, ${d2.line_items_updated} rader uppdaterade`);
-    closeGroupModal();clearMergeSelection();loadProducts();
-  }catch(e){showToast('Fel: '+e.message,true)}
-  finally{btn.disabled=false;btn.textContent='🔍 Auto-gruppera valda'}
+function findCommonPrefix(a,b){
+  const wa=a.split(/\s+/),wb=b.split(/\s+/);
+  let prefix=[];
+  for(let i=0;i<Math.min(wa.length,wb.length);i++){
+    if(wa[i].toLowerCase()===wb[i].toLowerCase())prefix.push(wa[i]);else break;
+  }
+  return prefix.join(' ');
 }
-async function applyManualGroup(){
-  const name=document.getElementById('group-name-input').value.trim();
-  if(!name){showToast('Ange ett gruppnamn',true);return}
-  const sel=getSelectedProducts();
+async function createGroupFromDrop(descA,descB){
+  let groupName=findCommonPrefix(descA,descB);
+  if(!groupName||groupName.length<2){
+    groupName=descA.length<=descB.length?descA:descB;
+  }
+  groupName=groupName.replace(/\s+(ca|st|kg|gr?|ml|cl|dl|l|\d+\s*(kr|:-|st|g|kg|ml))\.?$/i,'').trim();
   try{
-    let updated=0;
-    for(const desc of sel){
-      await authFetch(`${API}/products/groups/set`,{method:'PUT',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({description:desc,group_name:name})});
-      updated++;
-    }
-    showToast(`✅ ${updated} produkter tilldelade grupp "${name}"`);
-    closeGroupModal();clearMergeSelection();loadProducts();
+    await authFetch(`${API}/products/groups/set`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({description:descA,group_name:groupName})});
+    await authFetch(`${API}/products/groups/set`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({description:descB,group_name:groupName})});
+    showToast(`📁 Grupp "${groupName}" skapad`);
+    // Switch to grouped view and open inline rename
+    if(!groupViewActive)toggleGroupView(); else loadProducts();
+    setTimeout(()=>{const el=document.querySelector(`[data-group-name="${CSS.escape(groupName)}"]`);if(el)startInlineRename(el,groupName)},400);
   }catch(e){showToast('Fel: '+e.message,true)}
+}
+async function addToGroup(desc,groupName){
+  try{
+    await authFetch(`${API}/products/groups/set`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({description:desc,group_name:groupName})});
+    showToast(`➕ ${desc} → ${groupName}`);loadProducts();
+  }catch(e){showToast('Fel: '+e.message,true)}
+}
+async function removeFromGroup(desc){
+  try{
+    await authFetch(`${API}/products/groups/set`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({description:desc,group_name:null})});
+    showToast(`Borttagen ur grupp`);loadProducts();
+  }catch(e){showToast('Fel: '+e.message,true)}
+}
+async function renameGroup(oldName){
+  const el=document.querySelector(`[data-group-name="${CSS.escape(oldName)}"]`);
+  if(el)startInlineRename(el,oldName);
+}
+function startInlineRename(el,oldName){
+  if(el.querySelector('.group-name-input'))return;
+  const input=document.createElement('input');
+  input.className='group-name-input';input.value=oldName;
+  input.onclick=e=>e.stopPropagation();
+  const origText=el.textContent;
+  el.textContent='';el.appendChild(input);input.focus();input.select();
+  async function commit(){
+    const n=input.value.trim();
+    if(!n||n===oldName){el.textContent=origText;return}
+    el.textContent='⏳';
+    try{
+      const members=(_lastProductData?.products||[]).filter(p=>p.product_group===oldName);
+      for(const m of members){
+        await authFetch(`${API}/products/groups/set`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({description:m.description,group_name:n})});
+      }
+      showToast(`✏️ "${oldName}" → "${n}"`);loadProducts();
+    }catch(e){showToast('Fel: '+e.message,true);el.textContent=origText}
+  }
+  input.onblur=commit;
+  input.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();input.blur()}if(e.key==='Escape'){el.textContent=origText}};
 }
 function debounceProducts(){clearTimeout(pTimer);prodPage=0;pTimer=setTimeout(loadProducts,350)}
 
@@ -1718,12 +1776,9 @@ function updateMergeBar(){
   const bar=document.getElementById('merge-bar');
   const mergeBtn=document.getElementById('merge-btn');
   const discBtn=document.getElementById('discount-link-btn');
-  const grpBtn=document.getElementById('group-selected-btn');
-  const isAdm=currentUser&&currentUser.role==='admin';
   if(sel.length>=2){
     bar.style.display='flex';
     document.getElementById('merge-count').textContent=sel.length+' valda';
-    // Detect discount: exactly 2 selected, one has negative total_spent
     const hasDiscount=sel.length===2&&checks.some(c=>parseFloat(c.dataset.spent)<0);
     const hasProduct=sel.length===2&&checks.some(c=>parseFloat(c.dataset.spent)>=0);
     if(hasDiscount&&hasProduct){
@@ -1731,8 +1786,6 @@ function updateMergeBar(){
     }else{
       discBtn.style.display='none';mergeBtn.style.display='';
     }
-    // Show group button for admin
-    if(grpBtn)grpBtn.style.display=isAdm?'':'none';
   }else{bar.style.display='none'}
 }
 function clearMergeSelection(){
