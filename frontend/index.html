@@ -1663,6 +1663,12 @@ function toggleGroupView(){
 
 /* ── Drag & drop product grouping (admin, desktop only) ───────── */
 let _dragDesc=null;let _dragType=null; // 'product' or 'group'
+async function loadProductsKeepScroll(){
+  const sw=document.querySelector('.table-wrapper')?.closest('#analytics-products');
+  const sy=window.scrollY;
+  await loadProducts();
+  requestAnimationFrame(()=>window.scrollTo({top:sy,behavior:'instant'}));
+}
 function isDragAdmin(){return currentUser&&currentUser.role==='admin'&&window.innerWidth>768}
 function dragAttr(desc){
   if(!isDragAdmin())return '';
@@ -1730,20 +1736,20 @@ async function createGroupFromDrop(descA,descB){
     await authFetch(`${API}/products/groups/set`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({description:descB,group_name:groupName})});
     showToast(`📁 Grupp "${groupName}" skapad`);
     // Switch to grouped view and open inline rename
-    if(!groupViewActive)toggleGroupView(); else loadProducts();
+    if(!groupViewActive)toggleGroupView(); else loadProductsKeepScroll();
     setTimeout(()=>{const el=document.querySelector(`[data-group-name="${CSS.escape(groupName)}"]`);if(el)startInlineRename(el,groupName)},400);
   }catch(e){showToast('Fel: '+e.message,true)}
 }
 async function addToGroup(desc,groupName){
   try{
     await authFetch(`${API}/products/groups/set`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({description:desc,group_name:groupName})});
-    showToast(`➕ ${desc} → ${groupName}`);loadProducts();
+    showToast(`➕ ${desc} → ${groupName}`);loadProductsKeepScroll();
   }catch(e){showToast('Fel: '+e.message,true)}
 }
 async function removeFromGroup(desc){
   try{
     await authFetch(`${API}/products/groups/set`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({description:desc,group_name:null})});
-    showToast(`Borttagen ur grupp`);loadProducts();
+    showToast(`Borttagen ur grupp`);loadProductsKeepScroll();
   }catch(e){showToast('Fel: '+e.message,true)}
 }
 async function mergeGroups(sourceGroup,targetGroup){
@@ -1754,7 +1760,7 @@ async function mergeGroups(sourceGroup,targetGroup){
     for(const m of members){
       await authFetch(`${API}/products/groups/set`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({description:m.description,group_name:targetGroup})});
     }
-    showToast(`🔗 "${sourceGroup}" (${members.length} st) → "${targetGroup}"`);loadProducts();
+    showToast(`🔗 "${sourceGroup}" (${members.length} st) → "${targetGroup}"`);loadProductsKeepScroll();
   }catch(e){showToast('Fel: '+e.message,true)}
 }
 async function renameGroup(oldName){
@@ -1777,7 +1783,7 @@ function startInlineRename(el,oldName){
       for(const m of members){
         await authFetch(`${API}/products/groups/set`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({description:m.description,group_name:n})});
       }
-      showToast(`✏️ "${oldName}" → "${n}"`);loadProducts();
+      showToast(`✏️ "${oldName}" → "${n}"`);loadProductsKeepScroll();
     }catch(e){showToast('Fel: '+e.message,true);el.textContent=origText}
   }
   input.onblur=commit;
