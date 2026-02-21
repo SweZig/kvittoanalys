@@ -70,7 +70,43 @@ def decode_token(token: str, secret: str) -> dict[str, Any] | None:
         return None
 
 
-# ── Email sending (optional SMTP) ────────────────────────────────────
+# ── Email sending (Resend API, with SMTP fallback) ───────────────────
+
+def send_email_resend(
+    to: str,
+    subject: str,
+    body_html: str,
+    *,
+    api_key: str,
+    from_addr: str = "Kvittoanalys <kvitto@kvittoanalys.se>",
+) -> bool:
+    """Send an email via Resend API. Returns True on success."""
+    try:
+        import urllib.request
+
+        payload = json.dumps({
+            "from": from_addr,
+            "to": [to],
+            "subject": subject,
+            "html": body_html,
+        }).encode()
+
+        req = urllib.request.Request(
+            "https://api.resend.com/emails",
+            data=payload,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            result = json.loads(resp.read())
+            print(f"✅ Email sent to {to} via Resend (id: {result.get('id', '?')})")
+            return True
+    except Exception as e:
+        print(f"⚠️ Resend email failed to {to}: {e}")
+        return False
+
 
 def send_email(
     to: str,
@@ -83,7 +119,7 @@ def send_email(
     smtp_password: str,
     from_addr: str | None = None,
 ) -> bool:
-    """Send an email via SMTP. Returns True on success."""
+    """Send an email via SMTP (legacy fallback). Returns True on success."""
     try:
         import smtplib
         from email.mime.multipart import MIMEMultipart
@@ -100,43 +136,63 @@ def send_email(
             server.login(smtp_user, smtp_password)
             server.sendmail(msg["From"], [to], msg.as_string())
 
-        print(f"✅ Email sent to {to}")
+        print(f"✅ Email sent to {to} via SMTP")
         return True
     except Exception as e:
-        print(f"⚠️ Email failed to {to}: {e}")
+        print(f"⚠️ SMTP email failed to {to}: {e}")
         return False
 
 
+def _send(email: str, subject: str, html: str, *, resend_api_key: str = "", smtp_settings: dict | None = None, from_addr: str = "") -> bool:
+    """Send email via Resend (preferred) or SMTP fallback."""
+    if resend_api_key:
+        return send_email_resend(email, subject, html, api_key=resend_api_key, from_addr=from_addr or "Kvittoanalys <kvitto@kvittoanalys.se>")
+    if smtp_settings:
+        return send_email(email, subject, html, **smtp_settings)
+    print(f"⚠️ No email provider configured, cannot send to {email}")
+    return False
+
+
 def send_verification_email(
-    email: str, token: str, base_url: str, smtp_settings: dict
+    email: str, token: str, base_url: str, smtp_settings: dict = None,
+    *, resend_api_key: str = "", from_addr: str = "",
 ) -> bool:
     """Send account verification email."""
     link = f"{base_url}/verify?token={token}"
     html = f"""
-    <h2>Välkommen till Kvittoanalys!</h2>
-    <p>Verifiera din e-postadress genom att klicka på länken nedan:</p>
-    <p><a href="{link}" style="display:inline-block;background:#22c55e;color:#fff;
-       padding:10px 24px;border-radius:6px;text-decoration:none;font-weight:600;">
-       Verifiera konto</a></p>
-    <p style="color:#888;font-size:0.85em;">Länken är giltig i 24 timmar.</p>
+    <div style="font-family:system-ui,-apple-system,sans-serif;max-width:480px;margin:0 auto;padding:2rem;">
+      <h2 style="color:#e2e8f0;">Välkommen till Kvittoanalys!</h2>
+      <p style="color:#94a3b8;">Verifiera din e-postadress genom att klicka på knappen nedan:</p>
+      <p><a href="{link}" style="display:inline-block;background:#22c55e;color:#fff;
+         padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:1rem;">
+         ✓ Verifiera konto</a></p>
+      <p style="color:#64748b;font-size:0.85em;">Länken är giltig i 24 timmar.</p>
+      <hr style="border:none;border-top:1px solid #334155;margin:1.5rem 0;">
+      <p style="color:#475569;font-size:0.8em;">Du får detta mail för att någon registrerade ett konto med din e-postadress på kvittoanalys.se. Om det inte var du kan du ignorera detta mail.</p>
+    </div>
     """
-    return send_email(email, "Verifiera ditt Kvittoanalys-konto", html, **smtp_settings)
+    return _send(email, "Verifiera ditt Kvittoanalys-konto", html, resend_api_key=resend_api_key, smtp_settings=smtp_settings, from_addr=from_addr)
 
 
 def send_reset_email(
-    email: str, token: str, base_url: str, smtp_settings: dict
+    email: str, token: str, base_url: str, smtp_settings: dict = None,
+    *, resend_api_key: str = "", from_addr: str = "",
 ) -> bool:
     """Send password reset email."""
     link = f"{base_url}/reset-password?token={token}"
     html = f"""
-    <h2>Återställ lösenord</h2>
-    <p>Klicka på länken nedan för att välja ett nytt lösenord:</p>
-    <p><a href="{link}" style="display:inline-block;background:#4a9eff;color:#fff;
-       padding:10px 24px;border-radius:6px;text-decoration:none;font-weight:600;">
-       Återställ lösenord</a></p>
-    <p style="color:#888;font-size:0.85em;">Länken är giltig i 1 timme.</p>
+    <div style="font-family:system-ui,-apple-system,sans-serif;max-width:480px;margin:0 auto;padding:2rem;">
+      <h2 style="color:#e2e8f0;">Återställ lösenord</h2>
+      <p style="color:#94a3b8;">Klicka på knappen nedan för att välja ett nytt lösenord:</p>
+      <p><a href="{link}" style="display:inline-block;background:#4a9eff;color:#fff;
+         padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:1rem;">
+         Återställ lösenord</a></p>
+      <p style="color:#64748b;font-size:0.85em;">Länken är giltig i 1 timme.</p>
+      <hr style="border:none;border-top:1px solid #334155;margin:1.5rem 0;">
+      <p style="color:#475569;font-size:0.8em;">Om du inte begärde detta kan du ignorera mailet.</p>
+    </div>
     """
-    return send_email(email, "Återställ lösenord — Kvittoanalys", html, **smtp_settings)
+    return _send(email, "Återställ lösenord — Kvittoanalys", html, resend_api_key=resend_api_key, smtp_settings=smtp_settings, from_addr=from_addr)
 
 
 # ── Verification tokens ──────────────────────────────────────────────

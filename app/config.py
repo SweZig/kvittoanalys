@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_from: str = ""  # defaults to smtp_user if empty
 
+    # Resend (preferred email provider)
+    resend_api_key: str = ""
+    email_from: str = "Kvittoanalys <kvitto@kvittoanalys.se>"
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

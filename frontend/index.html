@@ -361,6 +361,10 @@
       <h2><svg viewBox="0 0 80 100" style="width:28px;height:35px;vertical-align:middle"><defs><linearGradient id="lg1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#4A9EFF"/><stop offset="100%" style="stop-color:#34D399"/></linearGradient><linearGradient id="lb1" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" style="stop-color:#4A9EFF"/><stop offset="100%" style="stop-color:#6DB8FF"/></linearGradient><linearGradient id="lb2" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" style="stop-color:#34D399"/><stop offset="100%" style="stop-color:#5EEDB8"/></linearGradient></defs><path d="M4 6C4 2.7 6.7 0 10 0L70 0C73.3 0 76 2.7 76 6L76 88 66 80 56 88 46 80 36 88 26 80 16 88 4 80Z" fill="url(#lg1)" opacity=".15" stroke="url(#lg1)" stroke-width="2"/><rect x="16" y="28" width="12" height="40" rx="3" fill="url(#lb1)"/><rect x="34" y="16" width="12" height="52" rx="3" fill="url(#lb2)"/><rect x="52" y="36" width="12" height="32" rx="3" fill="url(#lb1)" opacity=".75"/><line x1="14" y1="12" x2="66" y2="12" stroke="url(#lg1)" stroke-width="1.5" opacity=".35"/><line x1="14" y1="74" x2="66" y2="74" stroke="url(#lg1)" stroke-width="1.5" opacity=".35"/></svg> Logga in</h2>
       <p class="sub">Logga in på ditt Kvittoanalys-konto</p>
       <div id="login-error" class="error-msg"></div>
+      <div id="resend-verify-wrap" style="display:none;margin-bottom:0.75rem;">
+        <button class="btn-login" style="background:var(--accent);font-size:0.85rem;padding:0.5rem 1rem;" onclick="doResendVerification()">📧 Skicka verifieringsmail igen</button>
+        <div id="resend-verify-msg" class="success-msg" style="display:none;margin-top:0.5rem;"></div>
+      </div>
       <label>E-postadress</label>
       <input type="email" id="login-email" placeholder="namn@exempel.se" autocomplete="email">
       <label>Lösenord</label>
@@ -764,14 +768,35 @@ async function doLogin(){
   const email=document.getElementById('login-email').value.trim();
   const password=document.getElementById('login-password').value;
   const errEl=document.getElementById('login-error');
-  errEl.style.display='none';
+  errEl.style.display='none';errEl.style.color='';
+  document.getElementById('resend-verify-wrap')&&(document.getElementById('resend-verify-wrap').style.display='none');
   try{
     const r=await fetch('/api/v1/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
     const d=await r.json();
-    if(!r.ok){errEl.textContent=d.detail||'Inloggning misslyckades';errEl.style.display='block';return;}
+    if(!r.ok){
+      errEl.textContent=d.detail||'Inloggning misslyckades';errEl.style.display='block';
+      // Show resend verification link if not verified
+      if(r.status===403&&d.detail&&d.detail.includes('verifier')){
+        const wrap=document.getElementById('resend-verify-wrap');
+        if(wrap){wrap.style.display='block';wrap.dataset.email=email;}
+      }
+      return;
+    }
     authToken=d.token;localStorage.setItem('ka_token',authToken);currentUser=d.user;
     enterApp();
   }catch(e){errEl.textContent='Kunde inte ansluta till servern';errEl.style.display='block';}
+}
+
+async function doResendVerification(){
+  const wrap=document.getElementById('resend-verify-wrap');
+  const email=wrap.dataset.email||document.getElementById('login-email').value.trim();
+  const msgEl=document.getElementById('resend-verify-msg');
+  if(!email){return}
+  try{
+    const r=await fetch('/api/v1/auth/resend-verification',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
+    const d=await r.json();
+    msgEl.textContent=d.message||'Skickat!';msgEl.style.display='block';
+  }catch(e){msgEl.textContent='Kunde inte skicka';msgEl.style.display='block';}
 }
 
 async function doRegister(){
@@ -790,7 +815,7 @@ async function doRegister(){
     if(d.token){
       authToken=d.token;localStorage.setItem('ka_token',authToken);currentUser=d.user;enterApp();
     }else{
-      okEl.textContent=d.message||'Konto skapat! Väntar på godkännande av admin.';okEl.style.display='block';
+      okEl.textContent=d.message||'Konto skapat! Kolla din e-post för att verifiera kontot.';okEl.style.display='block';
     }
   }catch(e){errEl.textContent='Kunde inte ansluta till servern';errEl.style.display='block';}
 }

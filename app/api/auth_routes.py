@@ -95,8 +95,12 @@ def require_role(*roles: str):
     return check
 
 
+def _email_configured() -> bool:
+    return bool(settings.resend_api_key or (settings.smtp_host and settings.smtp_user and settings.smtp_password))
+
+# Legacy alias
 def _smtp_configured() -> bool:
-    return bool(settings.smtp_host and settings.smtp_user and settings.smtp_password)
+    return _email_configured()
 
 
 def _smtp_settings() -> dict:
@@ -107,6 +111,13 @@ def _smtp_settings() -> dict:
         "smtp_password": settings.smtp_password,
         "from_addr": settings.smtp_from or settings.smtp_user,
     }
+
+
+def _email_kwargs() -> dict:
+    """Return kwargs for send_verification_email / send_reset_email."""
+    if settings.resend_api_key:
+        return {"resend_api_key": settings.resend_api_key, "from_addr": settings.email_from}
+    return {"smtp_settings": _smtp_settings()}
 
 
 def _user_dict(u: User) -> dict[str, Any]:
@@ -188,16 +199,19 @@ async def register(data: RegisterRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
 
-    # Send verification email if SMTP configured
+    # Send verification email if email provider configured
     email_sent = False
-    if not is_first and _smtp_configured():
+    if not is_first and _email_configured():
         token = create_verification_token(user.email, settings.jwt_secret)
         base = settings.app_base_url or f"http://localhost:{settings.app_port}"
-        email_sent = send_verification_email(user.email, token, base, _smtp_settings())
+        email_sent = send_verification_email(user.email, token, base, **_email_kwargs())
 
     result = {
         "status": "success",
-        "message": "Konto skapat!" if is_first else "Konto skapat — väntar på godkännande",
+        "message": "Konto skapat!" if is_first else (
+            "Konto skapat! Kolla din e-post för att verifiera kontot." if email_sent
+            else "Konto skapat — väntar på godkännande"
+        ),
         "user": _user_dict(user),
         "is_first_user": is_first,
         "email_sent": email_sent,
@@ -221,6 +235,8 @@ async def login(data: LoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Fel e-post eller lösenord")
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Kontot är inaktiverat")
+    if not user.is_verified:
+        raise HTTPException(status_code=403, detail="E-postadressen är inte verifierad. Kolla din inkorg eller klicka på 'Skicka verifieringsmail igen'.")
     if not user.is_approved:
         raise HTTPException(status_code=403, detail="Kontot väntar på godkännande av admin")
 
@@ -281,6 +297,26 @@ async def verify_email(token: str = Query(...), db: Session = Depends(get_db)):
     return {"status": "success", "message": "E-post verifierad!"}
 
 
+@router.post("/resend-verification")
+async def resend_verification(data: PasswordResetRequest, db: Session = Depends(get_db)):
+    """Resend verification email."""
+    user = db.query(User).filter(User.email == data.email.lower().strip()).first()
+    if not user:
+        # Don't reveal if email exists
+        return {"status": "success", "message": "Om kontot finns skickas ett nytt verifieringsmail"}
+    if user.is_verified:
+        return {"status": "success", "message": "Kontot är redan verifierat — du kan logga in"}
+    if not _email_configured():
+        raise HTTPException(status_code=500, detail="E-posttjänsten är inte konfigurerad")
+
+    token = create_verification_token(user.email, settings.jwt_secret)
+    base = settings.app_base_url or f"http://localhost:{settings.app_port}"
+    sent = send_verification_email(user.email, token, base, **_email_kwargs())
+    if not sent:
+        raise HTTPException(status_code=500, detail="Kunde inte skicka verifieringsmail")
+    return {"status": "success", "message": "Verifieringsmail skickat — kolla din inkorg"}
+
+
 # ── Password reset ───────────────────────────────────────────────────
 
 @router.post("/forgot-password")
@@ -288,10 +324,10 @@ async def forgot_password(data: PasswordResetRequest, db: Session = Depends(get_
     """Request password reset email."""
     user = db.query(User).filter(User.email == data.email.lower().strip()).first()
     # Always return success to avoid email enumeration
-    if user and _smtp_configured():
+    if user and _email_configured():
         token = create_reset_token(user.email, settings.jwt_secret)
         base = settings.app_base_url or f"http://localhost:{settings.app_port}"
-        send_reset_email(user.email, token, base, _smtp_settings())
+        send_reset_email(user.email, token, base, **_email_kwargs())
     return {"status": "success", "message": "Om kontot finns skickas ett mejl med återställningslänk"}
 
 
