@@ -205,6 +205,17 @@ async def category_stats(
     return {"status": "success", "categories": categories}
 
 
+@router.get("/documents/categories/timeline", tags=["analytics"])
+async def category_timeline(
+    period: str = Query("month", regex="^(week|month|quarter|year)$"),
+    db: Session = Depends(get_db),
+    user: User | None = Depends(get_optional_user),
+):
+    user_id_filter = user.id if user and user.role != "admin" else None
+    data = crud.get_category_timeline(db, period=period, user_id=user_id_filter)
+    return {"status": "success", "periods": data}
+
+
 @router.get("/documents/products", tags=["analytics"])
 async def product_list(
     category: str | None = Query(None),

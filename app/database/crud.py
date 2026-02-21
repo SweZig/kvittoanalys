@@ -9,7 +9,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import func, or_, text
+from sqlalchemy import String as SaString, cast, func, or_, text
 from sqlalchemy.orm import Session, joinedload
 
 from app.database.models import Document, ExtractedField, ExtractionRule, LineItem, Vendor
@@ -1243,6 +1243,69 @@ def get_category_stats(
         }
         for cat, count, total, avg in results
     ]
+
+
+def get_category_timeline(
+    db: Session,
+    period: str = "month",
+    user_id: int | None = None,
+) -> list[dict[str, Any]]:
+    """Get category spending grouped by time periods.
+    period: 'week', 'month', 'quarter', 'year'
+    Returns [{period_key, period_label, categories: [{category, total_amount, count}]}]"""
+    _ensure_normalized(db)
+
+    # Effective date expression
+    eff = func.coalesce(func.date(Document.invoice_date), func.date(Document.created_at))
+
+    # Period key expression (PostgreSQL)
+    from sqlalchemy import Integer as SaInt, literal_column
+    if period == "week":
+        period_key = func.to_char(eff, literal_column("'IYYY-\"W\"IW'"))
+    elif period == "quarter":
+        yr = cast(func.extract("year", eff), SaInt)
+        qt = cast(func.extract("quarter", eff), SaInt)
+        period_key = func.concat(yr, '-Q', qt)
+    elif period == "year":
+        period_key = cast(func.extract("year", eff), SaString)
+    else:  # month
+        period_key = func.to_char(eff, 'YYYY-MM')
+
+    base = (
+        db.query(
+            period_key.label("period_key"),
+            LineItem.category,
+            func.count(LineItem.id).label("cnt"),
+            func.sum(LineItem.total_price).label("total"),
+        )
+        .join(Document, LineItem.document_id == Document.id)
+        .filter(LineItem.category.isnot(None))
+        .filter(LineItem.description.notin_(_PANT_DESCRIPTIONS))
+        .filter(LineItem.total_price > 0)
+    )
+    if user_id is not None:
+        base = base.filter(Document.user_id == user_id)
+
+    rows = (
+        base.group_by(period_key, LineItem.category)
+        .order_by(period_key)
+        .all()
+    )
+
+    # Group into periods
+    from collections import OrderedDict
+    periods: OrderedDict[str, dict] = OrderedDict()
+    for pk, cat, cnt, total in rows:
+        pk_str = str(pk) if pk else "?"
+        if pk_str not in periods:
+            periods[pk_str] = {"period_key": pk_str, "categories": []}
+        periods[pk_str]["categories"].append({
+            "category": _fmt(cat) or "okategoriserad",
+            "total_amount": round(total or 0, 2),
+            "count": cnt,
+        })
+
+    return list(periods.values())
 
 
 def get_products(

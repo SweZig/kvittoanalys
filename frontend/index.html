@@ -102,6 +102,28 @@
     .preview-overlay img{max-width:95vw;max-height:92vh;border-radius:var(--radius);box-shadow:0 8px 40px rgba(0,0,0,0.5)}
     .preview-overlay .close-preview{position:absolute;top:1rem;right:1.5rem;color:#fff;font-size:2rem;cursor:pointer;background:none;border:none;opacity:0.8}
     .preview-overlay .close-preview:hover{opacity:1}
+    .stacked-chart{display:flex;align-items:flex-end;gap:4px;height:280px;padding:0 0.5rem;overflow-x:auto}
+    .stacked-col{display:flex;flex-direction:column-reverse;align-items:center;min-width:40px;flex:1;max-width:80px;cursor:pointer;position:relative}
+    .stacked-col:hover .stacked-tooltip{display:block}
+    .stacked-seg{width:100%;min-height:1px;transition:opacity 0.15s}
+    .stacked-col:hover .stacked-seg{opacity:0.85}
+    .stacked-label{font-size:0.65rem;color:var(--text-muted);margin-top:6px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:72px}
+    .stacked-total{font-size:0.7rem;color:var(--text-secondary);font-weight:600;margin-bottom:4px}
+    .stacked-tooltip{display:none;position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:0.5rem;font-size:0.75rem;z-index:10;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,0.3)}
+    .stacked-legend{display:flex;flex-wrap:wrap;gap:0.5rem 1rem;margin-top:1rem;font-size:0.75rem}
+    .stacked-legend-item{display:flex;align-items:center;gap:0.3rem}
+    .stacked-legend-dot{width:10px;height:10px;border-radius:2px}
+    .chart-mode-tabs{display:flex;gap:0.25rem;margin-bottom:0.75rem}
+    .chart-mode-tabs button{font-size:0.78rem;padding:0.25rem 0.75rem;border-radius:var(--radius-sm);border:1px solid var(--border);background:transparent;color:var(--text-secondary);cursor:pointer}
+    .chart-mode-tabs button.active{background:var(--accent-glow);border-color:var(--accent);color:var(--accent)}
+    .vendor-chain-row{cursor:pointer;background:var(--bg-alt,rgba(255,255,255,0.02))}
+    .vendor-chain-row:hover{background:rgba(74,158,255,0.05)}
+    .vendor-chain-row td:first-child{padding-left:0.5rem}
+    .vendor-store-row{display:none}
+    .vendor-store-row.expanded{display:table-row}
+    .vendor-store-row td:nth-child(2){padding-left:2rem}
+    .chain-toggle{display:inline-block;width:1.2em;text-align:center;transition:transform 0.15s;font-size:0.75rem;color:var(--text-muted)}
+    .chain-toggle.open{transform:rotate(90deg)}
     .raw-text{background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);padding:1rem;font-size:0.85rem;line-height:1.7;color:var(--text-secondary);max-height:400px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;font-family:var(--mono)}
     .upload-zone{border:2px dashed var(--border);border-radius:var(--radius);padding:3rem 2rem;text-align:center;cursor:pointer;transition:all var(--transition);background:var(--bg-card);margin-bottom:1.5rem}
     .upload-zone:hover,.upload-zone.dragover{border-color:var(--accent);background:var(--accent-glow)}
@@ -466,6 +488,7 @@
         </label>
       </div>
       <div id="cat-chart" class="detail-card" style="margin-bottom:1rem;padding:1.5rem;"></div>
+      <div id="timeline-chart" class="detail-card" style="margin-bottom:1rem;padding:1.5rem;display:none;"></div>
       <div id="migrate-btn-wrap" style="margin-bottom:1rem;display:none;"><button class="btn btn-ghost btn-sm" onclick="migrateCategories()" id="migrate-btn">🔄 Migrera kategorier till ny struktur</button></div>
       <div id="discount-cleanup-wrap" style="display:none"></div>
 
@@ -1149,7 +1172,7 @@ async function loadDashboard(){try{const[sR,dR]=await Promise.all([authFetch(`${
 }catch(e){}}
 
 // Analytics — period state
-let curPeriod='all', periodOffset=0, showTotal=true;
+let curPeriod='all', periodOffset=0, showTotal=true, chartMode='category';
 function _periodDates(){
   const now=new Date();
   const mult={week:7,month:30,quarter:91,year:365,all:0}[curPeriod]||0;
@@ -1182,11 +1205,39 @@ function setPeriod(p,btn){
   curPeriod=p;periodOffset=0;
   document.querySelectorAll('#period-tabs .filter-chip').forEach(c=>c.classList.remove('active'));
   btn.classList.add('active');
-  document.getElementById('period-nav').style.display=p==='all'?'none':'flex';
-  document.getElementById('compare-toggle-wrap').classList.toggle('hidden',p==='all');
-  loadCatChart();
+  // Timeline shows all periods at once - no nav arrows needed
+  const showNav=p!=='all'&&chartMode!=='timeline';
+  document.getElementById('period-nav').style.display=showNav?'flex':'none';
+  document.getElementById('compare-toggle-wrap').classList.toggle('hidden',p==='all'||chartMode==='timeline');
+  if(chartMode==='timeline'){
+    if(p==='all')curPeriod='month'; // timeline needs a period
+    loadTimeline();
+  }else{
+    loadCatChart();
+  }
 }
-function shiftPeriod(dir){periodOffset+=dir;loadCatChart()}
+function shiftPeriod(dir){periodOffset+=dir;if(chartMode==='timeline')loadTimeline();else loadCatChart()}
+function setChartMode(mode,btn){
+  chartMode=mode;
+  btn.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('cat-chart').style.display=mode==='category'?'':'none';
+  document.getElementById('timeline-chart').style.display=mode==='timeline'?'':'none';
+  document.getElementById('compare-toggle-wrap').classList.toggle('hidden',mode==='timeline'||curPeriod==='all');
+  if(mode==='timeline'){
+    document.getElementById('period-nav').style.display='none';
+    if(curPeriod==='all'){
+      // Auto-switch to month when entering timeline
+      curPeriod='month';
+      document.querySelectorAll('#period-tabs .filter-chip').forEach(c=>c.classList.remove('active'));
+      document.querySelector('#period-tabs .filter-chip:nth-child(2)').classList.add('active');
+    }
+    loadTimeline();
+  }else{
+    document.getElementById('period-nav').style.display=curPeriod!=='all'?'flex':'none';
+    loadCatChart();
+  }
+}
 
 async function loadCatChart(){
   try{
@@ -1238,7 +1289,8 @@ async function doDiscountLink(){
 }
 async function loadAnalytics(){
   try{
-  await loadCatChart();
+  if(chartMode==='timeline')await loadTimeline();
+  else await loadCatChart();
   const pR=await authFetch(`${API}/documents/products?limit=${PS}&skip=0`);
   renderProds(await pR.json());
   populateVendorFilter();
@@ -1254,14 +1306,15 @@ function switchAnalyticsTab(btn,tab){
   curAnalyticsTab=tab;
   reloadActiveTab();
 }
-function renderCatChart(cats,prevCats,pd){const el=document.getElementById('cat-chart');if(!cats.length){el.innerHTML='<div class="text-muted">Inga kategorier ännu</div>';return}
+function renderCatChart(cats,prevCats,pd){const el=document.getElementById('cat-chart');if(!cats.length){el.innerHTML='<div class="chart-mode-tabs"><button class="active" onclick="setChartMode(\'category\',this)">Per kategori</button><button onclick="setChartMode(\'timeline\',this)">Per månad</button></div><div class="text-muted">Inga kategorier ännu</div>';return}
   const total=cats.reduce((s,c)=>s+c.total_amount,0);
   const mx=Math.max(...cats.map(c=>c.total_amount));
   const prevMap={};if(prevCats)prevCats.forEach(c=>{prevMap[c.category]=c.total_amount});
   const prevTotal=prevCats?prevCats.reduce((s,c)=>s+c.total_amount,0):0;
   const prevMx=prevCats?Math.max(...prevCats.map(c=>c.total_amount),1):1;
-  // Header with total toggle
-  let html=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+  // Header with mode tabs and total toggle
+  let html=`<div class="chart-mode-tabs"><button class="${chartMode==='category'?'active':''}" onclick="setChartMode('category',this)">Per kategori</button><button class="${chartMode==='timeline'?'active':''}" onclick="setChartMode('timeline',this)">Per månad</button></div>`;
+  html+=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
     <h3 style="font-size:0.82rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin:0;">Utgifter per kategori${pd&&pd.label&&pd.label!=='Totalt'?' — '+pd.label:''}</h3>
     <label style="display:flex;align-items:center;gap:0.35rem;font-size:0.78rem;color:var(--text-secondary);cursor:pointer;">
       <input type="checkbox" ${showTotal?'checked':''} onchange="showTotal=this.checked;loadCatChart()"> Visa total
@@ -1288,6 +1341,63 @@ function renderCatChart(cats,prevCats,pd){const el=document.getElementById('cat-
     }
     return`<div class="cat-bar-row" onclick="filterByCat('${esc(c.category)}')"><span class="cat-bar-label">${catL(c.category)}</span><div class="cat-bar-track"><div class="cat-bar-fill" style="width:${p}%;background:${col}">${p>12?pct+'%':''}</div>${compareHtml}</div><span class="cat-bar-value">${fmtC(c.total_amount)} kr</span><span class="cat-bar-count">${c.count} st</span></div>`}).join('');
   el.innerHTML=html}
+
+// Timeline stacked bar chart
+async function loadTimeline(){
+  const el=document.getElementById('timeline-chart');
+  el.innerHTML='<div class="chart-mode-tabs"><button class="'+(chartMode==='category'?'active':'')+'" onclick="setChartMode(\'category\',this)">Per kategori</button><button class="'+(chartMode==='timeline'?'active':'')+'" onclick="setChartMode(\'timeline\',this)">Per månad</button></div><div class="loading"><div class="spinner"></div></div>';
+  try{
+    const p=curPeriod==='all'?'month':curPeriod;
+    const r=await authFetch(`${API}/documents/categories/timeline?period=${p}`);
+    const d=await r.json();
+    renderTimeline(d.periods||[],p);
+  }catch(e){console.error('loadTimeline',e);el.innerHTML='<div class="text-muted">Kunde inte ladda tidslinje</div>'}
+}
+function renderTimeline(periods,period){
+  const el=document.getElementById('timeline-chart');
+  const periodLabels={week:'vecka',month:'månad',quarter:'kvartal',year:'år'};
+  let html=`<div class="chart-mode-tabs"><button class="${chartMode==='category'?'active':''}" onclick="setChartMode('category',this)">Per kategori</button><button class="${chartMode==='timeline'?'active':''}" onclick="setChartMode('timeline',this)">Per månad</button></div>`;
+  html+=`<h3 style="font-size:0.82rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin:0 0 1rem 0;">Utgifter per ${periodLabels[period]||period}</h3>`;
+  if(!periods.length){el.innerHTML=html+'<div class="text-muted">Ingen data</div>';return}
+  // Collect all categories
+  const allCats=new Set();
+  periods.forEach(p=>p.categories.forEach(c=>allCats.add(c.category)));
+  const catList=[...allCats].sort();
+  // Find max total for scaling
+  const totals=periods.map(p=>p.categories.reduce((s,c)=>s+c.total_amount,0));
+  const maxTotal=Math.max(...totals,1);
+  // Stacked bars
+  html+='<div class="stacked-chart">';
+  periods.forEach((p,i)=>{
+    const total=totals[i];
+    html+='<div class="stacked-col">';
+    html+=`<div class="stacked-total">${total>=1000?Math.round(total/1000)+'k':fmtC(total)}</div>`;
+    // Tooltip
+    html+='<div class="stacked-tooltip">';
+    html+=`<strong>${p.period_key}</strong><br>`;
+    p.categories.sort((a,b)=>b.total_amount-a.total_amount).forEach(c=>{
+      html+=`<span style="color:${catCol(c.category)}">■</span> ${catL(c.category)}: ${fmtC(c.total_amount)} kr<br>`;
+    });
+    html+=`<strong>Totalt: ${fmtC(total)} kr</strong></div>`;
+    // Segments
+    p.categories.sort((a,b)=>b.total_amount-a.total_amount).forEach(c=>{
+      const h=maxTotal>0?(c.total_amount/maxTotal)*240:0;
+      html+=`<div class="stacked-seg" style="height:${Math.max(h,1)}px;background:${catCol(c.category)}"></div>`;
+    });
+    // Label
+    let lbl=p.period_key;
+    if(period==='month'&&lbl.length>=7)lbl=lbl.slice(5); // "2025-03" → "03"
+    else if(period==='week')lbl=lbl.replace(/^\d{4}-/,''); // "2025-W08" → "W08"
+    html+=`<div class="stacked-label">${lbl}</div>`;
+    html+='</div>';
+  });
+  html+='</div>';
+  // Legend
+  html+='<div class="stacked-legend">';
+  catList.forEach(c=>{html+=`<div class="stacked-legend-item"><div class="stacked-legend-dot" style="background:${catCol(c)}"></div>${catL(c)}</div>`});
+  html+='</div>';
+  el.innerHTML=html;
+}
 function populateCatFilters(cats){
   const opts='<option value="">Alla kategorier</option>'+cats.map(c=>`<option value="${esc(c.category)}">${catL(c.category)} (${c.count})</option>`).join('');
   document.getElementById('global-cat-filter').innerHTML=opts;
@@ -1446,17 +1556,71 @@ async function loadVendors(){
     const d=await(await authFetch(`${API}/vendors`)).json();
     _vendorData=d.vendors||[];
     if(!_vendorData.length){tb.innerHTML='<tr><td colspan="7"><div class="empty-state">Inga leverantörer</div></td></tr>';return}
-    tb.innerHTML=_vendorData.map(v=>`<tr>
-      <td><input type="checkbox" class="vendor-check" data-vid="${v.id}" data-vname="${esc(v.name)}" onchange="updateVendorMergeBar()"></td>
-      <td><span class="vendor-cell" onclick="editVendorCell(this,${v.id},'name','${esc(v.name)}')"><strong>${esc(v.name)}</strong></span></td>
-      <td><span class="vendor-cell" onclick="editVendorCell(this,${v.id},'chain','${esc(v.chain||'')}')">${chainBadge(v.chain)}</span></td>
-      <td><span class="vendor-cell${v.format?'':' empty'}" onclick="editVendorCell(this,${v.id},'format','${esc(v.format||'')}')">${v.format?esc(v.format):'+ format'}</span></td>
-      <td><span class="vendor-cell${v.city?'':' empty'}" onclick="editVendorCell(this,${v.id},'city','${esc(v.city||'')}')">${v.city?esc(v.city):'+ ort'}</span></td>
-      <td>${v.document_count}</td>
-      <td class="amount">${fmtC(v.total_amount)} kr</td>
-    </tr>`).join('');
+    // Group by chain
+    const chains={};const noChain=[];
+    _vendorData.forEach(v=>{
+      if(v.chain){
+        if(!chains[v.chain])chains[v.chain]={stores:[],doc_count:0,total:0};
+        chains[v.chain].stores.push(v);
+        chains[v.chain].doc_count+=v.document_count;
+        chains[v.chain].total+=v.total_amount;
+      }else{noChain.push(v)}
+    });
+    // Sort chains by total desc
+    const sortedChains=Object.entries(chains).sort((a,b)=>b[1].total-a[1].total);
+    let html='';
+    sortedChains.forEach(([chain,data])=>{
+      const cid='chain-'+chain.replace(/\W/g,'_');
+      if(data.stores.length===1){
+        // Single store in chain — show flat
+        const v=data.stores[0];
+        html+=_vendorRow(v);
+      }else{
+        // Chain header row
+        html+=`<tr class="vendor-chain-row" onclick="toggleChain('${cid}')">
+          <td><input type="checkbox" class="vendor-check" data-vid="${data.stores.map(s=>s.id).join(',')}" data-vname="${esc(chain)}" onchange="updateVendorMergeBar();event.stopPropagation()"></td>
+          <td><span class="chain-toggle" id="tog-${cid}">▶</span> <strong>${esc(chain)}</strong> <span style="color:var(--text-muted);font-size:0.8rem">(${data.stores.length} butiker)</span></td>
+          <td>${chainBadge(chain)}</td>
+          <td></td><td></td>
+          <td>${data.doc_count}</td>
+          <td class="amount"><strong>${fmtC(data.total)} kr</strong></td>
+        </tr>`;
+        // Store rows (hidden by default)
+        data.stores.sort((a,b)=>b.total_amount-a.total_amount).forEach(v=>{
+          html+=`<tr class="vendor-store-row ${cid}">
+            <td><input type="checkbox" class="vendor-check" data-vid="${v.id}" data-vname="${esc(v.name)}" onchange="updateVendorMergeBar()"></td>
+            <td><span class="vendor-cell" onclick="editVendorCell(this,${v.id},'name','${esc(v.name)}')">${esc(v.name)}</span></td>
+            <td><span class="vendor-cell" onclick="editVendorCell(this,${v.id},'chain','${esc(v.chain||'')}')">${chainBadge(v.chain)}</span></td>
+            <td><span class="vendor-cell${v.format?'':' empty'}" onclick="editVendorCell(this,${v.id},'format','${esc(v.format||'')}')">${v.format?esc(v.format):'+ format'}</span></td>
+            <td><span class="vendor-cell${v.city?'':' empty'}" onclick="editVendorCell(this,${v.id},'city','${esc(v.city||'')}')">${v.city?esc(v.city):'+ ort'}</span></td>
+            <td>${v.document_count}</td>
+            <td class="amount">${fmtC(v.total_amount)} kr</td>
+          </tr>`;
+        });
+      }
+    });
+    // Vendors without chain
+    noChain.sort((a,b)=>b.total_amount-a.total_amount).forEach(v=>{html+=_vendorRow(v)});
+    tb.innerHTML=html;
     document.getElementById('vendor-select-all').checked=false;updateVendorMergeBar();
   }catch(e){tb.innerHTML='<tr><td colspan="7"><div class="empty-state">Kunde inte ladda leverantörer</div></td></tr>'}
+}
+function _vendorRow(v){
+  return`<tr>
+    <td><input type="checkbox" class="vendor-check" data-vid="${v.id}" data-vname="${esc(v.name)}" onchange="updateVendorMergeBar()"></td>
+    <td><span class="vendor-cell" onclick="editVendorCell(this,${v.id},'name','${esc(v.name)}')"><strong>${esc(v.name)}</strong></span></td>
+    <td><span class="vendor-cell" onclick="editVendorCell(this,${v.id},'chain','${esc(v.chain||'')}')">${chainBadge(v.chain)}</span></td>
+    <td><span class="vendor-cell${v.format?'':' empty'}" onclick="editVendorCell(this,${v.id},'format','${esc(v.format||'')}')">${v.format?esc(v.format):'+ format'}</span></td>
+    <td><span class="vendor-cell${v.city?'':' empty'}" onclick="editVendorCell(this,${v.id},'city','${esc(v.city||'')}')">${v.city?esc(v.city):'+ ort'}</span></td>
+    <td>${v.document_count}</td>
+    <td class="amount">${fmtC(v.total_amount)} kr</td>
+  </tr>`;
+}
+function toggleChain(cid){
+  const rows=document.querySelectorAll('.'+cid);
+  const tog=document.getElementById('tog-'+cid);
+  const isOpen=tog.classList.toggle('open');
+  rows.forEach(r=>r.classList.toggle('expanded',isOpen));
 }
 function editVendorCell(el,vendorId,field,currentVal){
   if(el.querySelector('input'))return;
