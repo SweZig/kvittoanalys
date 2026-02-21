@@ -1,0 +1,234 @@
+From 35f4e813adabb28322fba7a3d418deb58d012ae7 Mon Sep 17 00:00:00 2001
+From: Claude <claude@anthropic.com>
+Date: Sat, 21 Feb 2026 20:39:44 +0000
+Subject: [PATCH] =?UTF-8?q?UX:=20gruppera=20via=20merge-bar,=20dropdown=20?=
+ =?UTF-8?q?kategorif=C3=B6rslag?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- Gruppering flyttad till merge-bar (📁 knapp vid 2+ markerade, admin only)
+- Auto-gruppering i grupperings-modalen (ej separat knapp)
+- Manuell gruppering via modal med befintliga grupper + fritext
+- Borttagna per-rad 📁-knappar
+- Kategoriförslag för icke-admin: dropdown istf prompt()
+- DB-migration för category_suggestions-tabellen
+---
+ app/database/crud.py |  12 +++++
+ frontend/index.html  | 105 +++++++++++++++++++++++++++++--------------
+ 2 files changed, 84 insertions(+), 33 deletions(-)
+
+diff --git a/app/database/crud.py b/app/database/crud.py
+index f2d85db..48f79fc 100644
+--- a/app/database/crud.py
++++ b/app/database/crud.py
+@@ -58,6 +58,18 @@ def _ensure_normalized(db: Session) -> None:
+                   "ALTER TABLE documents ADD COLUMN file_preview BYTEA")
+     _safe_migrate(db, "SELECT product_group FROM line_items LIMIT 1",
+                   "ALTER TABLE line_items ADD COLUMN product_group VARCHAR(255)")
++    _safe_migrate(db, "SELECT 1 FROM category_suggestions LIMIT 1",
++                  """CREATE TABLE IF NOT EXISTS category_suggestions (
++                      id SERIAL PRIMARY KEY,
++                      user_id INTEGER NOT NULL REFERENCES users(id),
++                      description TEXT NOT NULL,
++                      current_category VARCHAR(100),
++                      suggested_category VARCHAR(100) NOT NULL,
++                      reason TEXT,
++                      status VARCHAR(20) DEFAULT 'pending',
++                      reviewed_by INTEGER REFERENCES users(id),
++                      reviewed_at TIMESTAMP,
++                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
+ 
+     result = normalize_existing_data(db)
+     if result["descriptions_normalized"] or result["categories_normalized"]:
+diff --git a/frontend/index.html b/frontend/index.html
+index fbe4185..02d8797 100644
+--- a/frontend/index.html
++++ b/frontend/index.html
+@@ -191,8 +191,6 @@
+     .group-toggle-icon{display:inline-block;transition:transform 0.15s;margin-right:0.3rem;font-size:0.8em}
+     .group-toggle-icon.open{transform:rotate(90deg)}
+     .group-badge{display:inline-block;padding:0.1rem 0.5rem;border-radius:9999px;font-size:0.75rem;background:var(--accent);color:white;margin-left:0.5rem;font-weight:400}
+-    .group-edit-btn{opacity:0;transition:opacity 0.15s}
+-    tr:hover .group-edit-btn{opacity:1}
+     .prod-docs-list{display:flex;flex-direction:column;gap:0.5rem;max-height:400px;overflow-y:auto}
+     .prod-doc-card{display:flex;align-items:center;justify-content:space-between;padding:0.75rem 1rem;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;transition:all var(--transition)}
+     .prod-doc-card:hover{border-color:var(--accent);background:rgba(99,102,241,0.05)}
+@@ -538,12 +536,12 @@
+           <div class="search-box" style="max-width:300px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" id="prod-search" placeholder="Sök produkt…" oninput="debounceProducts()"></div>
+           <div style="display:flex;gap:0.5rem;align-items:center;">
+             <button class="btn btn-ghost btn-sm" id="group-toggle" onclick="toggleGroupView()" title="Visa grupperad/platt">📁 Gruppera</button>
+-            <button class="btn btn-ghost btn-sm admin-only" id="group-auto-btn" onclick="autoDetectGroups()" title="Auto-detektera grupper" style="display:none">🔍 Auto-grupper</button>
+           </div>
+         </div>
+         <div id="merge-bar" class="merge-bar" style="display:none;">
+           <span id="merge-count">0 valda</span>
+           <button class="btn btn-primary btn-sm" id="merge-btn" onclick="openMergeModal()">🔗 Slå ihop</button>
++          <button class="btn btn-primary btn-sm admin-only" id="group-selected-btn" onclick="groupSelectedProducts()" style="display:none">📁 Gruppera</button>
+           <button class="btn btn-primary btn-sm" id="discount-link-btn" onclick="doDiscountLink()" style="display:none">💰 Koppla rabatt</button>
+           <button class="btn btn-ghost btn-sm" onclick="clearMergeSelection()">Avmarkera</button>
+         </div>
+@@ -1108,15 +1106,29 @@ async function reviewSuggestion(id,status){
+ 
+ /* ── Category suggestion (for non-admin users) ───────────────── */
+ async function suggestCategory(desc, currentCat){
+-  const cat=prompt(`Föreslå ny kategori för "${desc}":\n\nNuvarande: ${currentCat||'okategoriserad'}\n\nVälj bland: mejeri, ost, glass, kött, chark, fisk, bröd, grönsaker, frukt, skafferi, färdigmat, snacks & godis, barnprodukter, hälsa, hygien, hushåll, dryck, djur, kontorsmaterial, tjänst, transport, tobak, övrigt`);
+-  if(!cat) return;
+-  const reason=prompt('Motivering (valfritt):');
++  // Show same dropdown as admins but submit as suggestion
++  closeCatDrop();
++  const el=event?.target||document.querySelector(`[data-line-id]`);
++  if(!el)return;
++  const dd=document.createElement('div');dd.className='cat-dropdown';dd.onclick=e=>e.stopPropagation();
++  dd.innerHTML=`<div style="padding:4px 8px;font-size:0.7rem;color:var(--text-muted);border-bottom:1px solid var(--border)">💡 Föreslå ny kategori</div><input class="cat-dropdown-search" placeholder="Sök kategori…" oninput="filterCatItems(this)">`+
++    ALL_CATEGORIES.map(c=>`<button class="cat-dropdown-item${c===currentCat?' active':''}" onclick="submitCatSuggestion('${esc(desc.replace(/'/g,"\\'"))}','${esc(currentCat||'')}','${c}')">${c}</button>`).join('');
++  document.body.appendChild(dd);
++  const rect=el.getBoundingClientRect();
++  const spaceBelow=window.innerHeight-rect.bottom;
++  if(spaceBelow<300){dd.style.bottom=(window.innerHeight-rect.top+4)+'px';dd.style.left=rect.left+'px'}
++  else{dd.style.top=(rect.bottom+4)+'px';dd.style.left=rect.left+'px'}
++  openDropdown={el,dd};
++  dd.querySelector('.cat-dropdown-search').focus();
++}
++async function submitCatSuggestion(desc,currentCat,newCat){
++  closeCatDrop();
+   try{
+-    const r=await authFetch('/api/v1/auth/suggestions',{method:'POST',headers:authHeaders(),
+-      body:JSON.stringify({description:desc,current_category:currentCat,suggested_category:cat.toLowerCase().trim(),reason})});
+-    if(r.ok) showToast('Kategoriförslag skickat till admin');
+-    else showToast('Kunde inte skicka förslag',true);
+-  }catch(e){showToast('Fel: '+e.message,true);}
++    const r=await authFetch(`${API}/auth/suggestions`,{method:'POST',headers:authHeaders(),
++      body:JSON.stringify({description:desc,current_category:currentCat,suggested_category:newCat.toLowerCase().trim()})});
++    if(r.ok) showToast(`Förslag skickat: ${desc} → ${newCat}`);
++    else{const d=await r.json().catch(()=>({}));showToast(d.detail||'Kunde inte skicka förslag',true)}
++  }catch(e){showToast('Fel: '+e.message,true)}
+ }
+ 
+ const API='/api/v1';
+@@ -1574,7 +1586,7 @@ async function loadProducts(){
+ function renderProds(d){_lastProductData=d;const tb=document.getElementById('prod-tbody');
+   if(groupViewActive){renderGroupedProds(d,tb);return}
+   tb.innerHTML=!d.products.length?'<tr><td colspan="10"><div class="empty-state">Inga produkter</div></td></tr>'
+-    :d.products.map(p=>{const sd=btoa(unescape(encodeURIComponent(p.description)));const isAdm=currentUser&&currentUser.role==='admin';return`<tr><td><input type="checkbox" class="prod-check" data-desc="${sd}" data-spent="${p.total_spent}" onchange="updateMergeBar()"></td><td><a href="#" class="prod-link" onclick="showProductDocs('${esc(p.description.replace(/'/g,"\\'"))}');return false"><strong>${esc(p.description)}</strong></a>${p.product_group?`<span class="text-muted" style="font-size:0.75rem;margin-left:0.4rem">(${esc(p.product_group)})</span>`:''}</td><td style="position:relative">${prodCatBadge(p.description,p.category)}</td><td>${p.purchase_count}</td><td>${p.total_quantity}${p.unit?' '+p.unit:''}</td><td class="amount">${fmtC(p.total_spent)} kr</td><td class="amount">${fmtC(p.avg_unit_price)}</td><td class="text-muted">${p.min_unit_price!=null?fmtC(p.min_unit_price):'—'}</td><td class="text-muted">${p.max_unit_price!=null?fmtC(p.max_unit_price):'—'}</td><td><button class="btn btn-ghost btn-sm" onclick="showPrice('${esc(p.description.replace(/'/g,"\\'"))}')">📈</button>${isAdm?`<button class="btn btn-ghost btn-sm group-edit-btn" onclick="setProductGroup('${esc(p.description.replace(/'/g,"\\'"))}','${esc((p.product_group||'').replace(/'/g,"\\'"))}')" title="Ändra produktgrupp">📁</button>`:''}</td></tr>`}).join('');
++    :d.products.map(p=>{const sd=btoa(unescape(encodeURIComponent(p.description)));return`<tr><td><input type="checkbox" class="prod-check" data-desc="${sd}" data-spent="${p.total_spent}" onchange="updateMergeBar()"></td><td><a href="#" class="prod-link" onclick="showProductDocs('${esc(p.description.replace(/'/g,"\\'"))}');return false"><strong>${esc(p.description)}</strong></a>${p.product_group?`<span class="text-muted" style="font-size:0.75rem;margin-left:0.4rem">(${esc(p.product_group)})</span>`:''}</td><td style="position:relative">${prodCatBadge(p.description,p.category)}</td><td>${p.purchase_count}</td><td>${p.total_quantity}${p.unit?' '+p.unit:''}</td><td class="amount">${fmtC(p.total_spent)} kr</td><td class="amount">${fmtC(p.avg_unit_price)}</td><td class="text-muted">${p.min_unit_price!=null?fmtC(p.min_unit_price):'—'}</td><td class="text-muted">${p.max_unit_price!=null?fmtC(p.max_unit_price):'—'}</td><td><button class="btn btn-ghost btn-sm" onclick="showPrice('${esc(p.description.replace(/'/g,"\\'"))}')">📈</button></td></tr>`}).join('');
+   if(PS>0){const s=prodPage*PS+1,e=Math.min(s+PS-1,d.total);document.getElementById('prod-pag').textContent=d.total>0?`${s}–${e} av ${d.total}`:'';
+   document.getElementById('prod-prev').disabled=prodPage===0;document.getElementById('prod-next').disabled=e>=d.total}
+   else{document.getElementById('prod-pag').textContent=d.total>0?`Alla ${d.total}`:'';document.getElementById('prod-prev').disabled=true;document.getElementById('prod-next').disabled=true}
+@@ -1605,14 +1617,14 @@ function renderGroupedProds(d,tb){
+       <td class="amount"><strong>${fmtC(g.total_spent)} kr</strong></td><td class="amount">${fmtC(avg)}</td>
+       <td class="text-muted">${g.min_price<Infinity?fmtC(g.min_price):'—'}</td><td class="text-muted">${g.max_price>0?fmtC(g.max_price):'—'}</td><td></td></tr>`;
+     g.products.forEach(p=>{
+-      const sd=btoa(unescape(encodeURIComponent(p.description)));const isAdm=currentUser&&currentUser.role==='admin';
+-      html+=`<tr class="group-member ${gid}" style="display:none"><td><input type="checkbox" class="prod-check" data-desc="${sd}" data-spent="${p.total_spent}" onchange="updateMergeBar()"></td><td><a href="#" class="prod-link" onclick="showProductDocs('${esc(p.description.replace(/'/g,"\\'"))}');return false">${esc(p.description)}</a></td><td style="position:relative">${prodCatBadge(p.description,p.category)}</td><td>${p.purchase_count}</td><td>${p.total_quantity}${p.unit?' '+p.unit:''}</td><td class="amount">${fmtC(p.total_spent)} kr</td><td class="amount">${fmtC(p.avg_unit_price)}</td><td class="text-muted">${p.min_unit_price!=null?fmtC(p.min_unit_price):'—'}</td><td class="text-muted">${p.max_unit_price!=null?fmtC(p.max_unit_price):'—'}</td><td><button class="btn btn-ghost btn-sm" onclick="showPrice('${esc(p.description.replace(/'/g,"\\'"))}')">📈</button>${isAdm?`<button class="btn btn-ghost btn-sm group-edit-btn" onclick="setProductGroup('${esc(p.description.replace(/'/g,"\\'"))}','${esc((p.product_group||'').replace(/'/g,"\\'"))}')" title="Ändra produktgrupp">📁</button>`:''}</td></tr>`;
++      const sd=btoa(unescape(encodeURIComponent(p.description)));
++      html+=`<tr class="group-member ${gid}" style="display:none"><td><input type="checkbox" class="prod-check" data-desc="${sd}" data-spent="${p.total_spent}" onchange="updateMergeBar()"></td><td><a href="#" class="prod-link" onclick="showProductDocs('${esc(p.description.replace(/'/g,"\\'"))}');return false">${esc(p.description)}</a></td><td style="position:relative">${prodCatBadge(p.description,p.category)}</td><td>${p.purchase_count}</td><td>${p.total_quantity}${p.unit?' '+p.unit:''}</td><td class="amount">${fmtC(p.total_spent)} kr</td><td class="amount">${fmtC(p.avg_unit_price)}</td><td class="text-muted">${p.min_unit_price!=null?fmtC(p.min_unit_price):'—'}</td><td class="text-muted">${p.max_unit_price!=null?fmtC(p.max_unit_price):'—'}</td><td><button class="btn btn-ghost btn-sm" onclick="showPrice('${esc(p.description.replace(/'/g,"\\'"))}')">📈</button></td></tr>`;
+     });
+   });
+   // Ungrouped
+   ungrouped.forEach(p=>{
+-    const sd=btoa(unescape(encodeURIComponent(p.description)));const isAdm=currentUser&&currentUser.role==='admin';
+-    html+=`<tr><td><input type="checkbox" class="prod-check" data-desc="${sd}" data-spent="${p.total_spent}" onchange="updateMergeBar()"></td><td><a href="#" class="prod-link" onclick="showProductDocs('${esc(p.description.replace(/'/g,"\\'"))}');return false"><strong>${esc(p.description)}</strong></a></td><td style="position:relative">${prodCatBadge(p.description,p.category)}</td><td>${p.purchase_count}</td><td>${p.total_quantity}${p.unit?' '+p.unit:''}</td><td class="amount">${fmtC(p.total_spent)} kr</td><td class="amount">${fmtC(p.avg_unit_price)}</td><td class="text-muted">${p.min_unit_price!=null?fmtC(p.min_unit_price):'—'}</td><td class="text-muted">${p.max_unit_price!=null?fmtC(p.max_unit_price):'—'}</td><td><button class="btn btn-ghost btn-sm" onclick="showPrice('${esc(p.description.replace(/'/g,"\\'"))}')">📈</button>${isAdm?`<button class="btn btn-ghost btn-sm group-edit-btn" onclick="setProductGroup('${esc(p.description.replace(/'/g,"\\'"))}','')" title="Lägg till i grupp">📁</button>`:''}</td></tr>`;
++    const sd=btoa(unescape(encodeURIComponent(p.description)));
++    html+=`<tr><td><input type="checkbox" class="prod-check" data-desc="${sd}" data-spent="${p.total_spent}" onchange="updateMergeBar()"></td><td><a href="#" class="prod-link" onclick="showProductDocs('${esc(p.description.replace(/'/g,"\\'"))}');return false"><strong>${esc(p.description)}</strong></a></td><td style="position:relative">${prodCatBadge(p.description,p.category)}</td><td>${p.purchase_count}</td><td>${p.total_quantity}${p.unit?' '+p.unit:''}</td><td class="amount">${fmtC(p.total_spent)} kr</td><td class="amount">${fmtC(p.avg_unit_price)}</td><td class="text-muted">${p.min_unit_price!=null?fmtC(p.min_unit_price):'—'}</td><td class="text-muted">${p.max_unit_price!=null?fmtC(p.max_unit_price):'—'}</td><td><button class="btn btn-ghost btn-sm" onclick="showPrice('${esc(p.description.replace(/'/g,"\\'"))}')">📈</button></td></tr>`;
+   });
+   tb.innerHTML=html;
+   if(PS>0){const s=prodPage*PS+1,e=Math.min(s+PS-1,d.total);document.getElementById('prod-pag').textContent=d.total>0?`${s}–${e} av ${d.total}`:'';
+@@ -1633,15 +1645,33 @@ function toggleGroupView(){
+   btn.classList.toggle('active',groupViewActive);
+   if(_lastProductData)renderProds(_lastProductData);else loadProducts()}
+ 
+-async function autoDetectGroups(){
+-  if(!confirm('Auto-detektera produktgrupper baserat på gemensamma prefix?\n\nDetta tilldelar grupper till produkter som saknar grupp.'))return;
+-  const btn=document.getElementById('group-auto-btn');btn.disabled=true;btn.textContent='⏳ Detekterar…';
++async function groupSelectedProducts(){
++  const sel=getSelectedProducts();if(sel.length<2)return;
++  // Fetch existing groups
++  let existingGroups=[];
++  try{
++    const r=await authFetch(`${API}/products/groups?limit=0`);
++    if(r.ok){const d=await r.json();existingGroups=(d.groups||[]).map(g=>g.group_name).sort()}
++  }catch(e){}
++  // Build modal
++  const modal=document.createElement('div');modal.className='modal-backdrop open';modal.id='group-modal';
++  const selHtml=sel.slice(0,8).map(s=>`<span class="cat-badge" style="cursor:default;font-size:0.78rem">${esc(s)}</span>`).join('')+(sel.length>8?`<span class="text-muted" style="font-size:0.78rem">… +${sel.length-8} till</span>`:'');
++  let groupListHtml='';
++  if(existingGroups.length){
++    groupListHtml=`<div style="margin:0.75rem 0"><label style="font-size:0.8rem;color:var(--text-secondary)">Befintliga grupper:</label><div style="display:flex;flex-wrap:wrap;gap:0.3rem;margin-top:0.3rem;max-height:120px;overflow-y:auto">${existingGroups.map(g=>`<button class="cat-badge" style="cursor:pointer" onclick="document.getElementById('group-name-input').value='${esc(g)}'">${esc(g)}</button>`).join('')}</div></div>`;
++  }
++  modal.innerHTML=`<div class="modal" style="max-width:480px"><h3 style="margin-bottom:0.5rem">📁 Gruppera produkter</h3><div style="display:flex;flex-wrap:wrap;gap:0.3rem;margin-bottom:1rem">${selHtml}</div><div style="margin-bottom:1rem"><button class="btn btn-primary btn-sm" onclick="doAutoGroup()" id="auto-group-btn">🔍 Auto-gruppera valda</button><span class="text-muted" style="font-size:0.75rem;margin-left:0.5rem">Detekterar gemensamma prefix</span></div><div style="border-top:1px solid var(--border);padding-top:0.75rem"><label style="font-size:0.85rem;font-weight:500">Eller ange gruppnamn manuellt:</label><input type="text" id="group-name-input" class="form-input" style="margin-top:0.3rem" placeholder="T.ex. Oxfilé, Mjölk…">${groupListHtml}</div><div style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:1rem"><button class="btn btn-ghost btn-sm" onclick="closeGroupModal()">Avbryt</button><button class="btn btn-primary btn-sm" onclick="applyManualGroup()">Tilldela grupp</button></div></div>`;
++  document.body.appendChild(modal);
++  document.getElementById('group-name-input').focus();
++}
++function closeGroupModal(){const m=document.getElementById('group-modal');if(m)m.remove()}
++async function doAutoGroup(){
++  const btn=document.getElementById('auto-group-btn');btn.disabled=true;btn.textContent='⏳ Detekterar…';
+   try{
+     const r=await authFetch(`${API}/products/groups/auto-detect`,{method:'POST'});
+     const d=await r.json();const groups=d.groups||{};
+     const count=Object.keys(groups).length;const total=Object.values(groups).reduce((s,v)=>s+v.length,0);
+-    if(!count){alert('Inga nya grupper hittades.');return}
+-    // Show preview
++    if(!count){showToast('Inga nya grupper hittades');btn.disabled=false;btn.textContent='🔍 Auto-gruppera valda';return}
+     let preview=`Hittade ${count} grupper med ${total} produkter:\n\n`;
+     Object.entries(groups).slice(0,10).forEach(([g,members])=>{
+       preview+=`📁 ${g} (${members.length} st)\n`;
+@@ -1653,20 +1683,25 @@ async function autoDetectGroups(){
+     if(!confirm(preview))return;
+     const r2=await authFetch(`${API}/products/groups/apply`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({groups})});
+     const d2=await r2.json();
+-    alert(`✅ ${d2.groups_applied} grupper tilldelade, ${d2.line_items_updated} rader uppdaterade`);
+-    loadProducts();
+-  }catch(e){alert('Fel: '+e.message)}
+-  finally{btn.disabled=false;btn.textContent='🔍 Auto-grupper'}
++    showToast(`✅ ${d2.groups_applied} grupper, ${d2.line_items_updated} rader uppdaterade`);
++    closeGroupModal();clearMergeSelection();loadProducts();
++  }catch(e){showToast('Fel: '+e.message,true)}
++  finally{btn.disabled=false;btn.textContent='🔍 Auto-gruppera valda'}
+ }
+-
+-async function setProductGroup(desc,currentGroup){
+-  const g=prompt(`Ange produktgrupp för "${desc}":\n\n(Lämna tomt för att ta bort grupp)`,currentGroup||'');
+-  if(g===null)return;
++async function applyManualGroup(){
++  const name=document.getElementById('group-name-input').value.trim();
++  if(!name){showToast('Ange ett gruppnamn',true);return}
++  const sel=getSelectedProducts();
+   try{
+-    await authFetch(`${API}/products/groups/set`,{method:'PUT',headers:{'Content-Type':'application/json'},
+-      body:JSON.stringify({description:desc,group_name:g||null})});
+-    loadProducts();
+-  }catch(e){alert('Fel: '+e.message)}
++    let updated=0;
++    for(const desc of sel){
++      await authFetch(`${API}/products/groups/set`,{method:'PUT',headers:{'Content-Type':'application/json'},
++        body:JSON.stringify({description:desc,group_name:name})});
++      updated++;
++    }
++    showToast(`✅ ${updated} produkter tilldelade grupp "${name}"`);
++    closeGroupModal();clearMergeSelection();loadProducts();
++  }catch(e){showToast('Fel: '+e.message,true)}
+ }
+ function debounceProducts(){clearTimeout(pTimer);prodPage=0;pTimer=setTimeout(loadProducts,350)}
+ 
+@@ -1683,6 +1718,8 @@ function updateMergeBar(){
+   const bar=document.getElementById('merge-bar');
+   const mergeBtn=document.getElementById('merge-btn');
+   const discBtn=document.getElementById('discount-link-btn');
++  const grpBtn=document.getElementById('group-selected-btn');
++  const isAdm=currentUser&&currentUser.role==='admin';
+   if(sel.length>=2){
+     bar.style.display='flex';
+     document.getElementById('merge-count').textContent=sel.length+' valda';
+@@ -1694,6 +1731,8 @@ function updateMergeBar(){
+     }else{
+       discBtn.style.display='none';mergeBtn.style.display='';
+     }
++    // Show group button for admin
++    if(grpBtn)grpBtn.style.display=isAdm?'':'none';
+   }else{bar.style.display='none'}
+ }
+ function clearMergeSelection(){
+-- 
+2.43.0
+

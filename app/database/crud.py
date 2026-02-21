@@ -58,6 +58,18 @@ def _ensure_normalized(db: Session) -> None:
                   "ALTER TABLE documents ADD COLUMN file_preview BYTEA")
     _safe_migrate(db, "SELECT product_group FROM line_items LIMIT 1",
                   "ALTER TABLE line_items ADD COLUMN product_group VARCHAR(255)")
+    _safe_migrate(db, "SELECT 1 FROM category_suggestions LIMIT 1",
+                  """CREATE TABLE IF NOT EXISTS category_suggestions (
+                      id SERIAL PRIMARY KEY,
+                      user_id INTEGER NOT NULL REFERENCES users(id),
+                      description TEXT NOT NULL,
+                      current_category VARCHAR(100),
+                      suggested_category VARCHAR(100) NOT NULL,
+                      reason TEXT,
+                      status VARCHAR(20) DEFAULT 'pending',
+                      reviewed_by INTEGER REFERENCES users(id),
+                      reviewed_at TIMESTAMP,
+                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
 
     result = normalize_existing_data(db)
     if result["descriptions_normalized"] or result["categories_normalized"]:
