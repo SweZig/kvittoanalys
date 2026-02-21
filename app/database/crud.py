@@ -1150,13 +1150,15 @@ def backfill_vendors(db: Session) -> dict[str, int]:
 def merge_vendors(
     db: Session, *, source_ids: list[int], target_id: int,
 ) -> dict[str, Any]:
-    """Merge multiple vendors into one. Moves all documents to target, deletes sources."""
+    """Merge multiple vendors into one. Moves all documents to target, deletes sources.
+    Also creates active vendor_normalize rules so future OCR results auto-map."""
     target = db.query(Vendor).filter(Vendor.id == target_id).first()
     if not target:
         return {"error": "Target vendor not found", "documents_moved": 0, "vendors_deleted": 0}
 
     docs_moved = 0
     vendors_deleted = 0
+    rules_created = 0
 
     for src_id in source_ids:
         if src_id == target_id:
@@ -1164,6 +1166,8 @@ def merge_vendors(
         src = db.query(Vendor).filter(Vendor.id == src_id).first()
         if not src:
             continue
+
+        src_name = src.name  # Save before delete
 
         # Move all documents from source to target using direct UPDATE
         # (avoids SQLAlchemy relationship cleanup overwriting vendor_id)
@@ -1177,6 +1181,30 @@ def merge_vendors(
         )
         docs_moved += count
 
+        # Create vendor_normalize rule so future receipts auto-map
+        if src_name and src_name != target.name:
+            # Check if rule already exists
+            existing_rule = db.query(ExtractionRule).filter(
+                ExtractionRule.rule_type == "vendor_normalize",
+                ExtractionRule.condition_value == src_name,
+                ExtractionRule.action_value == target.name,
+            ).first()
+            if not existing_rule:
+                create_rule(
+                    db, name=f"Leverantör: '{src_name}' → '{target.name}'",
+                    description=f"Skapad automatiskt vid sammanslagning av leverantörer",
+                    scope="document", rule_type="vendor_normalize",
+                    condition_field="vendor", condition_operator="equals",
+                    condition_value=src_name, target_field="vendor",
+                    action="set", action_value=target.name,
+                    auto_generated=True, active=True,
+                )
+                rules_created += 1
+            else:
+                # Activate if it already exists but was inactive
+                existing_rule.active = True
+                existing_rule.action_value = target.name
+
         # Now safe to delete — no documents reference this vendor anymore
         db.delete(src)
         vendors_deleted += 1
@@ -1186,6 +1214,7 @@ def merge_vendors(
         "target_name": target.name,
         "documents_moved": docs_moved,
         "vendors_deleted": vendors_deleted,
+        "rules_created": rules_created,
     }
 
 
