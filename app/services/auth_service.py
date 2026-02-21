@@ -99,6 +99,7 @@ def send_email_resend(
             headers={
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
+                "User-Agent": "Kvittoanalys/1.0",
             },
         )
         with urllib.request.urlopen(req, timeout=10) as resp:
