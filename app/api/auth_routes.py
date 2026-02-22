@@ -121,12 +121,20 @@ def _email_kwargs() -> dict:
 
 
 def _user_dict(u: User) -> dict[str, Any]:
+    import json
+    ica_stores = None
+    if u.ica_store_ids:
+        try:
+            ica_stores = json.loads(u.ica_store_ids)
+        except Exception:
+            pass
     return {
         "id": u.id,
         "email": u.email,
         "display_name": u.display_name,
         "role": u.role,
         "city": u.city,
+        "ica_store_ids": ica_stores,
         "is_verified": u.is_verified,
         "is_approved": u.is_approved,
         "is_active": u.is_active,
@@ -159,6 +167,7 @@ class UpdateUserRole(BaseModel):
 class UpdateProfile(BaseModel):
     display_name: str | None = None
     city: str | None = None
+    ica_store_ids: list[dict] | None = None  # [{"id":"1004222","name":"ICA Kvantum Södermalm"}]
 
 class CategorySuggestionRequest(BaseModel):
     description: str
@@ -258,13 +267,16 @@ async def update_me(
     data: UpdateProfile, user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Update own profile (name, city)."""
+    """Update own profile (name, city, ICA stores)."""
     if data.display_name is not None:
         user.display_name = data.display_name
     if data.city is not None:
         user.city = data.city
         # Auto-add city to campaign cities if not present
         _ensure_campaign_city(data.city)
+    if data.ica_store_ids is not None:
+        import json
+        user.ica_store_ids = json.dumps(data.ica_store_ids, ensure_ascii=False)
     db.commit()
     return {"status": "success", "user": _user_dict(user)}
 

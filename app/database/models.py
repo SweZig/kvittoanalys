@@ -35,6 +35,7 @@ class User(Base):
     display_name = Column(String(100), nullable=True)
     role = Column(String(20), nullable=False, default="user")  # admin, superuser, user
     city = Column(String(100), nullable=True)  # onboarding city for campaigns
+    ica_store_ids = Column(Text, nullable=True)  # JSON: [{"id":"1004222","name":"ICA Kvantum Södermalm"}]
     is_verified = Column(Boolean, default=False)    # email verified
     is_approved = Column(Boolean, default=False)    # admin approved (if no SMTP)
     is_active = Column(Boolean, default=True)       # can be deactivated

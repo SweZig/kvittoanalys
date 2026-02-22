@@ -951,7 +951,38 @@ from app.services.campaign_service import (
     get_cities as _get_cities,
     resolve_coordinates as _resolve_coords,
 )
-from app.services.ica_campaign_service import fetch_ica_campaigns as _fetch_ica_campaigns
+from app.services.ica_campaign_service import (
+    fetch_ica_campaigns as _fetch_ica_campaigns,
+    discover_ica_stores as _discover_ica_stores,
+)
+
+
+@router.get("/campaigns/ica-stores", tags=["campaigns"])
+async def discover_ica_stores(
+    city: str | None = Query(None),
+    lat: float | None = Query(None),
+    lon: float | None = Query(None),
+    max_distance_km: float = Query(10.0),
+    save: bool = Query(True, description="Save discovered stores to user profile"),
+    user: User = Depends(get_optional_user),
+    db: Session = Depends(get_db),
+):
+    """Discover ICA stores near a city/coordinates."""
+    coords = _resolve_coords(city, lat, lon)
+    if not coords:
+        raise HTTPException(status_code=400, detail="Ange city eller lat+lon.")
+
+    stores = await _discover_ica_stores(coords[0], coords[1], max_distance_km)
+
+    # Auto-save to user profile
+    if save and user and stores:
+        import json
+        user.ica_store_ids = json.dumps(stores, ensure_ascii=False)
+        if city and not user.city:
+            user.city = city
+        db.commit()
+
+    return {"stores": stores, "saved": save and user is not None}
 
 
 @router.get("/campaigns", tags=["campaigns"])
@@ -963,7 +994,8 @@ async def get_campaigns(
     max_stores: int = Query(30),
     chain: str | None = Query(None, description="Filter by chain name"),
     match_products: bool = Query(False, description="Cross-reference with purchased products"),
-    ica_store_id: str | None = Query(None, description="ICA store ID for direct scraping (e.g. 1004222)"),
+    ica_store_id: str | None = Query(None, description="ICA store ID for direct scraping"),
+    user: User | None = Depends(get_optional_user),
     db: Session = Depends(get_db),
 ):
     """Fetch current campaigns with ICA direct scraping + matpriskollen fallback."""
@@ -980,36 +1012,50 @@ async def get_campaigns(
 
     data["city"] = city.capitalize() if city else f"{resolved_lat},{resolved_lon}"
 
-    # ── ICA Direct scraping (if store_id provided) ──
+    # ── Resolve ICA store IDs: explicit param > user profile > auto-discover ──
+    ica_ids_to_try: list[str] = []
     if ica_store_id:
+        ica_ids_to_try = [ica_store_id]
+    elif user and user.ica_store_ids:
+        import json
         try:
-            ica_result = await _fetch_ica_campaigns(
-                store_id=ica_store_id,
-                lat=resolved_lat,
-                lon=resolved_lon,
-                max_distance_km=max_distance_km,
-            )
-            if ica_result.get("source") == "ica_direct" and ica_result.get("offers"):
-                # Replace ICA chain(s) in matpriskollen data with direct data
-                non_ica_chains = [c for c in data.get("chains", []) if "ica" not in c["chain"].lower()]
-                ica_chain = {
-                    "chain": "ICA",
-                    "stores": [f"ICA (butik {ica_store_id})"],
-                    "total_offers": len(ica_result["offers"]),
-                    "offers": ica_result["offers"],
-                    "source": "ica_direct",
-                }
-                data["chains"] = [ica_chain] + non_ica_chains
-                data["total_offers"] = sum(c["total_offers"] for c in data["chains"])
-                data["ica_source"] = "ica_direct"
-            else:
-                # Direct failed — keep matpriskollen ICA data (already in response)
+            saved = json.loads(user.ica_store_ids)
+            ica_ids_to_try = [s["id"] for s in saved if s.get("id")]
+        except Exception:
+            pass
+
+    # ── ICA Direct scraping (try each store until success) ──
+    if ica_ids_to_try:
+        for sid in ica_ids_to_try:
+            try:
+                ica_result = await _fetch_ica_campaigns(
+                    store_id=sid,
+                    lat=resolved_lat,
+                    lon=resolved_lon,
+                    max_distance_km=max_distance_km,
+                )
+                if ica_result.get("source") == "ica_direct" and ica_result.get("offers"):
+                    # Replace ICA chain(s) in matpriskollen data with direct data
+                    non_ica_chains = [c for c in data.get("chains", []) if "ica" not in c["chain"].lower()]
+                    ica_chain = {
+                        "chain": "ICA",
+                        "stores": [f"ICA (butik {sid})"],
+                        "total_offers": len(ica_result["offers"]),
+                        "offers": ica_result["offers"],
+                        "source": "ica_direct",
+                    }
+                    data["chains"] = [ica_chain] + non_ica_chains
+                    data["total_offers"] = sum(c["total_offers"] for c in data["chains"])
+                    data["ica_source"] = "ica_direct"
+                    data["ica_store_id"] = sid
+                    break  # First success wins
+                else:
+                    data["ica_source"] = "matpriskollen"
+                    data["ica_fallback_reason"] = ica_result.get("fallback_reason")
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning("ICA direct failed for %s: %s", sid, e)
                 data["ica_source"] = "matpriskollen"
-                data["ica_fallback_reason"] = ica_result.get("fallback_reason")
-        except Exception as e:
-            import logging
-            logging.getLogger(__name__).warning("ICA direct failed, keeping matpriskollen data: %s", e)
-            data["ica_source"] = "matpriskollen"
 
     # Filter by chain if requested
     if chain:

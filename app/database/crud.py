@@ -58,6 +58,8 @@ def _ensure_normalized(db: Session) -> None:
                   "ALTER TABLE documents ADD COLUMN file_preview BYTEA")
     _safe_migrate(db, "SELECT product_group FROM line_items LIMIT 1",
                   "ALTER TABLE line_items ADD COLUMN product_group VARCHAR(255)")
+    _safe_migrate(db, "SELECT ica_store_ids FROM users LIMIT 1",
+                  "ALTER TABLE users ADD COLUMN ica_store_ids TEXT")
     _safe_migrate(db, "SELECT 1 FROM category_suggestions LIMIT 1",
                   """CREATE TABLE IF NOT EXISTS category_suggestions (
                       id SERIAL PRIMARY KEY,

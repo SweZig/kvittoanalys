@@ -618,7 +618,6 @@
           <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.82rem;color:var(--text-secondary);cursor:pointer;">
             <input type="checkbox" id="camp-match-only" onchange="renderCampaigns()"> Bara mina varor
           </label>
-          <input type="text" id="camp-ica-store" placeholder="ICA butiks-ID" title="ICA butiks-ID för direkthämtning (t.ex. 1004222)" style="width:110px;padding:0.35rem 0.5rem;border-radius:var(--radius);border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:0.78rem;" onchange="loadCampaigns()">
           <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.82rem;color:var(--text-secondary);cursor:pointer;">
             <input type="checkbox" id="camp-deals-only" onchange="renderCampaigns()"> 🔥 Bästa erbjudanden
           </label>
@@ -2129,16 +2128,49 @@ async function loadCampaignCities(){
   }
 }
 
+let _campIcaStores=null; // cached ICA stores for current city
+let _campLastCity=null;
+
+async function _ensureIcaStores(city){
+  // If city unchanged and we have stores, skip
+  if(city===_campLastCity && _campIcaStores!==null) return;
+  _campLastCity=city;
+
+  // Check if user already has saved ICA stores for this city
+  if(currentUser?.ica_store_ids?.length && currentUser.city?.toLowerCase()===city.toLowerCase()){
+    _campIcaStores=currentUser.ica_store_ids;
+    return;
+  }
+
+  // Auto-discover ICA stores for this city
+  try{
+    const r=await authFetch(`${API}/campaigns/ica-stores?city=${encodeURIComponent(city)}&save=true`);
+    if(r.ok){
+      const d=await r.json();
+      _campIcaStores=d.stores||[];
+      // Update local user data
+      if(currentUser) currentUser.ica_store_ids=_campIcaStores;
+    }else{
+      _campIcaStores=[];
+    }
+  }catch(e){
+    _campIcaStores=[];
+  }
+}
+
 async function loadCampaigns(){
   await loadCampaignCities();
   const city=document.getElementById('camp-city').value;
   if(!city){document.getElementById('camp-content').innerHTML='<div class="empty-state">Välj en ort för att visa kampanjer</div>';document.getElementById('camp-summary').textContent='';return}
-  const icaStore=(document.getElementById('camp-ica-store').value||'').trim();
   const el=document.getElementById('camp-content');
   el.innerHTML='<div class="loading"><div class="spinner"></div></div>';
   document.getElementById('camp-summary').textContent='Hämtar kampanjer…';
+
+  // Auto-discover ICA stores in background
+  await _ensureIcaStores(city);
+
   try{
-    const r=await authFetch(`${API}/campaigns?city=${encodeURIComponent(city)}&match_products=true${icaStore?'&ica_store_id='+encodeURIComponent(icaStore):''}`);
+    const r=await authFetch(`${API}/campaigns?city=${encodeURIComponent(city)}&match_products=true`);
     if(!r.ok){const e=await r.json();throw new Error(e.detail||`HTTP ${r.status}`)}
     _campData=await r.json();
     // Populate chain filter
@@ -2288,6 +2320,10 @@ function renderCampaigns(){
   if(totalDeals)info+=` · 🔥 ${totalDeals} bra erbjudanden`;
   if(_campData.ica_source==='ica_direct')info+=` · 🟢 ICA direkt`;
   else if(_campData.ica_source==='matpriskollen')info+=` · 🔵 ICA via Matpriskollen`;
+  if(_campIcaStores?.length){
+    const withId=_campIcaStores.filter(s=>s.id).length;
+    if(withId)info+=` · 🏪 ${withId} ICA-butik${withId>1?'er':''}`;
+  }
   document.getElementById('camp-summary').textContent=info;
 }
 
@@ -2300,7 +2336,7 @@ function _calcSavings(priceStr,regularStr){
   return pct>0?'-'+pct+'%':'';
 }
 
-document.getElementById('camp-city').addEventListener('change',loadCampaigns);
+document.getElementById('camp-city').addEventListener('change',()=>{_campIcaStores=null;_campLastCity=null;loadCampaigns()});
 document.getElementById('camp-chain-filter').addEventListener('change',renderCampaigns);
 
 // Documents
