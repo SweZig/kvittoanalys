@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Header, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Header, Query, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -183,7 +183,10 @@ class SuggestionAction(BaseModel):
 # ── Registration & Login ─────────────────────────────────────────────
 
 @router.post("/register")
-async def register(data: RegisterRequest, db: Session = Depends(get_db)):
+async def register(
+    data: RegisterRequest, background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
     """Register a new user account."""
     if len(data.password) < 6:
         raise HTTPException(status_code=400, detail="Lösenordet måste vara minst 6 tecken")
@@ -208,6 +211,10 @@ async def register(data: RegisterRequest, db: Session = Depends(get_db)):
     db.add(user)
     db.commit()
     db.refresh(user)
+
+    # Auto-discover ICA stores for user's city
+    if data.city:
+        background_tasks.add_task(_auto_discover_ica_stores, user.id, data.city)
 
     # Send verification email if email provider configured
     email_sent = False
@@ -265,16 +272,21 @@ async def get_me(user: User = Depends(get_current_user)):
 
 @router.put("/me")
 async def update_me(
-    data: UpdateProfile, user: User = Depends(get_current_user),
+    data: UpdateProfile, background_tasks: BackgroundTasks,
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Update own profile (name, city, ICA stores)."""
     if data.display_name is not None:
         user.display_name = data.display_name
     if data.city is not None:
+        city_changed = (user.city or "").lower().strip() != data.city.lower().strip()
         user.city = data.city
         # Auto-add city to campaign cities if not present
         _ensure_campaign_city(data.city)
+        # Auto-discover ICA stores if city changed
+        if city_changed and data.ica_store_ids is None:
+            background_tasks.add_task(_auto_discover_ica_stores, user.id, data.city)
     if data.ica_store_ids is not None:
         import json
         user.ica_store_ids = json.dumps(data.ica_store_ids, ensure_ascii=False)
@@ -292,6 +304,45 @@ def _ensure_campaign_city(city: str):
             print(f"📍 Ny ort '{city}' — läggs till i kampanjsökning vid nästa API-uppdatering")
     except Exception:
         pass
+
+
+async def _auto_discover_ica_stores(user_id: int, city: str):
+    """Background task: discover ICA Handla stores and save to user profile."""
+    import json
+    import logging
+    logger = logging.getLogger(__name__)
+    try:
+        from app.services.campaign_service import resolve_coordinates
+        from app.services.ica_campaign_service import discover_ica_stores
+
+        coords = resolve_coordinates(city, None, None)
+        if not coords:
+            logger.info("Auto-discover ICA: kunde inte resolva koordinater för '%s'", city)
+            return
+
+        stores = await discover_ica_stores(coords[0], coords[1], city=city)
+        stores_with_id = [s for s in stores if s.get("id")]
+
+        if not stores_with_id:
+            logger.info("Auto-discover ICA: inga butiker med ID hittade för '%s'", city)
+            return
+
+        # Save to user in a new DB session (background task)
+        from app.database.database import SessionLocal
+        db = SessionLocal()
+        try:
+            user = db.query(User).filter(User.id == user_id).first()
+            if user:
+                user.ica_store_ids = json.dumps(stores_with_id, ensure_ascii=False)
+                db.commit()
+                logger.info(
+                    "Auto-discover ICA: sparade %d butiker för user %d (%s)",
+                    len(stores_with_id), user_id, city,
+                )
+        finally:
+            db.close()
+    except Exception as e:
+        logger.warning("Auto-discover ICA misslyckades för user %d: %s", user_id, e)
 
 
 # ── Email verification ───────────────────────────────────────────────
