@@ -554,72 +554,142 @@ async def check_ica_health(store_id: str) -> dict:
 
 # ─── Store Discovery ────────────────────────────────────────────────────────
 
-ICA_STORE_API = "https://api.ica.se/api/stores/search"
+# ica.se/butiker/handla-online/{city}/ lists ALL ICA stores with online shopping
+# This is server-rendered HTML (not SPA) and contains handlaprivatkund.ica.se/stores/{id} links
+ICA_SE_STORES_URL = "https://www.ica.se/butiker/handla-online/{city}/"
 
-# Verified ICA Handla store IDs for common stores (handlaprivatkund.ica.se)
-# These are web shop IDs, NOT physical store IDs
-_KNOWN_ICA_STORES: dict[str, list[dict]] = {
-    # Stockholm
-    "stockholm": [
-        {"id": "1004222", "name": "ICA Kvantum Södermalm"},
-        {"id": "1004191", "name": "ICA Nära Stadshagen"},
-        {"id": "1004257", "name": "ICA Supermarket Reimersholme"},
-    ],
-    "södermalm": [{"id": "1004222", "name": "ICA Kvantum Södermalm"}],
-    "kungsholmen": [{"id": "1004191", "name": "ICA Nära Stadshagen"}],
-    # Göteborg
-    "göteborg": [
-        {"id": "1011759", "name": "ICA Maxi Göteborg"},
-    ],
-    # Malmö
-    "malmö": [
-        {"id": "1007735", "name": "ICA Maxi Malmö"},
-    ],
+# Common Swedish city name → URL slug mapping
+_CITY_SLUGS: dict[str, str] = {
+    "stockholm": "stockholm",
+    "göteborg": "goteborg",
+    "gothenburg": "goteborg",
+    "malmö": "malmo",
+    "uppsala": "uppsala",
+    "västerås": "vasteras",
+    "örebro": "orebro",
+    "linköping": "linkoping",
+    "norrköping": "norrkoping",
+    "helsingborg": "helsingborg",
+    "jönköping": "jonkoping",
+    "umeå": "umea",
+    "lund": "lund",
+    "borås": "boras",
+    "sundsvall": "sundsvall",
+    "gävle": "gavle",
+    "eskilstuna": "eskilstuna",
+    "karlstad": "karlstad",
+    "växjö": "vaxjo",
+    "halmstad": "halmstad",
+    "luleå": "lulea",
+    "trollhättan": "trollhattan",
+    "östersund": "ostersund",
+    "borlänge": "borlange",
+    "falun": "falun",
+    "kalmar": "kalmar",
+    "skövde": "skovde",
+    "kristianstad": "kristianstad",
+    "karlskrona": "karlskrona",
+    "skellefteå": "skelleftea",
+    "uddevalla": "uddevalla",
+    "varberg": "varberg",
+    "nyköping": "nykoping",
+    "lidingö": "lidingo",
+    "sollentuna": "sollentuna",
+    "nacka": "nacka",
+    "täby": "taby",
+    "huddinge": "huddinge",
+    "södertälje": "sodertalje",
+    "tumba": "tumba",
+    "solna": "solna",
+    "sundbyberg": "sundbyberg",
+    "tyresö": "tyreso",
+    "järfälla": "jarfalla",
+    "sandviken": "sandviken",
+    "ockelbo": "ockelbo",
+    "hofors": "hofors",
+    "gävle": "gavle",
 }
 
 
-async def _probe_ica_store(client: httpx.AsyncClient, store_id: str) -> bool:
-    """Snabbtest: returnerar True om butiken har en kategorisida."""
-    try:
-        resp = await client.get(
-            f"{ICA_BASE}/stores/{store_id}/categories",
-            headers=_HEADERS,
-            timeout=8.0,
-        )
-        return resp.status_code == 200 and len(resp.text) > 1000
-    except Exception:
-        return False
+def _city_to_slug(city: str) -> str:
+    """Konverterar stadsnamn till URL-slug för ica.se."""
+    city_lower = city.lower().strip()
+    if city_lower in _CITY_SLUGS:
+        return _CITY_SLUGS[city_lower]
+    # Generisk: byt åäö → aao, ta bort specialtecken
+    slug = city_lower
+    for src, dst in [("å", "a"), ("ä", "a"), ("ö", "o"), ("é", "e"), ("ü", "u")]:
+        slug = slug.replace(src, dst)
+    slug = re.sub(r"[^a-z0-9-]", "", slug.replace(" ", "-"))
+    return slug
 
 
-async def _search_ica_api(
-    client: httpx.AsyncClient, lat: float, lon: float, max_results: int = 10,
+async def _discover_from_ica_se(
+    client: httpx.AsyncClient, city: str, max_stores: int = 5,
 ) -> list[dict]:
     """
-    Sök ICA-butiker via api.ica.se (publik, ingen auth).
-    Returnerar [{"storeId": "...", "storeName": "...", ...}]
+    Hämtar ICA Handla-butiker från ica.se/butiker/handla-online/{city}/.
+    Denna sida är server-renderad HTML och innehåller
+    handlaprivatkund.ica.se/stores/{storeId}-länkar.
     """
+    slug = _city_to_slug(city)
+    url = ICA_SE_STORES_URL.format(city=slug)
+
     try:
-        resp = await client.get(
-            ICA_STORE_API,
-            params={
-                "Latitude": str(lat),
-                "Longitude": str(lon),
-                "MaxResults": max_results,
-                "filters": "online",  # Butiker med webbhandel
-            },
-            headers={
-                "Accept": "application/json",
-                "User-Agent": _HEADERS["User-Agent"],
-            },
-            timeout=10.0,
-        )
-        if resp.status_code == 200:
-            data = resp.json()
-            stores = data if isinstance(data, list) else data.get("results", data.get("stores", []))
-            return stores
+        resp = await client.get(url, headers={
+            "User-Agent": _HEADERS["User-Agent"],
+            "Accept": "text/html,application/xhtml+xml,*/*",
+        }, timeout=12.0)
+
+        if resp.status_code != 200:
+            logger.info("ica.se butikssida %s → HTTP %d", url, resp.status_code)
+            return []
+
+        html = resp.text
     except Exception as e:
-        logger.info("ICA store API ej tillgängligt: %s", e)
-    return []
+        logger.warning("ica.se butikssida misslyckades: %s", e)
+        return []
+
+    # Extrahera alla handlaprivatkund.ica.se/stores/{id}-länkar
+    store_pattern = re.compile(r"handlaprivatkund\.ica\.se/stores/(\d{5,8})")
+    found_ids: dict[str, str] = {}  # id → name
+
+    soup = BeautifulSoup(html, "html.parser")
+    for a_tag in soup.find_all("a", href=store_pattern):
+        m = store_pattern.search(a_tag["href"])
+        if not m:
+            continue
+        sid = m.group(1)
+        if sid in found_ids:
+            continue
+
+        # Hitta butiksnamnet: det finns i den närmaste överliggande butikslänken
+        # eller i sibling-text som "ICA Nära Banér"
+        name = ""
+        # Kontrollera butikssidan-länk i närheten
+        parent = a_tag.find_parent(["div", "li", "section", "article"])
+        if parent:
+            # Sök efter "ICA ..." i texten
+            for text in parent.stripped_strings:
+                if text.startswith("ICA "):
+                    name = text
+                    break
+            # Alternativt: a-tag till ica.se/butiker/ som innehåller butiksnamn
+            if not name:
+                store_link = parent.find("a", href=re.compile(r"ica\.se/butiker/"))
+                if store_link:
+                    link_text = store_link.get_text(strip=True)
+                    if link_text.startswith("ICA ") or "ica" in link_text.lower():
+                        name = link_text
+
+        if not name:
+            name = a_tag.get_text(strip=True) or f"ICA (butik {sid})"
+
+        found_ids[sid] = name
+
+    stores = [{"id": sid, "name": name, "source": "ica_se"} for sid, name in found_ids.items()]
+    logger.info("ica.se: Hittade %d ICA Handla-butiker i %s", len(stores), city)
+    return stores[:max_stores]
 
 
 async def discover_ica_stores(
@@ -630,65 +700,25 @@ async def discover_ica_stores(
     city: str | None = None,
 ) -> list[dict]:
     """
-    Upptäcker ICA Handla-butiker nära angiven position.
+    Upptäcker ICA Handla-butiker med online-shopping.
 
-    Tre strategier i prioritetsordning:
-    1. ICA:s publika butiks-API (api.ica.se) → pålitligast
-    2. Kända/verifierade butiks-IDn per stad → snabbast
-    3. Matpriskollen-namn + probe-validering → sista utväg
+    Primär källa: ica.se/butiker/handla-online/{stad}/ (server-renderad, pålitlig)
+    Fallback:     matpriskollen-namn (utan Handla-ID)
 
-    Returnerar: [{"id": "1004222", "name": "ICA Kvantum Södermalm", "distance_km": "1.2"}, ...]
+    Returnerar: [{"id": "1004222", "name": "ICA Kvantum Södermalm", ...}, ...]
     """
-    results: list[dict] = []
-
     async with httpx.AsyncClient(follow_redirects=True, timeout=20.0) as client:
 
-        # ── Strategi 1: ICA:s butiks-API ──
-        api_stores = await _search_ica_api(client, lat, lon, max_stores * 2)
-        if api_stores:
-            logger.info("ICA API: %d butiker hittades", len(api_stores))
-            for s in api_stores[:max_stores * 2]:
-                sid = str(s.get("storeId") or s.get("id") or s.get("store_id") or "")
-                name = s.get("storeName") or s.get("name") or ""
-                if sid and "ica" in name.lower():
-                    results.append({
-                        "id": sid,
-                        "name": name,
-                        "distance_km": str(s.get("distance", "?")),
-                        "source": "ica_api",
-                    })
-
-            # Validera att butikerna har Handla-websida
-            if results:
-                validated = []
-                probe_tasks = [_probe_ica_store(client, s["id"]) for s in results[:max_stores]]
-                probe_results = await asyncio.gather(*probe_tasks, return_exceptions=True)
-                for store, ok in zip(results[:max_stores], probe_results):
-                    if ok is True:
-                        validated.append(store)
-                    else:
-                        logger.info("ICA probe: butik %s (%s) saknar Handla-sida", store["id"], store["name"])
-                if validated:
-                    logger.info("ICA API → %d validerade butiker", len(validated))
-                    return validated[:max_stores]
-
-        # ── Strategi 2: Kända butiks-IDn per stad ──
+        # ── Primär: ica.se butikslista ──
         if city:
-            city_key = city.lower().strip()
-            known = _KNOWN_ICA_STORES.get(city_key, [])
-            if known:
-                # Probe-validera de kända butikerna
-                probe_tasks = [_probe_ica_store(client, s["id"]) for s in known]
-                probe_results = await asyncio.gather(*probe_tasks, return_exceptions=True)
-                validated = []
-                for store, ok in zip(known, probe_results):
-                    if ok is True:
-                        validated.append({**store, "source": "known_cache"})
-                if validated:
-                    logger.info("Kända ICA-butiker: %d validerade för %s", len(validated), city)
-                    return validated[:max_stores]
+            stores = await _discover_from_ica_se(client, city, max_stores)
+            if stores:
+                return stores
 
-        # ── Strategi 3: Matpriskollen-namn (utan ID, för info) ──
+            # Försök utan å/ä/ö-konvertering (ibland fungerar originalnamn)
+            logger.info("discover_ica_stores: försöker alternativ slug för '%s'", city)
+
+        # ── Fallback: Matpriskollen ──
         try:
             resp = await client.get(f"{MPK_BASE}/stores", params={"lat": lat, "lon": lon})
             resp.raise_for_status()
@@ -701,7 +731,7 @@ async def discover_ica_stores(
             mpk_ica.sort(key=lambda s: float(s.get("dist", "999")))
 
             if mpk_ica:
-                logger.info("Matpriskollen: %d ICA-butiker (utan Handla-ID)", len(mpk_ica))
+                logger.info("Matpriskollen fallback: %d ICA-butiker", len(mpk_ica))
                 return [{
                     "id": None,
                     "name": s.get("name", ""),
@@ -709,7 +739,7 @@ async def discover_ica_stores(
                     "source": "matpriskollen",
                 } for s in mpk_ica[:max_stores]]
         except Exception as e:
-            logger.warning("Matpriskollen store-sökning misslyckades: %s", e)
+            logger.warning("Matpriskollen misslyckades: %s", e)
 
     logger.info("discover_ica_stores: inga butiker hittades")
-    return results
+    return []
