@@ -988,11 +988,23 @@ async def campaign_status(
 
     # Check ICA direct
     ica_store_id = None
-    if user and user.ica_store_ids:
+    request_city = (city or "").lower().strip()
+    user_city = (user.city or "").lower().strip() if user else ""
+
+    # 1. Use saved stores if city matches
+    if user and user.ica_store_ids and request_city == user_city:
         import json
         try:
             saved = json.loads(user.ica_store_ids)
             ica_store_id = next((s["id"] for s in saved if s.get("id")), None)
+        except Exception:
+            pass
+
+    # 2. Auto-discover if no match (same logic as campaign endpoint)
+    if not ica_store_id and coords:
+        try:
+            stores = await _discover_ica_stores(coords[0], coords[1], city=city)
+            ica_store_id = next((s["id"] for s in stores if s.get("id")), None)
         except Exception:
             pass
 
@@ -1008,7 +1020,7 @@ async def campaign_status(
         except Exception as e:
             result["ica_direct"] = {"status": "red", "store_id": ica_store_id, "error": str(e)[:100]}
     else:
-        result["ica_direct"] = {"status": "amber", "reason": "Inget ICA butiks-ID sparat"}
+        result["ica_direct"] = {"status": "red", "reason": f"Inga ICA Handla-butiker hittades för {city}"}
 
     return result
 
