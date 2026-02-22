@@ -618,6 +618,7 @@
           <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.82rem;color:var(--text-secondary);cursor:pointer;">
             <input type="checkbox" id="camp-match-only" onchange="renderCampaigns()"> Bara mina varor
           </label>
+          <input type="text" id="camp-ica-store" placeholder="ICA butiks-ID" title="ICA butiks-ID för direkthämtning (t.ex. 1004222)" style="width:110px;padding:0.35rem 0.5rem;border-radius:var(--radius);border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:0.78rem;" onchange="loadCampaigns()">
           <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.82rem;color:var(--text-secondary);cursor:pointer;">
             <input type="checkbox" id="camp-deals-only" onchange="renderCampaigns()"> 🔥 Bästa erbjudanden
           </label>
@@ -2132,11 +2133,12 @@ async function loadCampaigns(){
   await loadCampaignCities();
   const city=document.getElementById('camp-city').value;
   if(!city){document.getElementById('camp-content').innerHTML='<div class="empty-state">Välj en ort för att visa kampanjer</div>';document.getElementById('camp-summary').textContent='';return}
+  const icaStore=(document.getElementById('camp-ica-store').value||'').trim();
   const el=document.getElementById('camp-content');
   el.innerHTML='<div class="loading"><div class="spinner"></div></div>';
   document.getElementById('camp-summary').textContent='Hämtar kampanjer…';
   try{
-    const r=await authFetch(`${API}/campaigns?city=${encodeURIComponent(city)}&match_products=true`);
+    const r=await authFetch(`${API}/campaigns?city=${encodeURIComponent(city)}&match_products=true${icaStore?'&ica_store_id='+encodeURIComponent(icaStore):''}`);
     if(!r.ok){const e=await r.json();throw new Error(e.detail||`HTTP ${r.status}`)}
     _campData=await r.json();
     // Populate chain filter
@@ -2284,6 +2286,8 @@ function renderCampaigns(){
   let info=`${city}: ${totalShown} erbjudanden visas`;
   if(totalMatched)info+=` · ${totalMatched} matchar dina varor`;
   if(totalDeals)info+=` · 🔥 ${totalDeals} bra erbjudanden`;
+  if(_campData.ica_source==='ica_direct')info+=` · 🟢 ICA direkt`;
+  else if(_campData.ica_source==='matpriskollen')info+=` · 🔵 ICA via Matpriskollen`;
   document.getElementById('camp-summary').textContent=info;
 }
 

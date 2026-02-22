@@ -951,6 +951,7 @@ from app.services.campaign_service import (
     get_cities as _get_cities,
     resolve_coordinates as _resolve_coords,
 )
+from app.services.ica_campaign_service import fetch_ica_campaigns as _fetch_ica_campaigns
 
 
 @router.get("/campaigns", tags=["campaigns"])
@@ -962,9 +963,10 @@ async def get_campaigns(
     max_stores: int = Query(30),
     chain: str | None = Query(None, description="Filter by chain name"),
     match_products: bool = Query(False, description="Cross-reference with purchased products"),
+    ica_store_id: str | None = Query(None, description="ICA store ID for direct scraping (e.g. 1004222)"),
     db: Session = Depends(get_db),
 ):
-    """Fetch current campaigns from matpriskollen.se with optional product matching."""
+    """Fetch current campaigns with ICA direct scraping + matpriskollen fallback."""
     coords = _resolve_coords(city, lat, lon)
     if not coords:
         raise HTTPException(status_code=400, detail="Ange city eller lat+lon. Orten hittades inte.")
@@ -977,6 +979,37 @@ async def get_campaigns(
         raise HTTPException(status_code=502, detail=f"Kunde inte hämta kampanjer från matpriskollen: {e}")
 
     data["city"] = city.capitalize() if city else f"{resolved_lat},{resolved_lon}"
+
+    # ── ICA Direct scraping (if store_id provided) ──
+    if ica_store_id:
+        try:
+            ica_result = await _fetch_ica_campaigns(
+                store_id=ica_store_id,
+                lat=resolved_lat,
+                lon=resolved_lon,
+                max_distance_km=max_distance_km,
+            )
+            if ica_result.get("source") == "ica_direct" and ica_result.get("offers"):
+                # Replace ICA chain(s) in matpriskollen data with direct data
+                non_ica_chains = [c for c in data.get("chains", []) if "ica" not in c["chain"].lower()]
+                ica_chain = {
+                    "chain": "ICA",
+                    "stores": [f"ICA (butik {ica_store_id})"],
+                    "total_offers": len(ica_result["offers"]),
+                    "offers": ica_result["offers"],
+                    "source": "ica_direct",
+                }
+                data["chains"] = [ica_chain] + non_ica_chains
+                data["total_offers"] = sum(c["total_offers"] for c in data["chains"])
+                data["ica_source"] = "ica_direct"
+            else:
+                # Direct failed — keep matpriskollen ICA data (already in response)
+                data["ica_source"] = "matpriskollen"
+                data["ica_fallback_reason"] = ica_result.get("fallback_reason")
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning("ICA direct failed, keeping matpriskollen data: %s", e)
+            data["ica_source"] = "matpriskollen"
 
     # Filter by chain if requested
     if chain:
