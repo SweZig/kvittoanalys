@@ -618,6 +618,9 @@
           <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.82rem;color:var(--text-secondary);cursor:pointer;">
             <input type="checkbox" id="camp-match-only" onchange="renderCampaigns()"> Bara mina varor
           </label>
+          <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.82rem;color:var(--text-secondary);cursor:pointer;">
+            <input type="checkbox" id="camp-deals-only" onchange="renderCampaigns()"> 🔥 Bästa erbjudanden
+          </label>
         </div>
         <div style="display:flex;gap:0.5rem;align-items:center;">
           <button class="btn btn-ghost btn-sm" id="camp-view-toggle" onclick="toggleCampView()" title="Byt vy">🏪 Per kedja</button>
@@ -2202,6 +2205,7 @@ function renderCampaigns(){
   if(!_campData){document.getElementById('camp-content').innerHTML='<div class="empty-state">Välj en ort</div>';return}
   const chainFilter=document.getElementById('camp-chain-filter').value.toLowerCase();
   const matchOnly=document.getElementById('camp-match-only').checked;
+  const dealsOnly=document.getElementById('camp-deals-only').checked;
   const search=(document.getElementById('camp-search').value||'').toLowerCase();
 
   // Collect all offers with filters applied
@@ -2218,6 +2222,7 @@ function renderCampaigns(){
       return n.includes(search)||b.includes(search)||cat.includes(search);
     });
     if(matchOnly)offers=offers.filter(o=>o.matches_purchased);
+    if(dealsOnly)offers=offers.filter(o=>{const cp=_parseCampPrice(o.price);return o.user_median_price&&cp&&((o.user_median_price-cp)/o.user_median_price)>=0.05});
     offers.forEach(o=>o._chain=ch.chain);
     allOffers.push(...offers);
   }
