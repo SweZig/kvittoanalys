@@ -1028,7 +1028,7 @@ async def discover_ica_stores(
     if not coords:
         raise HTTPException(status_code=400, detail="Ange city eller lat+lon.")
 
-    stores = await _discover_ica_stores(coords[0], coords[1], max_distance_km)
+    stores = await _discover_ica_stores(coords[0], coords[1], max_distance_km, city=city)
 
     # Auto-save to user profile
     if save and user and stores:
