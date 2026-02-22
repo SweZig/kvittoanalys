@@ -357,7 +357,7 @@
     .login-box select{width:100%;padding:0.6rem 0.8rem;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:0.9rem;margin-bottom:0.9rem;font-family:var(--font)}
 
     /* ── User management ─────────────────────── */
-    .user-row{display:grid;grid-template-columns:1fr 120px 100px 80px 80px 120px;align-items:center;gap:0.5rem;padding:0.6rem 0.8rem;border-bottom:1px solid var(--border);font-size:0.85rem}
+    .user-row{display:grid;grid-template-columns:1fr 120px 80px 100px 80px 80px 120px;align-items:center;gap:0.5rem;padding:0.6rem 0.8rem;border-bottom:1px solid var(--border);font-size:0.85rem}
     .user-row:hover{background:var(--bg-card-hover)}
     .user-row .email{color:var(--text-primary);font-weight:500}
     .user-row .role-badge{padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:600;text-transform:uppercase}
@@ -685,6 +685,10 @@
           <button class="btn btn-ghost filter-chip" onclick="showUsersTab('suggestions',this)">Kategoriförslag <span id="suggestion-count" style="background:var(--accent-rose);color:#fff;border-radius:50%;padding:0 6px;font-size:0.7rem;margin-left:4px;display:none">0</span></button>
         </div>
       </div>
+      <div id="campaign-status-panel" style="margin-bottom:1.2rem;padding:0.8rem;background:var(--bg-secondary);border-radius:var(--radius);border:1px solid var(--border);display:none">
+        <div style="font-size:0.78rem;font-weight:600;color:var(--text-secondary);margin-bottom:0.5rem">Kampanjkällor</div>
+        <div style="display:flex;gap:1.5rem;flex-wrap:wrap" id="campaign-rag-indicators"></div>
+      </div>
       <div id="users-tab">
         <div style="display:flex;justify-content:flex-end;margin-bottom:1rem">
           <button class="btn btn-danger" style="font-size:0.78rem" onclick="deleteAllDocuments()">🗑️ Radera alla dokument</button>
@@ -693,8 +697,8 @@
           <h4 style="color:var(--accent-amber);margin-bottom:0.5rem">⏳ Väntande godkännande</h4>
           <div id="pending-users-list"></div>
         </div>
-        <div style="border-bottom:2px solid var(--border);padding:0.4rem 0.8rem;font-size:0.75rem;color:var(--text-muted);display:grid;grid-template-columns:1fr 120px 100px 80px 80px 120px;gap:0.5rem">
-          <span>E-post</span><span>Namn</span><span>Roll</span><span>Status</span><span>Dok</span><span>Åtgärd</span>
+        <div style="border-bottom:2px solid var(--border);padding:0.4rem 0.8rem;font-size:0.75rem;color:var(--text-muted);display:grid;grid-template-columns:1fr 120px 80px 100px 80px 80px 120px;gap:0.5rem">
+          <span>E-post</span><span>Namn</span><span>Ort</span><span>Roll</span><span>Status</span><span>Dok</span><span>Åtgärd</span>
         </div>
         <div id="users-list"></div>
       </div>
@@ -1040,6 +1044,7 @@ async function loadUsers(){
       pendDiv.style.display='block';
       pendList.innerHTML=pending.map(u=>`<div class="user-row">
         <span class="email">${esc(u.email)}</span><span>${esc(u.display_name||'')}</span>
+        <span>${esc(u.city||'—')}</span>
         <span class="role-badge role-${u.role}">${u.role}</span><span style="color:var(--accent-amber)">Väntande</span>
         <span>—</span>
         <button class="btn btn-ghost" style="font-size:0.8rem;padding:2px 8px" onclick="approveUser(${u.id})">✓ Godkänn</button>
@@ -1049,6 +1054,7 @@ async function loadUsers(){
       const dc=counts[u.id]||0;
       return`<div class="user-row">
       <span class="email">${esc(u.email)}</span><span>${esc(u.display_name||'')}</span>
+      <span style="font-size:0.78rem;color:var(--text-secondary)">${esc(u.city||'—')}</span>
       <span class="role-badge role-${u.role}">${u.role}</span>
       <span style="color:${u.is_active?'var(--accent-green)':'var(--accent-rose)'}">${u.is_active?'Aktiv':'Inaktiv'}</span>
       <span style="font-weight:500">${dc}</span>
@@ -1060,7 +1066,48 @@ async function loadUsers(){
         ${dc>0?`<button class="btn btn-ghost" style="font-size:0.75rem;padding:1px 6px;color:var(--accent-rose)" onclick="deleteUserDocs(${u.id},'${esc(u.display_name||u.email)}',${dc})">🗑️</button>`:''}
       </span>
     </div>`}).join('');
+
+    // Load RAG status in background
+    _loadCampaignStatus();
   }catch(e){console.error('loadUsers',e);}
+}
+
+function _ragDot(status){
+  const colors={green:'#22c55e',amber:'#f59e0b',red:'#ef4444',unknown:'#94a3b8'};
+  return`<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${colors[status]||colors.unknown};margin-right:5px"></span>`;
+}
+
+async function _loadCampaignStatus(){
+  const panel=document.getElementById('campaign-status-panel');
+  const el=document.getElementById('campaign-rag-indicators');
+  try{
+    const r=await authFetch(`${API}/campaigns/status`);
+    if(!r.ok)return;
+    const d=await r.json();
+    panel.style.display='block';
+    const mpk=d.matpriskollen||{};
+    const ica=d.ica_direct||{};
+    el.innerHTML=`
+      <div style="font-size:0.8rem">
+        ${_ragDot(mpk.status)}<strong>Matpriskollen</strong>
+        <span style="color:var(--text-muted);margin-left:6px">${
+          mpk.status==='green'?`${mpk.stores_found} butiker · ${mpk.response_ms}ms`
+          :mpk.error||'Okänd status'
+        }</span>
+      </div>
+      <div style="font-size:0.8rem">
+        ${_ragDot(ica.status)}<strong>ICA Direkt</strong>
+        <span style="color:var(--text-muted);margin-left:6px">${
+          ica.status==='green'?`butik ${ica.store_id} · ${ica.categories_found} kategorier`
+          :ica.status==='amber'?(ica.reason||'Ej konfigurerad')
+          :ica.error||'Okänd status'
+        }</span>
+      </div>
+      <div style="font-size:0.8rem">
+        <span style="color:var(--text-muted)">Stad: <strong>${esc(d.city||'—')}</strong></span>
+      </div>
+    `;
+  }catch(e){panel.style.display='none';}
 }
 
 async function approveUser(id){
@@ -2131,8 +2178,8 @@ async function loadCampaignCities(){
 let _campIcaStores=null; // cached ICA stores for current city
 let _campLastCity=null;
 
-async function _ensureIcaStores(city){
-  // If city unchanged and we have stores, skip
+function _ensureIcaStoresBackground(city){
+  // Fire-and-forget ICA store discovery (non-blocking)
   if(city===_campLastCity && _campIcaStores!==null) return;
   _campLastCity=city;
 
@@ -2142,20 +2189,11 @@ async function _ensureIcaStores(city){
     return;
   }
 
-  // Auto-discover ICA stores for this city
-  try{
-    const r=await authFetch(`${API}/campaigns/ica-stores?city=${encodeURIComponent(city)}&save=true`);
-    if(r.ok){
-      const d=await r.json();
-      _campIcaStores=d.stores||[];
-      // Update local user data
-      if(currentUser) currentUser.ica_store_ids=_campIcaStores;
-    }else{
-      _campIcaStores=[];
-    }
-  }catch(e){
-    _campIcaStores=[];
-  }
+  // Discover in background — does NOT block campaign loading
+  authFetch(`${API}/campaigns/ica-stores?city=${encodeURIComponent(city)}&save=true`)
+    .then(r=>r.ok?r.json():null)
+    .then(d=>{if(d){_campIcaStores=d.stores||[];if(currentUser)currentUser.ica_store_ids=_campIcaStores}})
+    .catch(()=>{});
 }
 
 async function loadCampaigns(){
@@ -2166,8 +2204,8 @@ async function loadCampaigns(){
   el.innerHTML='<div class="loading"><div class="spinner"></div></div>';
   document.getElementById('camp-summary').textContent='Hämtar kampanjer…';
 
-  // Auto-discover ICA stores in background
-  await _ensureIcaStores(city);
+  // Fire ICA store discovery in background (non-blocking)
+  _ensureIcaStoresBackground(city);
 
   try{
     const r=await authFetch(`${API}/campaigns?city=${encodeURIComponent(city)}&match_products=true`);
@@ -2324,6 +2362,7 @@ function renderCampaigns(){
     const withId=_campIcaStores.filter(s=>s.id).length;
     if(withId)info+=` · 🏪 ${withId} ICA-butik${withId>1?'er':''}`;
   }
+  if(_campData.timing_ms)info+=` · ⏱️ ${(_campData.timing_ms/1000).toFixed(1)}s`;
   document.getElementById('camp-summary').textContent=info;
 }
 

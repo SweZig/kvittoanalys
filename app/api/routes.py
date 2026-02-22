@@ -954,7 +954,63 @@ from app.services.campaign_service import (
 from app.services.ica_campaign_service import (
     fetch_ica_campaigns as _fetch_ica_campaigns,
     discover_ica_stores as _discover_ica_stores,
+    check_ica_health as _check_ica_health,
 )
+import asyncio as _asyncio
+import time as _time
+
+
+@router.get("/campaigns/status", tags=["campaigns"])
+async def campaign_status(
+    city: str | None = Query(None, description="City to check (default: stockholm)"),
+    user: User | None = Depends(get_optional_user),
+):
+    """Check health of campaign sources (matpriskollen + ICA direct)."""
+    import httpx
+    city = city or (user.city if user else None) or "stockholm"
+    coords = _resolve_coords(city, None, None)
+    result = {"city": city, "matpriskollen": {"status": "unknown"}, "ica_direct": {"status": "unknown"}}
+
+    # Check matpriskollen
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            r = await client.get("https://matpriskollen.se/api/v1/stores",
+                                 params={"lat": coords[0], "lon": coords[1]} if coords else {})
+            r.raise_for_status()
+            stores = r.json()
+            result["matpriskollen"] = {
+                "status": "green",
+                "stores_found": len(stores),
+                "response_ms": int(r.elapsed.total_seconds() * 1000),
+            }
+    except Exception as e:
+        result["matpriskollen"] = {"status": "red", "error": str(e)[:100]}
+
+    # Check ICA direct
+    ica_store_id = None
+    if user and user.ica_store_ids:
+        import json
+        try:
+            saved = json.loads(user.ica_store_ids)
+            ica_store_id = next((s["id"] for s in saved if s.get("id")), None)
+        except Exception:
+            pass
+
+    if ica_store_id:
+        try:
+            health = await _check_ica_health(ica_store_id)
+            status = health.get("status", "unknown")
+            result["ica_direct"] = {
+                "status": "green" if status == "ok" else ("amber" if status == "degraded" else "red"),
+                "store_id": ica_store_id,
+                "categories_found": health.get("categories_found", 0),
+            }
+        except Exception as e:
+            result["ica_direct"] = {"status": "red", "store_id": ica_store_id, "error": str(e)[:100]}
+    else:
+        result["ica_direct"] = {"status": "amber", "reason": "Inget ICA butiks-ID sparat"}
+
+    return result
 
 
 @router.get("/campaigns/ica-stores", tags=["campaigns"])
@@ -999,20 +1055,14 @@ async def get_campaigns(
     db: Session = Depends(get_db),
 ):
     """Fetch current campaigns with ICA direct scraping + matpriskollen fallback."""
+    t0 = _time.monotonic()
     coords = _resolve_coords(city, lat, lon)
     if not coords:
         raise HTTPException(status_code=400, detail="Ange city eller lat+lon. Orten hittades inte.")
 
     resolved_lat, resolved_lon = coords
 
-    try:
-        data = await _fetch_campaigns(resolved_lat, resolved_lon, max_distance_km, max_stores)
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Kunde inte hämta kampanjer från matpriskollen: {e}")
-
-    data["city"] = city.capitalize() if city else f"{resolved_lat},{resolved_lon}"
-
-    # ── Resolve ICA store IDs: explicit param > user profile > auto-discover ──
+    # ── Resolve ICA store IDs: explicit param > user profile ──
     ica_ids_to_try: list[str] = []
     if ica_store_id:
         ica_ids_to_try = [ica_store_id]
@@ -1024,38 +1074,59 @@ async def get_campaigns(
         except Exception:
             pass
 
-    # ── ICA Direct scraping (try each store until success) ──
-    if ica_ids_to_try:
-        for sid in ica_ids_to_try:
+    # ── PARALLEL: Matpriskollen + ICA Direct ──
+    async def _do_matpriskollen():
+        return await _fetch_campaigns(resolved_lat, resolved_lon, max_distance_km, max_stores)
+
+    async def _do_ica_direct():
+        if not ica_ids_to_try:
+            return None
+        for sid in ica_ids_to_try[:2]:  # Max 2 attempts
             try:
-                ica_result = await _fetch_ica_campaigns(
+                result = await _fetch_ica_campaigns(
                     store_id=sid,
                     lat=resolved_lat,
                     lon=resolved_lon,
                     max_distance_km=max_distance_km,
+                    fallback_enabled=False,  # Skip redundant matpriskollen fallback
                 )
-                if ica_result.get("source") == "ica_direct" and ica_result.get("offers"):
-                    # Replace ICA chain(s) in matpriskollen data with direct data
-                    non_ica_chains = [c for c in data.get("chains", []) if "ica" not in c["chain"].lower()]
-                    ica_chain = {
-                        "chain": "ICA",
-                        "stores": [f"ICA (butik {sid})"],
-                        "total_offers": len(ica_result["offers"]),
-                        "offers": ica_result["offers"],
-                        "source": "ica_direct",
-                    }
-                    data["chains"] = [ica_chain] + non_ica_chains
-                    data["total_offers"] = sum(c["total_offers"] for c in data["chains"])
-                    data["ica_source"] = "ica_direct"
-                    data["ica_store_id"] = sid
-                    break  # First success wins
-                else:
-                    data["ica_source"] = "matpriskollen"
-                    data["ica_fallback_reason"] = ica_result.get("fallback_reason")
+                if result.get("source") == "ica_direct" and result.get("offers"):
+                    result["_store_id"] = sid
+                    return result
             except Exception as e:
                 import logging
                 logging.getLogger(__name__).warning("ICA direct failed for %s: %s", sid, e)
-                data["ica_source"] = "matpriskollen"
+        return None
+
+    try:
+        mpk_data, ica_data = await _asyncio.gather(
+            _do_matpriskollen(),
+            _do_ica_direct(),
+            return_exceptions=False,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Kunde inte hämta kampanjer: {e}")
+
+    data = mpk_data
+    data["city"] = city.capitalize() if city else f"{resolved_lat},{resolved_lon}"
+
+    # ── Merge ICA direct data if available ──
+    if ica_data and ica_data.get("offers"):
+        non_ica_chains = [c for c in data.get("chains", []) if "ica" not in c["chain"].lower()]
+        ica_chain = {
+            "chain": "ICA",
+            "stores": [f"ICA (butik {ica_data.get('_store_id', '?')})"],
+            "total_offers": len(ica_data["offers"]),
+            "offers": ica_data["offers"],
+            "source": "ica_direct",
+        }
+        data["chains"] = [ica_chain] + non_ica_chains
+        data["total_offers"] = sum(c.get("total_offers", len(c.get("offers", []))) for c in data["chains"])
+        data["ica_source"] = "ica_direct"
+        data["ica_store_id"] = ica_data.get("_store_id")
+    elif ica_ids_to_try:
+        data["ica_source"] = "matpriskollen"
+    
 
     # Filter by chain if requested
     if chain:
@@ -1113,6 +1184,7 @@ async def get_campaigns(
                 if matched_desc and matched_desc in median_prices:
                     offer["user_median_price"] = round(median_prices[matched_desc], 2)
 
+    data["timing_ms"] = int((_time.monotonic() - t0) * 1000)
     return data
 
 
