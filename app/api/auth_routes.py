@@ -123,9 +123,10 @@ def _email_kwargs() -> dict:
 def _user_dict(u: User) -> dict[str, Any]:
     import json
     ica_stores = None
-    if u.ica_store_ids:
+    raw = getattr(u, 'ica_store_ids', None)
+    if raw:
         try:
-            ica_stores = json.loads(u.ica_store_ids)
+            ica_stores = json.loads(raw)
         except Exception:
             pass
     return {

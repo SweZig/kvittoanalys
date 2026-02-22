@@ -27,6 +27,18 @@ async def lifespan(app: FastAPI):
     from app.database.models import Base
     Base.metadata.create_all(bind=engine)
 
+    # Run safe migrations for new columns on existing tables
+    from app.database.database import get_db
+    db = next(get_db())
+    try:
+        from app.database.crud import _safe_migrate
+        _safe_migrate(db, "SELECT ica_store_ids FROM users LIMIT 1",
+                      "ALTER TABLE users ADD COLUMN ica_store_ids TEXT")
+    except Exception as e:
+        print(f"⚠️ Migration check: {e}")
+    finally:
+        db.close()
+
     print(f"🚀 Kvittoanalys API starting on http://{settings.app_host}:{settings.app_port}")
     print(f"📖 Docs: http://localhost:{settings.app_port}/docs")
     yield
