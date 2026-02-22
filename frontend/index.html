@@ -2183,9 +2183,10 @@ function _ensureIcaStoresBackground(city){
   if(city===_campLastCity && _campIcaStores!==null) return;
   _campLastCity=city;
 
-  // Check if user already has saved ICA stores for this city
-  if(currentUser?.ica_store_ids?.length && currentUser.city?.toLowerCase()===city.toLowerCase()){
-    _campIcaStores=currentUser.ica_store_ids;
+  // Check if user already has saved ICA stores WITH valid IDs for this city
+  const saved=currentUser?.ica_store_ids;
+  if(saved?.length && saved.some(s=>s.id) && currentUser.city?.toLowerCase()===city.toLowerCase()){
+    _campIcaStores=saved;
     return;
   }
 
