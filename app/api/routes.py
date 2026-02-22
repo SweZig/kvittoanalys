@@ -1062,17 +1062,32 @@ async def get_campaigns(
 
     resolved_lat, resolved_lon = coords
 
-    # ── Resolve ICA store IDs: explicit param > user profile ──
+    # ── Resolve ICA store IDs: explicit param > user profile (city match) > auto-discover ──
     ica_ids_to_try: list[str] = []
     if ica_store_id:
         ica_ids_to_try = [ica_store_id]
-    elif user and user.ica_store_ids:
-        import json
-        try:
-            saved = json.loads(user.ica_store_ids)
-            ica_ids_to_try = [s["id"] for s in saved if s.get("id")]
-        except Exception:
-            pass
+    elif user:
+        import json as _json
+        request_city = (city or "").lower().strip()
+        user_city = (user.city or "").lower().strip()
+
+        # Only use saved stores if they match the requested city
+        if user.ica_store_ids and request_city and request_city == user_city:
+            try:
+                saved = _json.loads(user.ica_store_ids)
+                ica_ids_to_try = [s["id"] for s in saved if s.get("id")]
+            except Exception:
+                pass
+
+        # If no match — auto-discover for this city inline (fast: ~1 request to ica.se)
+        if not ica_ids_to_try and request_city:
+            try:
+                stores = await _discover_ica_stores(
+                    resolved_lat, resolved_lon, max_distance_km, city=city,
+                )
+                ica_ids_to_try = [s["id"] for s in stores if s.get("id")]
+            except Exception:
+                pass
 
     # ── PARALLEL: Matpriskollen + ICA Direct ──
     async def _do_matpriskollen():
