@@ -623,7 +623,7 @@
           </label>
         </div>
         <div style="display:flex;gap:0.5rem;align-items:center;">
-          <button class="btn btn-ghost btn-sm" id="camp-view-toggle" onclick="toggleCampView()" title="Byt vy">🏪 Per kedja</button>
+          <button class="btn btn-ghost btn-sm" id="camp-view-toggle" onclick="toggleCampView()" title="Byt vy">Visa per kedja</button>
           <div class="search-box" style="max-width:250px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" id="camp-search" placeholder="Sök kampanj…" oninput="renderCampaigns()"></div>
         </div>
       </div>
@@ -2154,7 +2154,7 @@ let _campViewMode='chain'; // 'chain' or 'category'
 function toggleCampView(){
   _campViewMode=_campViewMode==='chain'?'category':'chain';
   const btn=document.getElementById('camp-view-toggle');
-  btn.textContent=_campViewMode==='chain'?'🏪 Per kedja':'📂 Per kategori';
+  btn.textContent=_campViewMode==='chain'?'Visa per kedja':'Visa per kategori';
   renderCampaigns();
 }
 
@@ -2175,6 +2175,13 @@ function _campDealBadge(o){
   return'';
 }
 
+function _campChainBadge(chain){
+  if(!chain)return'';
+  const c=chain.split(/\s/)[0]; // "ICA Maxi" → "ICA"
+  const cls={'ICA':'chain-ica','Coop':'chain-coop','Hemköp':'chain-hemköp','Willys':'chain-willys','Lidl':'chain-lidl'}[c]||'chain-other';
+  return`<span class="chain-badge ${cls}" style="font-size:0.7rem;padding:1px 6px">${esc(chain)}</span>`;
+}
+
 function _renderCampCard(o,showChain){
   const p=o.product||{};
   const savings=_calcSavings(o.price,o.regular_price);
@@ -2191,7 +2198,7 @@ function _renderCampCard(o,showChain){
     ${o.compare_price?`<div class="camp-compare">${esc(o.compare_price)}</div>`:''}
     ${o.condition?`<div class="camp-condition">${esc(o.condition)}</div>`:''}
     <div class="camp-meta">
-      ${showChain?`<span class="camp-cat">${esc(o._chain||'')}</span>`:''}
+      ${showChain?_campChainBadge(o._chain):''}
       ${p.category?`<span class="camp-cat">${esc(p.category)}</span>`:''}
       ${o.valid_to?`<span class="camp-valid">t.o.m. ${o.valid_to.substring(5)}</span>`:''}
       ${o.requires_membership?'<span class="camp-member">🪪 Medlemskap</span>':''}
