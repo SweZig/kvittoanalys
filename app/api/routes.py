@@ -987,20 +987,52 @@ async def get_campaigns(
     # Cross-reference with purchased products
     if match_products:
         from app.database.models import LineItem
+        from sqlalchemy import func as sqlfunc
+        import statistics
+
+        # Get user context for filtering
+        user = None
+        try:
+            from app.api.auth_routes import get_optional_user
+            # Try to get user from request state if available
+            pass
+        except Exception:
+            pass
+
+        base_q = db.query(LineItem).filter(LineItem.description.isnot(None))
+
         purchased = {
             row[0].lower()
-            for row in db.query(LineItem.description).filter(LineItem.description.isnot(None)).distinct().all()
+            for row in base_q.with_entities(LineItem.description).distinct().all()
         }
+
+        # Build median price lookup: description_lower -> median unit_price
+        price_rows = (
+            base_q
+            .filter(LineItem.unit_price.isnot(None), LineItem.unit_price > 0)
+            .with_entities(LineItem.description, LineItem.unit_price)
+            .all()
+        )
+        from collections import defaultdict
+        _price_map: dict[str, list[float]] = defaultdict(list)
+        for desc, price in price_rows:
+            _price_map[desc.lower()].append(float(price))
+        median_prices = {k: statistics.median(v) for k, v in _price_map.items()}
 
         for ch in data.get("chains", []):
             for offer in ch.get("offers", []):
                 product_name = (offer.get("product") or {}).get("name", "").lower()
                 brand = (offer.get("product") or {}).get("brand", "").lower()
-                offer["matches_purchased"] = any(
-                    product_name and (product_name in desc or desc in product_name or
-                                      (brand and brand in desc and _word_overlap(product_name, desc)))
-                    for desc in purchased
-                )
+                matched_desc = None
+                for desc in purchased:
+                    if product_name and (product_name in desc or desc in product_name or
+                                          (brand and brand in desc and _word_overlap(product_name, desc))):
+                        matched_desc = desc
+                        break
+                offer["matches_purchased"] = matched_desc is not None
+                # Add user's median price for matched products
+                if matched_desc and matched_desc in median_prices:
+                    offer["user_median_price"] = round(median_prices[matched_desc], 2)
 
     return data
 

@@ -300,6 +300,7 @@
     .camp-valid{color:var(--text-muted)}
     .camp-member{font-size:0.68rem}
     .camp-match-badge{margin-top:0.35rem;font-size:0.7rem;color:var(--accent-green,#22c55e);font-weight:600}
+    .camp-deal-badge{display:inline-block;margin-top:0.3rem;font-size:0.68rem;font-weight:600;color:#fff;background:linear-gradient(135deg,#f59e0b,#ef4444);padding:1px 7px;border-radius:9999px}
     .hamburger{display:none;background:none;border:none;color:var(--text-primary);cursor:pointer;padding:0.5rem;margin-right:0.5rem}
     .hamburger svg{width:24px;height:24px}
     .sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:90;backdrop-filter:blur(2px)}
@@ -618,7 +619,10 @@
             <input type="checkbox" id="camp-match-only" onchange="renderCampaigns()"> Bara mina varor
           </label>
         </div>
-        <div class="search-box" style="max-width:250px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" id="camp-search" placeholder="Sök kampanj…" oninput="renderCampaigns()"></div>
+        <div style="display:flex;gap:0.5rem;align-items:center;">
+          <button class="btn btn-ghost btn-sm" id="camp-view-toggle" onclick="toggleCampView()" title="Byt vy">🏪 Per kedja</button>
+          <div class="search-box" style="max-width:250px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" id="camp-search" placeholder="Sök kampanj…" oninput="renderCampaigns()"></div>
+        </div>
       </div>
       <div id="camp-summary" style="margin:0.8rem 0;font-size:0.82rem;color:var(--text-secondary);"></div>
       <div id="camp-content"></div>
@@ -2143,17 +2147,67 @@ async function loadCampaigns(){
   }
 }
 
+let _campViewMode='chain'; // 'chain' or 'category'
+function toggleCampView(){
+  _campViewMode=_campViewMode==='chain'?'category':'chain';
+  const btn=document.getElementById('camp-view-toggle');
+  btn.textContent=_campViewMode==='chain'?'🏪 Per kedja':'📂 Per kategori';
+  renderCampaigns();
+}
+
+function _parseCampPrice(s){
+  if(!s)return null;
+  const m=s.replace(/[^\d,.]/g,'').replace(',','.');
+  const v=parseFloat(m);
+  return isNaN(v)?null:v;
+}
+
+function _campDealBadge(o){
+  if(!o.matches_purchased||!o.user_median_price)return'';
+  const campPrice=_parseCampPrice(o.price);
+  if(!campPrice)return'';
+  const median=o.user_median_price;
+  const pctOff=((median-campPrice)/median)*100;
+  if(pctOff>=5)return`<div class="camp-deal-badge">🔥 ${Math.round(pctOff)}% under ditt snittpris</div>`;
+  return'';
+}
+
+function _renderCampCard(o,showChain){
+  const p=o.product||{};
+  const savings=_calcSavings(o.price,o.regular_price);
+  return`<div class="camp-card${o.matches_purchased?' camp-match':''}">
+    <div class="camp-card-top">
+      <div class="camp-product">${esc(p.name)}</div>
+      ${p.brand?`<div class="camp-brand">${esc(p.brand)}</div>`:''}
+    </div>
+    <div class="camp-prices">
+      <span class="camp-price">${esc(o.price)}</span>
+      ${o.regular_price?`<span class="camp-regular">${esc(o.regular_price)}</span>`:''}
+      ${savings?`<span class="camp-savings">${savings}</span>`:''}
+    </div>
+    ${o.compare_price?`<div class="camp-compare">${esc(o.compare_price)}</div>`:''}
+    ${o.condition?`<div class="camp-condition">${esc(o.condition)}</div>`:''}
+    <div class="camp-meta">
+      ${showChain?`<span class="camp-cat">${esc(o._chain||'')}</span>`:''}
+      ${p.category?`<span class="camp-cat">${esc(p.category)}</span>`:''}
+      ${o.valid_to?`<span class="camp-valid">t.o.m. ${o.valid_to.substring(5)}</span>`:''}
+      ${o.requires_membership?'<span class="camp-member">🪪 Medlemskap</span>':''}
+    </div>
+    ${o.matches_purchased?'<div class="camp-match-badge">✓ Köpt tidigare</div>':''}
+    ${_campDealBadge(o)}
+  </div>`
+}
+
 function renderCampaigns(){
   if(!_campData){document.getElementById('camp-content').innerHTML='<div class="empty-state">Välj en ort</div>';return}
   const chainFilter=document.getElementById('camp-chain-filter').value.toLowerCase();
   const matchOnly=document.getElementById('camp-match-only').checked;
   const search=(document.getElementById('camp-search').value||'').toLowerCase();
 
+  // Collect all offers with filters applied
+  let allOffers=[];
   let chains=(_campData.chains||[]);
   if(chainFilter)chains=chains.filter(c=>c.chain.toLowerCase()===chainFilter);
-
-  let totalShown=0,totalMatched=0;
-  let html='';
 
   for(const ch of chains){
     let offers=ch.offers||[];
@@ -2164,45 +2218,60 @@ function renderCampaigns(){
       return n.includes(search)||b.includes(search)||cat.includes(search);
     });
     if(matchOnly)offers=offers.filter(o=>o.matches_purchased);
-    if(!offers.length)continue;
+    offers.forEach(o=>o._chain=ch.chain);
+    allOffers.push(...offers);
+  }
 
-    const matched=offers.filter(o=>o.matches_purchased).length;
-    totalShown+=offers.length;totalMatched+=matched;
+  let totalShown=allOffers.length;
+  let totalMatched=allOffers.filter(o=>o.matches_purchased).length;
+  let totalDeals=allOffers.filter(o=>{const cp=_parseCampPrice(o.price);return o.user_median_price&&cp&&((o.user_median_price-cp)/o.user_median_price)>=0.05}).length;
+  let html='';
 
-    html+=`<div class="camp-chain-group">
-      <div class="camp-chain-header" onclick="this.parentElement.classList.toggle('collapsed')">
-        <div><strong>${esc(ch.chain)}</strong> <span class="text-muted" style="font-size:0.78rem">${offers.length} erbjudanden${matched?' · '+matched+' matchar dina varor':''}</span></div>
-        <span class="camp-toggle">▾</span>
-      </div>
-      <div class="camp-chain-body"><div class="camp-grid">${offers.map(o=>{
-        const p=o.product||{};
-        const savings=_calcSavings(o.price,o.regular_price);
-        return`<div class="camp-card${o.matches_purchased?' camp-match':''}">
-          <div class="camp-card-top">
-            <div class="camp-product">${esc(p.name)}</div>
-            ${p.brand?`<div class="camp-brand">${esc(p.brand)}</div>`:''}
-          </div>
-          <div class="camp-prices">
-            <span class="camp-price">${esc(o.price)}</span>
-            ${o.regular_price?`<span class="camp-regular">${esc(o.regular_price)}</span>`:''}
-            ${savings?`<span class="camp-savings">${savings}</span>`:''}
-          </div>
-          ${o.compare_price?`<div class="camp-compare">${esc(o.compare_price)}</div>`:''}
-          ${o.condition?`<div class="camp-condition">${esc(o.condition)}</div>`:''}
-          <div class="camp-meta">
-            ${p.category?`<span class="camp-cat">${esc(p.category)}</span>`:''}
-            ${o.valid_to?`<span class="camp-valid">t.o.m. ${o.valid_to.substring(5)}</span>`:''}
-            ${o.requires_membership?'<span class="camp-member">🪪 Medlemskap</span>':''}
-          </div>
-          ${o.matches_purchased?'<div class="camp-match-badge">✓ Köpt tidigare</div>':''}
-        </div>`}).join('')}</div></div></div>`;
+  if(_campViewMode==='category'){
+    // Group by category
+    const catMap={};
+    allOffers.forEach(o=>{
+      const cat=(o.product?.category)||'Övrigt';
+      if(!catMap[cat])catMap[cat]=[];
+      catMap[cat].push(o);
+    });
+    const sorted=Object.entries(catMap).sort((a,b)=>a[0].localeCompare(b[0],'sv'));
+    for(const [cat,offers] of sorted){
+      const matched=offers.filter(o=>o.matches_purchased).length;
+      html+=`<div class="camp-chain-group">
+        <div class="camp-chain-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <div><strong>${esc(cat)}</strong> <span class="text-muted" style="font-size:0.78rem">${offers.length} erbjudanden${matched?' · '+matched+' matchar':''}</span></div>
+          <span class="camp-toggle">▾</span>
+        </div>
+        <div class="camp-chain-body"><div class="camp-grid">${offers.map(o=>_renderCampCard(o,true)).join('')}</div></div></div>`;
+    }
+  }else{
+    // Group by chain (original view)
+    const chainMap={};
+    allOffers.forEach(o=>{
+      const ch=o._chain||'?';
+      if(!chainMap[ch])chainMap[ch]=[];
+      chainMap[ch].push(o);
+    });
+    const sorted=Object.entries(chainMap).sort((a,b)=>a[0].localeCompare(b[0],'sv'));
+    for(const [chain,offers] of sorted){
+      const matched=offers.filter(o=>o.matches_purchased).length;
+      html+=`<div class="camp-chain-group">
+        <div class="camp-chain-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <div><strong>${esc(chain)}</strong> <span class="text-muted" style="font-size:0.78rem">${offers.length} erbjudanden${matched?' · '+matched+' matchar dina varor':''}</span></div>
+          <span class="camp-toggle">▾</span>
+        </div>
+        <div class="camp-chain-body"><div class="camp-grid">${offers.map(o=>_renderCampCard(o,false)).join('')}</div></div></div>`;
+    }
   }
 
   if(!html)html='<div class="empty-state">Inga kampanjer matchar filtret</div>';
   document.getElementById('camp-content').innerHTML=html;
 
   const city=_campData.city||'';
-  const info=`${city}: ${totalShown} erbjudanden visas${totalMatched?' · '+totalMatched+' matchar dina varor':''}`;
+  let info=`${city}: ${totalShown} erbjudanden visas`;
+  if(totalMatched)info+=` · ${totalMatched} matchar dina varor`;
+  if(totalDeals)info+=` · 🔥 ${totalDeals} bra erbjudanden`;
   document.getElementById('camp-summary').textContent=info;
 }
 
