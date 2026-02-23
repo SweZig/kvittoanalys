@@ -1365,47 +1365,48 @@ async def get_campaigns(
         return await _fetch_campaigns(resolved_lat, resolved_lon, max_distance_km, max_stores)
 
     async def _do_ica_direct():
+        """Hämta ICA-erbjudanden direkt från ica.se/erbjudanden/ (server-renderad HTML)."""
+        import httpx as _httpx_ica
+
         if not ica_ids_to_try:
             _log.info("ICA direct: inga store IDs → hoppar över")
             return None
-        last_error = None
-        for sid in ica_ids_to_try[:4]:  # Max 4 attempts (prio-sorted: Maxi first)
+
+        from app.services.ica_campaign_service import _fetch_ica_erbjudanden
+
+        # Prova Maxi-butiken först (prio-sorterad lista)
+        for sid in ica_ids_to_try[:2]:  # Max 2 försök — bara bästa butikerna
             slug = _ica_store_slugs.get(sid, "")
-            # Fallback: bygg slug från butiksnamn
             if not slug:
                 name = _ica_store_names.get(sid, "")
                 slug = _build_slug_from_name(name, sid)
                 if slug:
-                    _log.info("ICA direct: byggde slug från namn: %s → %s", name, slug)
-            _log.info("ICA direct: provar butik %s (%s) slug='%s'",
-                      sid, _ica_store_names.get(sid, "?"), slug or "SAKNAS")
+                    _log.info("ICA erbjudanden: byggde slug: %s → %s", name, slug)
+            if not slug:
+                _log.info("ICA erbjudanden: butik %s saknar slug, hoppar", sid)
+                continue
+
+            _log.info("ICA erbjudanden: hämtar butik %s slug='%s'", sid, slug)
             try:
-                result = await _fetch_ica_campaigns(
-                    store_id=sid,
-                    lat=resolved_lat,
-                    lon=resolved_lon,
-                    max_distance_km=max_distance_km,
-                    fallback_enabled=False,
-                    store_slug=slug,
-                )
-                _log.info("ICA direct: butik %s → source=%s, offers=%d, error=%s, keys=%s",
-                          sid, result.get("source"), len(result.get("offers", [])),
-                          result.get("error", "None")[:100],
-                          list(result.keys()))
-                if result.get("source") == "ica_direct" and result.get("offers"):
-                    result["_store_id"] = sid
-                    result["_store_name"] = _ica_store_names.get(sid, f"butik {sid}")
-                    _log.info("ICA direct: SUCCÉ! %d erbjudanden från %s",
-                              len(result["offers"]), sid)
-                    return result
-                else:
-                    last_error = result.get("error") or result.get("fallback_reason") or f"source={result.get('source')}"
-                    _log.info("ICA direct: butik %s passade inte (source=%s, offers=%d)",
-                              sid, result.get("source"), len(result.get("offers", [])))
+                async with _httpx_ica.AsyncClient(follow_redirects=True) as ica_client:
+                    result = await _fetch_ica_erbjudanden(sid, slug, ica_client)
+
+                offers = result.get("offers", [])
+                error = result.get("error")
+                _log.info("ICA erbjudanden: butik %s → %d erbjudanden, error=%s",
+                          sid, len(offers), error)
+
+                if offers:
+                    return {
+                        "offers": offers,
+                        "source": "ica_direct",
+                        "_store_id": sid,
+                        "_store_name": _ica_store_names.get(sid, f"butik {sid}"),
+                    }
             except Exception as e:
-                last_error = str(e)
-                _log.warning("ICA direct: butik %s EXCEPTION: %s", sid, e, exc_info=True)
-        _log.info("ICA direct: alla butiker prövade utan resultat. Senaste fel: %s", last_error)
+                _log.warning("ICA erbjudanden: butik %s EXCEPTION: %s", sid, e, exc_info=True)
+
+        _log.info("ICA erbjudanden: inga erbjudanden hittades")
         return None
 
     try:
@@ -1435,22 +1436,58 @@ async def get_campaigns(
         "user_has_saved_stores": bool(user and user.ica_store_ids),
     }
 
-    # ── Merge ICA direct data if available ──
+    # ── Merge ICA direct offers with matpriskollen ──
+    # Strategi: Behåll matpriskollens ICA-erbjudanden, LÄGG TILL unika direkterbjudanden
     if ica_data and ica_data.get("offers"):
-        non_ica_chains = [c for c in data.get("chains", []) if "ica" not in c["chain"].lower()]
+        direct_offers = ica_data["offers"]
         store_name = ica_data.get("_store_name", f"butik {ica_data.get('_store_id', '?')}")
-        ica_chain = {
-            "chain": "ICA",
-            "stores": [store_name],
-            "total_offers": len(ica_data["offers"]),
-            "offers": ica_data["offers"],
-            "source": "ica_direct",
-        }
-        data["chains"] = [ica_chain] + non_ica_chains
-        data["total_offers"] = sum(c.get("total_offers", len(c.get("offers", []))) for c in data["chains"])
-        data["ica_source"] = "ica_direct"
+
+        # Hitta befintliga ICA-erbjudanden från matpriskollen
+        ica_chain_idx = None
+        existing_names: set[str] = set()
+        for idx, c in enumerate(data.get("chains", [])):
+            if "ica" in c.get("chain", "").lower():
+                ica_chain_idx = idx
+                for offer in c.get("offers", []):
+                    name = offer.get("product", {}).get("name", "").lower().strip()
+                    if name:
+                        existing_names.add(name)
+                break
+
+        # Filtrera ut unika direkterbjudanden (inte redan i matpriskollen)
+        unique_direct = []
+        for offer in direct_offers:
+            name = offer.get("product", {}).get("name", "").lower().strip()
+            if name and name not in existing_names:
+                unique_direct.append(offer)
+
+        _log.info("ICA merge: %d direkterbjudanden, %d redan i matpriskollen, %d unika tillagda",
+                  len(direct_offers), len(direct_offers) - len(unique_direct), len(unique_direct))
+
+        if unique_direct and ica_chain_idx is not None:
+            # Lägg till unika erbjudanden i befintlig ICA-kedja
+            data["chains"][ica_chain_idx]["offers"].extend(unique_direct)
+            data["chains"][ica_chain_idx]["total_offers"] = len(data["chains"][ica_chain_idx]["offers"])
+            data["chains"][ica_chain_idx]["source"] = "matpriskollen+ica_direct"
+            data["chains"][ica_chain_idx]["stores"] = list(set(
+                data["chains"][ica_chain_idx].get("stores", []) + [store_name]
+            ))
+        elif unique_direct:
+            # Ingen ICA-kedja från matpriskollen — skapa ny
+            ica_chain = {
+                "chain": "ICA",
+                "stores": [store_name],
+                "total_offers": len(unique_direct),
+                "offers": unique_direct,
+                "source": "ica_direct",
+            }
+            data["chains"] = [ica_chain] + data.get("chains", [])
+
+        data["total_offers"] = sum(c.get("total_offers", len(c.get("offers", []))) for c in data.get("chains", []))
+        data["ica_source"] = "matpriskollen+ica_direct" if unique_direct else "matpriskollen"
         data["ica_store_id"] = ica_data.get("_store_id")
         data["ica_store_name"] = store_name
+        data["ica_direct_count"] = len(unique_direct)
     elif ica_ids_to_try:
         data["ica_source"] = "matpriskollen"
     
