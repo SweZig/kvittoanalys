@@ -1261,9 +1261,14 @@ async def get_campaigns(
                               len(ica_ids_to_try),
                               [(s.get("name","?"), s.get("id")) for s in saved[:5]])
 
-                    # Re-discover if no Maxi/Kvantum (prio > 1)
+                    # Re-discover if no Maxi/Kvantum (prio > 1) OR if slugs are missing
                     best_prio = min((_store_sort_key(s) for s in saved), default=5)
+                    has_slugs = any(s.get("slug") for s in saved)
                     if best_prio > 1 and request_city:
+                        _log.info("ICA resolve: saknar Maxi/Kvantum → re-discovery")
+                        _needs_rediscovery = True
+                    elif not has_slugs:
+                        _log.info("ICA resolve: sparade butiker saknar slugs → re-discovery")
                         _needs_rediscovery = True
                 else:
                     _log.info("ICA resolve: sparade butiker har generiska namn → tvingar re-discovery")
