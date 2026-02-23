@@ -1093,11 +1093,11 @@ function _ragDot(status){
 async function _loadCampaignStatus(){
   const panel=document.getElementById('campaign-status-panel');
   const el=document.getElementById('campaign-rag-indicators');
+  panel.style.display='block';
   try{
     const r=await authFetch(`${API}/campaigns/status`);
-    if(!r.ok)return;
+    if(!r.ok){el.innerHTML='<span style="font-size:0.8rem;color:var(--text-muted)">Kunde inte hämta status</span>';return}
     const d=await r.json();
-    panel.style.display='block';
     const mpk=d.matpriskollen||{};
     const ica=d.ica_direct||{};
     el.innerHTML=`
@@ -1111,8 +1111,8 @@ async function _loadCampaignStatus(){
       <div style="font-size:0.8rem">
         ${_ragDot(ica.status)}<strong>ICA Direkt</strong>
         <span style="color:var(--text-muted);margin-left:6px">${
-          ica.status==='green'?`butik ${ica.store_id} · ${ica.categories_found} kategorier`
-          :ica.status==='amber'?(ica.reason||'Ej konfigurerad')
+          ica.status==='green'?`${ica.offers_found||0} erbjudanden${ica.slug?' · '+ica.slug.substring(0,25):''}`
+          :ica.status==='amber'?(ica.reason||ica.error||'Ej konfigurerad')
           :ica.error||'Okänd status'
         }</span>
       </div>
@@ -1120,7 +1120,7 @@ async function _loadCampaignStatus(){
         <span style="color:var(--text-muted)">Stad: <strong>${esc(d.city||'—')}</strong></span>
       </div>
     `;
-  }catch(e){panel.style.display='none';}
+  }catch(e){el.innerHTML='<span style="font-size:0.8rem;color:var(--text-muted)">Status ej tillgänglig</span>';}
 }
 
 async function _loadIcaDebug(){
@@ -2465,13 +2465,18 @@ function renderCampaigns(){
   document.getElementById('camp-content').innerHTML=html;
 
   const city=_campData.city||'';
-  let info=`${city}: ${totalShown} erbjudanden visas`;
+  let info=`${city}: ${totalShown} erbjudanden`;
   if(totalMatched)info+=` · ${totalMatched} matchar dina varor`;
-  if(totalDeals)info+=` · 🔥 ${totalDeals} bra erbjudanden`;
-  if(_campData.ica_source==='ica_direct')info+=` · 🟢 ICA direkt (${_campData.ica_store_name||'butik '+(_campData.ica_store_id||'?')})`;
-  else if(_campData.ica_source==='matpriskollen+ica_direct')info+=` · 🟢 ICA Matpriskollen + ${_campData.ica_direct_count||0} direkt (${_campData.ica_store_name||'?'})`;
-  else if(_campData.ica_source==='matpriskollen')info+=` · 🔵 ICA via Matpriskollen`;
-  if(_campData.mpk_error)info+=` · 🟠 Matpriskollen tillfälligt nere`;
+  if(totalDeals)info+=` · 🔥 ${totalDeals} bra deal`;
+  // Källstatus
+  if(_campData.mpk_error){
+    info+=` · 🟠 Matpriskollen nere`;
+  }
+  if(_campData.ica_source==='matpriskollen+ica_direct'){
+    info+=` · 🟢 +${_campData.ica_direct_count||0} från ${_campData.ica_store_name||'ICA'}`;
+  }else if(_campData.ica_source==='ica_direct'){
+    info+=` · 🟢 ${_campData.ica_store_name||'ICA direkt'}`;
+  }
   if(_campData.timing_ms)info+=` · ⏱️ ${(_campData.timing_ms/1000).toFixed(1)}s`;
   document.getElementById('camp-summary').textContent=info;
 }

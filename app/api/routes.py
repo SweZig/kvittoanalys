@@ -1055,17 +1055,33 @@ async def campaign_status(
 
     if ica_store_id:
         try:
-            health = await _check_ica_health(ica_store_id)
+            # Hämta slug för butiken
+            ica_slug = ""
+            if user and user.ica_store_ids:
+                import json as _jstatus
+                try:
+                    saved = _jstatus.loads(user.ica_store_ids)
+                    for s in saved:
+                        if s.get("id") == ica_store_id and s.get("slug"):
+                            ica_slug = s["slug"]
+                            break
+                except Exception:
+                    pass
+
+            health = await _check_ica_health(ica_store_id, slug=ica_slug)
             status = health.get("status", "unknown")
             result["ica_direct"] = {
                 "status": "green" if status == "ok" else ("amber" if status == "degraded" else "red"),
                 "store_id": ica_store_id,
-                "categories_found": health.get("categories_found", 0),
+                "offers_found": health.get("offers_found", 0),
+                "slug": ica_slug[:40] if ica_slug else "",
             }
+            if health.get("error"):
+                result["ica_direct"]["error"] = health["error"]
         except Exception as e:
             result["ica_direct"] = {"status": "red", "store_id": ica_store_id, "error": str(e)[:100]}
     else:
-        result["ica_direct"] = {"status": "red", "reason": f"Inga ICA Handla-butiker hittades för {city}"}
+        result["ica_direct"] = {"status": "amber", "reason": f"Inga ICA-butiker hittades för {city}"}
 
     return result
 

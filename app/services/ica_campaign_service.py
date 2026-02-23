@@ -1020,63 +1020,54 @@ async def get_ica_categories(store_id: str) -> dict:
     }
 
 
-async def check_ica_health(store_id: str) -> dict:
-    """Kontrollerar om ICA:s direktkälla är tillgänglig."""
-    async with httpx.AsyncClient(follow_redirects=True) as client:
-        # Primär: JSON API
-        try:
-            resp = await client.get(
-                f"{ICA_API_BASE}/{store_id}/api/v5/products",
-                params={"limit": 5, "offset": 0},
-                headers={
-                    "Accept": "application/json",
+async def check_ica_health(store_id: str, slug: str = "") -> dict:
+    """Kontrollerar om ICA:s direktkälla (ica.se/erbjudanden) är tillgänglig."""
+    async with httpx.AsyncClient(follow_redirects=True, timeout=10.0) as client:
+        # Primär: testa ica.se/erbjudanden/{slug}/
+        if slug:
+            url = f"https://www.ica.se/erbjudanden/{slug}/"
+            try:
+                resp = await client.get(url, headers={
                     "User-Agent": _HEADERS["User-Agent"],
-                },
-                timeout=10.0,
-            )
-            if resp.status_code == 200:
-                data = resp.json()
-                products = []
-                if isinstance(data, list):
-                    products = data
-                elif isinstance(data, dict):
-                    for key in ("items", "products", "results", "data", "content"):
-                        if key in data and isinstance(data[key], list):
-                            products = data[key]
-                            break
-                total = 0
-                if isinstance(data, dict):
-                    total = data.get("totalCount") or data.get("total") or len(products)
-                return {
-                    "status": "ok" if products else "degraded",
-                    "store_id": store_id,
-                    "categories_found": total or len(products),
-                    "api": "json_v5",
-                    "source_url": f"{ICA_API_BASE}/{store_id}/api/v5/products",
-                }
-        except Exception as e:
-            logger.warning("ICA health JSON API-fel: %s", e)
+                    "Accept": "text/html,*/*",
+                })
+                if resp.status_code == 200:
+                    text = resp.text
+                    has_offers = "Lägg i inköpslista" in text
+                    # Count offers
+                    offer_count = text.count("Lägg i inköpslista")
+                    return {
+                        "status": "ok" if has_offers else "degraded",
+                        "store_id": store_id,
+                        "offers_found": offer_count,
+                        "api": "erbjudanden",
+                        "slug": slug,
+                    }
+                else:
+                    return {
+                        "status": "degraded",
+                        "store_id": store_id,
+                        "offers_found": 0,
+                        "api": "erbjudanden",
+                        "error": f"HTTP {resp.status_code}",
+                    }
+            except Exception as e:
+                return {"status": "down", "store_id": store_id, "error": str(e)[:100]}
 
-        # Fallback: HTML
+        # Utan slug — bara bekräfta att ica.se svarar
         try:
-            resp = await client.get(
-                f"{ICA_BASE}/stores/{store_id}/categories",
-                headers=_HEADERS,
-                timeout=10.0,
-            )
-            resp.raise_for_status()
-            html = resp.text
-            is_valid = _validate_html_structure(html)
-            categories = _discover_categories(html, store_id)
+            resp = await client.get("https://www.ica.se/erbjudanden/", headers={
+                "User-Agent": _HEADERS["User-Agent"],
+            })
             return {
-                "status": "ok" if is_valid and categories else "degraded",
+                "status": "ok" if resp.status_code == 200 else "degraded",
                 "store_id": store_id,
-                "categories_found": len(categories),
-                "api": "html_scraper",
-                "source_url": f"{ICA_BASE}/stores/{store_id}/categories",
+                "offers_found": 0,
+                "api": "erbjudanden",
+                "error": "Ingen slug — kan inte testa specifik butik",
             }
         except Exception as e:
-            return {"status": "down", "store_id": store_id, "error": str(e)}
+            return {"status": "down", "store_id": store_id, "error": str(e)[:100]}
 
 
 # ─── Store Discovery ────────────────────────────────────────────────────────
