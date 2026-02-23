@@ -1143,10 +1143,31 @@ async def ica_debug(
             from app.services.ica_campaign_service import _fetch_ica_erbjudanden
             t0 = _time.monotonic()
             try:
+                # Hämta rå HTML först för diagnostik
+                erbjudanden_url = f"https://www.ica.se/erbjudanden/{erbjudanden_slug}/"
+                raw_resp = await client.get(erbjudanden_url, headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                    "Accept": "text/html,*/*",
+                    "Accept-Language": "sv-SE,sv;q=0.9",
+                }, timeout=12.0)
+
+                from bs4 import BeautifulSoup as _BS
+                raw_soup = _BS(raw_resp.text, "html.parser")
+                raw_text = raw_soup.get_text(separator="\n")
+                raw_blocks = raw_text.split("Lägg i inköpslista")
+
                 erbjudanden_result = await _fetch_ica_erbjudanden(store_id, erbjudanden_slug, client)
                 results["erbjudanden_test"] = {
-                    "url": f"https://www.ica.se/erbjudanden/{erbjudanden_slug}/",
+                    "url": erbjudanden_url,
                     "elapsed_ms": int((_time.monotonic() - t0) * 1000),
+                    "http_status": raw_resp.status_code,
+                    "html_length": len(raw_resp.text),
+                    "text_length": len(raw_text),
+                    "blocks_count": len(raw_blocks),
+                    "has_lagg_i_inkopslista": "Lägg i inköpslista" in raw_text,
+                    "has_ord_pris": "Ord.pris" in raw_text,
+                    "text_sample": raw_text[:500].replace("\n", " | "),
+                    "block1_sample": raw_blocks[1][:300].replace("\n", " | ") if len(raw_blocks) > 1 else "N/A",
                     "offer_count": len(erbjudanden_result.get("offers", [])),
                     "error": erbjudanden_result.get("error"),
                     "sample_offers": erbjudanden_result.get("offers", [])[:3],

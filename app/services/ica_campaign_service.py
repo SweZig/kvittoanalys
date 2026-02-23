@@ -607,6 +607,21 @@ async def _fetch_ica_erbjudanden(store_id: str, store_slug: str, client: httpx.A
     full_text = soup.get_text(separator="\n")
     blocks = full_text.split("Lägg i inköpslista")
 
+    logger.info("ICA erbjudanden: HTTP %d, %d bytes, %d block (split på 'Lägg i inköpslista')",
+                resp.status_code, len(html), len(blocks))
+
+    # Diagnostik: visa första blockens text
+    if len(blocks) > 1:
+        sample_block = blocks[1][:300].replace("\n", " | ")
+        logger.info("ICA erbjudanden: block[1] sample: %s", sample_block)
+    else:
+        # Kanske annat separator-mönster?
+        alt_blocks = full_text.split("inköpslista")
+        logger.info("ICA erbjudanden: 0 'Lägg i inköpslista'-block. Alt split: %d block", len(alt_blocks))
+        # Visa text-snippet för felsökning
+        text_sample = full_text[:1000].replace("\n", " | ")
+        logger.info("ICA erbjudanden: text sample: %s", text_sample)
+
     all_offers: list[dict] = []
     seen: set[str] = set()
 
