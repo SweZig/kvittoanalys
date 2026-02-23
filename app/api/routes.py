@@ -1030,77 +1030,123 @@ async def ica_debug(
     store_id: str = Query("1004222", description="ICA store ID to test"),
     user: User | None = Depends(get_optional_user),
 ):
-    """Debug: testar ICA JSON API och HTML scraper direkt."""
+    """Debug: testar ALLA ICA API URL-format och visar exakt vad som returneras."""
     import httpx as _httpx
     import time as _time
+    import json as _json
 
     results: dict = {"store_id": store_id, "tests": {}}
+    api_headers = {
+        "Accept": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Accept-Language": "sv-SE,sv;q=0.9",
+    }
 
     async with _httpx.AsyncClient(follow_redirects=True, timeout=12.0) as client:
-        # Test 1: JSON API
-        t0 = _time.monotonic()
-        try:
-            api_url = f"https://handlaprivatkund.ica.se/{store_id}/api/v5/products"
-            resp = await client.get(
-                api_url,
-                params={"limit": 5, "offset": 0},
-                headers={
-                    "Accept": "application/json",
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                    "Accept-Language": "sv-SE,sv;q=0.9",
-                },
-            )
-            elapsed = int((_time.monotonic() - t0) * 1000)
-            data = None
+
+        # Test alla URL-format
+        url_formats = {
+            "json_v5_stores": f"https://handlaprivatkund.ica.se/stores/{store_id}/api/v5/products",
+            "json_v5_direct": f"https://handlaprivatkund.ica.se/{store_id}/api/v5/products",
+            "json_v4_stores": f"https://handlaprivatkund.ica.se/stores/{store_id}/api/v4/products",
+            "storefront":     f"https://handlaprivatkund.ica.se/stores/{store_id}",
+        }
+
+        for test_name, api_url in url_formats.items():
+            t0 = _time.monotonic()
             try:
-                data = resp.json()
-            except Exception:
-                pass
+                params = {"limit": 5, "offset": 0} if "products" in api_url else {}
+                resp = await client.get(api_url, params=params, headers=api_headers)
+                elapsed = int((_time.monotonic() - t0) * 1000)
 
-            results["tests"]["json_api"] = {
-                "url": api_url,
-                "status": resp.status_code,
-                "elapsed_ms": elapsed,
-                "content_type": resp.headers.get("content-type", ""),
-                "response_length": len(resp.text),
-                "is_json": data is not None,
-                "top_keys": list(data.keys())[:15] if isinstance(data, dict) else None,
-                "is_list": isinstance(data, list),
-                "list_length": len(data) if isinstance(data, list) else None,
-                "sample": (data[:2] if isinstance(data, list) else
-                          {k: str(v)[:200] for k, v in list(data.items())[:5]} if isinstance(data, dict) else
-                          resp.text[:500]),
-            }
-        except Exception as e:
-            results["tests"]["json_api"] = {"error": str(e), "elapsed_ms": int((_time.monotonic() - t0) * 1000)}
+                test_result: dict = {
+                    "url": api_url + ("?" + "&".join(f"{k}={v}" for k, v in params.items()) if params else ""),
+                    "status": resp.status_code,
+                    "elapsed_ms": elapsed,
+                    "content_type": resp.headers.get("content-type", ""),
+                    "response_length": len(resp.text),
+                }
 
-        # Test 2: HTML categories page
+                # Försök parsa JSON
+                data = None
+                try:
+                    data = resp.json()
+                except Exception:
+                    test_result["body_preview"] = resp.text[:500]
+
+                if data is not None:
+                    test_result["is_json"] = True
+                    if isinstance(data, dict):
+                        test_result["top_keys"] = list(data.keys())[:20]
+                        # Sök efter produktlistor
+                        for key in ("items", "products", "results", "data", "content"):
+                            if key in data and isinstance(data[key], list):
+                                items = data[key]
+                                test_result["products_key"] = key
+                                test_result["products_count"] = len(items)
+                                if items and isinstance(items[0], dict):
+                                    test_result["product_sample_keys"] = list(items[0].keys())
+                                    # Visa första produkten kompakt
+                                    try:
+                                        test_result["product_sample"] = _json.loads(
+                                            _json.dumps(items[0], ensure_ascii=False, default=str)[:1500]
+                                        )
+                                    except Exception:
+                                        test_result["product_sample"] = str(items[0])[:500]
+                                break
+                        # Kolla totalCount
+                        for k in ("totalCount", "total", "count", "totalItems"):
+                            if k in data:
+                                test_result["total_count_key"] = k
+                                test_result["total_count"] = data[k]
+                                break
+                    elif isinstance(data, list):
+                        test_result["is_list"] = True
+                        test_result["list_length"] = len(data)
+                        if data and isinstance(data[0], dict):
+                            test_result["item_sample_keys"] = list(data[0].keys())
+                else:
+                    test_result["is_json"] = False
+
+                results["tests"][test_name] = test_result
+            except Exception as e:
+                results["tests"][test_name] = {
+                    "url": api_url,
+                    "error": str(e),
+                    "elapsed_ms": int((_time.monotonic() - t0) * 1000),
+                }
+
+        # Test: Discovery för user's city
+        if user and user.city:
+            t0 = _time.monotonic()
+            try:
+                stores = await _discover_ica_stores(59.33, 18.07, city=user.city)
+                results["discovery"] = {
+                    "city": user.city,
+                    "elapsed_ms": int((_time.monotonic() - t0) * 1000),
+                    "stores_found": len(stores),
+                    "stores": [{"id": s.get("id"), "name": s.get("name"), "type": s.get("type")}
+                               for s in stores[:10]],
+                }
+            except Exception as e:
+                results["discovery"] = {"error": str(e)}
+
+        # Test: Kör hela fetch_ica_campaigns-kedjan
         t0 = _time.monotonic()
         try:
-            html_url = f"https://handlaprivatkund.ica.se/stores/{store_id}/categories"
-            resp = await client.get(
-                html_url,
-                headers={
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                    "Accept": "text/html,*/*",
-                },
+            full_result = await _fetch_ica_campaigns(
+                store_id=store_id, lat=59.33, lon=18.07, fallback_enabled=False,
             )
-            elapsed = int((_time.monotonic() - t0) * 1000)
-            html = resp.text
-            has_next_data = "__NEXT_DATA__" in html
-            has_category_links = "/categories/" in html and "/stores/" in html
-
-            results["tests"]["html_categories"] = {
-                "url": html_url,
-                "status": resp.status_code,
-                "elapsed_ms": elapsed,
-                "response_length": len(html),
-                "has_next_data": has_next_data,
-                "has_category_links": has_category_links,
-                "html_snippet": html[:500] if resp.status_code != 200 else "OK (truncated)",
+            results["full_test"] = {
+                "elapsed_ms": int((_time.monotonic() - t0) * 1000),
+                "source": full_result.get("source"),
+                "offer_count": full_result.get("offer_count", len(full_result.get("offers", []))),
+                "error": full_result.get("error"),
+                "fallback_reason": full_result.get("fallback_reason"),
+                "sample_offers": full_result.get("offers", [])[:3],
             }
         except Exception as e:
-            results["tests"]["html_categories"] = {"error": str(e)}
+            results["full_test"] = {"error": str(e), "elapsed_ms": int((_time.monotonic() - t0) * 1000)}
 
     return results
 
@@ -1172,58 +1218,68 @@ async def get_campaigns(
                   request_city, user_city, bool(user.ica_store_ids))
 
         # Only use saved stores if they match the requested city
+        _needs_rediscovery = False
         if user.ica_store_ids and request_city and request_city == user_city:
             try:
                 saved = _json.loads(user.ica_store_ids)
                 from app.services.ica_campaign_service import _store_sort_key
-                saved.sort(key=_store_sort_key)
-                ica_ids_to_try = [s["id"] for s in saved if s.get("id")]
-                _ica_store_names = {s["id"]: s.get("name", "") for s in saved if s.get("id")}
-                _log.info("ICA resolve: %d sparade butiker med ID: %s",
-                          len(ica_ids_to_try),
-                          [(s.get("name","?"), s.get("id")) for s in saved[:5]])
 
-                # Re-discover if no Maxi/Kvantum among saved (old discovery missed them)
-                best_prio = min((_store_sort_key(s) for s in saved), default=5)
-                _log.info("ICA resolve: best_prio=%d (0=Maxi, 1=Kvantum, 2=Super, 3=Nära)", best_prio)
-                if best_prio > 1 and request_city:  # > 1 = only Supermarket/Nära
-                    try:
-                        _log.info("ICA resolve: re-discovering för Maxi/Kvantum...")
-                        fresh = await _discover_ica_stores(
-                            resolved_lat, resolved_lon, max_distance_km, city=city,
-                        )
-                        _log.info("ICA resolve: fresh discovery → %d butiker: %s",
-                                  len(fresh), [(s.get("name","?"), s.get("id")) for s in fresh[:5]])
-                        fresh_ids = [s["id"] for s in fresh if s.get("id") and s["id"] not in set(ica_ids_to_try)]
-                        if fresh_ids:
-                            ica_ids_to_try = fresh_ids + ica_ids_to_try  # New Maxi first
-                            _ica_store_names.update({s["id"]: s.get("name", "") for s in fresh if s.get("id")})
-                            # Update user profile in background
-                            all_stores = fresh + [s for s in saved if s.get("id") not in {f["id"] for f in fresh}]
-                            user.ica_store_ids = _json.dumps(all_stores, ensure_ascii=False)
-                            db.commit()
-                    except Exception as exc:
-                        _log.warning("ICA resolve: re-discovery misslyckades: %s", exc)
+                # Check if saved stores have real names (not generic "ICA (butik XXX)")
+                _named = [s for s in saved if s.get("id") and s.get("name", "")]
+                _generic_count = sum(1 for s in _named if s["name"].startswith("ICA (butik"))
+                has_real_names = len(_named) > 0 and _generic_count < len(_named) / 2
+
+                if has_real_names:
+                    saved.sort(key=_store_sort_key)
+                    ica_ids_to_try = [s["id"] for s in saved if s.get("id")]
+                    _ica_store_names = {s["id"]: s.get("name", "") for s in saved if s.get("id")}
+                    _log.info("ICA resolve: %d sparade butiker (bra namn): %s",
+                              len(ica_ids_to_try),
+                              [(s.get("name","?"), s.get("id")) for s in saved[:5]])
+
+                    # Re-discover if no Maxi/Kvantum (prio > 1)
+                    best_prio = min((_store_sort_key(s) for s in saved), default=5)
+                    if best_prio > 1 and request_city:
+                        _needs_rediscovery = True
+                else:
+                    _log.info("ICA resolve: sparade butiker har generiska namn → tvingar re-discovery")
+                    _needs_rediscovery = True
             except Exception as exc:
                 _log.warning("ICA resolve: kunde inte parsa sparade butiker: %s", exc)
+                _needs_rediscovery = True
         else:
             _log.info("ICA resolve: saved stores skip (city_match=%s, has_saved=%s, has_city=%s)",
                       request_city == user_city, bool(user.ica_store_ids), bool(request_city))
 
-        # If no match — auto-discover for this city inline
-        if not ica_ids_to_try and request_city:
+        # If no match OR needs re-discovery — auto-discover for this city
+        if (not ica_ids_to_try or _needs_rediscovery) and request_city:
             try:
-                _log.info("ICA resolve: auto-discovering för city='%s'...", request_city)
+                _log.info("ICA resolve: %s för city='%s'...",
+                          "re-discovering" if _needs_rediscovery else "auto-discovering",
+                          request_city)
                 stores = await _discover_ica_stores(
                     resolved_lat, resolved_lon, max_distance_km, city=city,
                 )
                 _log.info("ICA resolve: discovered %d butiker: %s",
                           len(stores), [(s.get("name","?"), s.get("id")) for s in stores[:5]])
                 # Already sorted by priority in discover_ica_stores
-                ica_ids_to_try = [s["id"] for s in stores if s.get("id")]
-                _ica_store_names = {s["id"]: s.get("name", "") for s in stores if s.get("id")}
+                new_ids = [s["id"] for s in stores if s.get("id")]
+                new_names = {s["id"]: s.get("name", "") for s in stores if s.get("id")}
+
+                if new_ids:
+                    # Merge: new Maxi/Kvantum first, then any remaining old IDs
+                    existing_set = set(new_ids)
+                    extra_old = [sid for sid in ica_ids_to_try if sid not in existing_set]
+                    ica_ids_to_try = new_ids + extra_old
+                    _ica_store_names = {**_ica_store_names, **new_names}
+
+                    # Save updated stores to profile
+                    if user:
+                        user.ica_store_ids = _json.dumps(stores, ensure_ascii=False)
+                        db.commit()
+                        _log.info("ICA resolve: sparade %d butiker till profil", len(stores))
             except Exception as exc:
-                _log.warning("ICA resolve: auto-discovery misslyckades: %s", exc)
+                _log.warning("ICA resolve: discovery misslyckades: %s", exc)
     else:
         _log.info("ICA resolve: ingen user → hoppar över ICA")
 
@@ -1238,7 +1294,7 @@ async def get_campaigns(
         if not ica_ids_to_try:
             _log.info("ICA direct: inga store IDs → hoppar över")
             return None
-        for sid in ica_ids_to_try[:2]:  # Max 2 attempts (prio-sorted: Maxi first)
+        for sid in ica_ids_to_try[:4]:  # Max 4 attempts (prio-sorted: Maxi first)
             _log.info("ICA direct: provar butik %s (%s)...",
                       sid, _ica_store_names.get(sid, "?"))
             try:

@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 ICA_BASE = "https://handlaprivatkund.ica.se"
 ICA_MIN_OFFERS_THRESHOLD = 5   # Färre än så → aktivera fallback
-ICA_HTTP_TIMEOUT = 15.0
+ICA_HTTP_TIMEOUT = 8.0
 ICA_RETRY_DELAY = 2.0
 ICA_MAX_RETRIES = 2
 
@@ -927,12 +927,14 @@ def _city_to_slug(city: str) -> str:
 
 
 async def _discover_from_ica_se(
-    client: httpx.AsyncClient, city: str, max_stores: int = 5,
+    client: httpx.AsyncClient, city: str, max_stores: int = 10,
 ) -> list[dict]:
     """
     Hämtar ICA Handla-butiker från ica.se/butiker/handla-online/{city}/.
     Denna sida är server-renderad HTML och innehåller
     handlaprivatkund.ica.se/stores/{storeId}-länkar.
+
+    Extraherar butiksnamn från närliggande ica.se/butiker/{typ}/{stad}/{slug}-{id}/ URL:er.
     """
     slug = _city_to_slug(city)
     url = ICA_SE_STORES_URL.format(city=slug)
@@ -952,48 +954,73 @@ async def _discover_from_ica_se(
         logger.warning("ica.se butikssida misslyckades: %s", e)
         return []
 
-    # Extrahera alla handlaprivatkund.ica.se/stores/{id}-länkar
-    store_pattern = re.compile(r"handlaprivatkund\.ica\.se/stores/(\d{5,8})")
-    found_ids: dict[str, str] = {}  # id → name
+    # ── Steg 1: Bygg en mapping storeId → butiksnamn från ica.se/butiker/-länkar ──
+    # URL-mönster: ica.se/butiker/{typ}/{stad}/{slug}-{id}/
+    # Exempel: ica.se/butiker/maxi/stockholm/maxi-ica-stormarknad-lindhagen-1003418/
+    butiker_pattern = re.compile(
+        r"ica\.se/butiker/(maxi|kvantum|supermarket|nara|togo)/[^/]+/([^/]+)-(\d{5,8})/"
+    )
+
+    id_to_info: dict[str, dict] = {}  # storeId → {"name": ..., "type": ...}
 
     soup = BeautifulSoup(html, "html.parser")
+
+    # Hitta alla butikssida-länkar och extrahera namn + typ
+    for a_tag in soup.find_all("a", href=butiker_pattern):
+        href = a_tag.get("href", "")
+        m = butiker_pattern.search(href)
+        if not m:
+            continue
+        store_type = m.group(1)  # maxi, kvantum, supermarket, nara
+        store_slug = m.group(2)  # maxi-ica-stormarknad-lindhagen
+        store_id = m.group(3)    # 1003418
+
+        if store_id in id_to_info:
+            continue
+
+        # Extrahera butiksnamn: länktexten eller slug → human-readable
+        link_text = a_tag.get_text(strip=True)
+        if link_text and ("ICA" in link_text or "Maxi" in link_text) and len(link_text) < 80:
+            name = link_text
+        else:
+            # Fallback: konvertera slug till namn
+            # "maxi-ica-stormarknad-lindhagen" → "Maxi ICA Stormarknad Lindhagen"
+            name = store_slug.replace("-", " ").title()
+
+        id_to_info[store_id] = {"name": name, "type": store_type}
+
+    # ── Steg 2: Hitta alla handlaprivatkund-butiks-IDs ──
+    store_pattern = re.compile(r"handlaprivatkund\.ica\.se/stores/(\d{5,8})")
+    handla_ids: list[str] = []
+
     for a_tag in soup.find_all("a", href=store_pattern):
         m = store_pattern.search(a_tag["href"])
         if not m:
             continue
         sid = m.group(1)
-        if sid in found_ids:
-            continue
+        if sid not in handla_ids:
+            handla_ids.append(sid)
 
-        # Hitta butiksnamnet: det finns i den närmaste överliggande butikslänken
-        # eller i sibling-text som "ICA Nära Banér"
-        name = ""
-        # Kontrollera butikssidan-länk i närheten
-        parent = a_tag.find_parent(["div", "li", "section", "article"])
-        if parent:
-            # Sök efter "ICA ..." i texten
-            for text in parent.stripped_strings:
-                if text.startswith("ICA "):
-                    name = text
-                    break
-            # Alternativt: a-tag till ica.se/butiker/ som innehåller butiksnamn
-            if not name:
-                store_link = parent.find("a", href=re.compile(r"ica\.se/butiker/"))
-                if store_link:
-                    link_text = store_link.get_text(strip=True)
-                    if link_text.startswith("ICA ") or "ica" in link_text.lower():
-                        name = link_text
+    # ── Steg 3: Kombinera och sortera ──
+    stores = []
+    for sid in handla_ids:
+        info = id_to_info.get(sid, {})
+        name = info.get("name", f"ICA (butik {sid})")
+        store_type = info.get("type", "unknown")
 
-        if not name:
-            name = a_tag.get_text(strip=True) or f"ICA (butik {sid})"
+        stores.append({
+            "id": sid,
+            "name": name,
+            "type": store_type,
+            "source": "ica_se",
+        })
 
-        found_ids[sid] = name
-
-    stores = [{"id": sid, "name": name, "source": "ica_se"} for sid, name in found_ids.items()]
-    # Prioritera: Maxi > Kvantum > Supermarket > Nära (Maxi har flest kampanjer)
+    # Prioritera: Maxi > Kvantum > Supermarket > Nära
     stores.sort(key=_store_sort_key)
-    logger.info("ica.se: Hittade %d ICA Handla-butiker i %s: %s",
-                len(stores), city, [s["name"] for s in stores[:6]])
+
+    logger.info("ica.se: Hittade %d ICA Handla-butiker i %s (av %d handla-IDs): %s",
+                len(stores), city, len(handla_ids),
+                [(s["name"], s["id"]) for s in stores[:8]])
     return stores[:max_stores]
 
 
