@@ -147,7 +147,249 @@ def _make_ica_offer(
     }
 
 
-# ─── ICA Direct Scraper ───────────────────────────────────────────────────────
+# ─── ICA Direct — JSON API (primär) ──────────────────────────────────────────
+#
+# handlaprivatkund.ica.se/{storeId}/api/v5/products  (JSON, ingen auth)
+# Dokumentation: github.com/HampusAndersson01/ICA-Products-API
+#
+
+ICA_API_BASE = "https://handlaprivatkund.ica.se"
+ICA_API_PAGE_SIZE = 100
+
+
+def _parse_ica_api_product(product: dict, store_id: str) -> Optional[dict]:
+    """
+    Konverterar en ICA JSON API-produkt till vårt standardformat.
+    Returnerar None om produkten inte har ett kampanjerbjudande.
+    """
+    # Identifiera kampanjerbjudande
+    offer = product.get("offer") or product.get("promotion") or {}
+    potentials = product.get("potentialPromotions") or []
+
+    # Grundpriser
+    price_val = product.get("price") or product.get("currentPrice") or 0
+    price_str = ""
+    regular_str = ""
+
+    # Prishantering — varianter av ICA:s JSON-struktur
+    if isinstance(price_val, dict):
+        price_str = str(price_val.get("amount") or price_val.get("value") or "")
+        regular_str = str((price_val.get("regularAmount") or price_val.get("ordinaryPrice") or {})
+                         if isinstance(price_val.get("regularAmount"), dict) else "")
+    elif isinstance(price_val, (int, float)):
+        price_str = str(price_val)
+
+    # Alternativa prisfält
+    if not price_str:
+        for key in ("priceValue", "currentPrice", "campaignPrice", "discountedPrice"):
+            v = product.get(key)
+            if v is not None:
+                price_str = str(v) if not isinstance(v, dict) else str(v.get("amount", v.get("value", "")))
+                break
+
+    if not regular_str:
+        for key in ("ordinaryPrice", "regularPrice", "originalPrice", "priceBeforeDiscount"):
+            v = product.get(key)
+            if v is not None:
+                regular_str = str(v) if not isinstance(v, dict) else str(v.get("amount", v.get("value", "")))
+                break
+
+    # Kampanjvillkor
+    offer_label = ""
+    is_campaign = False
+    is_membership = False
+    qty_limit = None
+
+    if offer:
+        offer_label = offer.get("conditionLabel") or offer.get("description") or offer.get("text") or ""
+        is_campaign = True
+        is_membership = bool(offer.get("loyaltyProgram") or "stammis" in str(offer).lower())
+        qty_limit = offer.get("maxQuantity") or offer.get("limitPerCustomer")
+
+    # Kolla potentialPromotions
+    for promo in potentials:
+        if promo.get("conditionLabel") or promo.get("description"):
+            offer_label = offer_label or promo.get("conditionLabel") or promo.get("description") or ""
+            is_campaign = True
+            is_membership = is_membership or bool("stammis" in str(promo).lower())
+            break
+
+    # Kolla rabatt-flaggor
+    for flag in ("isCampaign", "isOffer", "isPromotion", "hasDiscount", "onSale"):
+        if product.get(flag):
+            is_campaign = True
+            break
+
+    # Om fortfarande inget: kolla om ordinarie pris > aktuellt pris
+    if not is_campaign and regular_str and price_str:
+        try:
+            p = float(price_str.replace(",", "."))
+            r = float(regular_str.replace(",", "."))
+            if r > p:
+                is_campaign = True
+                offer_label = offer_label or f"Spara {round((1 - p/r) * 100)}%"
+        except (ValueError, ZeroDivisionError):
+            pass
+
+    if not is_campaign:
+        return None
+
+    # Produktinfo
+    name = product.get("name") or product.get("productName") or product.get("title") or ""
+    if not name:
+        return None
+
+    brand = product.get("brand") or product.get("brandName") or ""
+    if isinstance(brand, dict):
+        brand = brand.get("name") or ""
+    category = product.get("category") or product.get("categoryName") or ""
+    if isinstance(category, dict):
+        category = category.get("name") or category.get("displayName") or ""
+
+    volume = _parse_weight_volume(name)
+    if not volume:
+        volume = product.get("packageSize") or product.get("size") or ""
+
+    compare_price = product.get("comparisonPrice") or product.get("unitPrice") or ""
+    if isinstance(compare_price, dict):
+        cp_amount = compare_price.get("amount") or compare_price.get("value") or ""
+        cp_unit = compare_price.get("unit") or compare_price.get("unitOfMeasure") or ""
+        compare_price = f"{cp_amount} kr/{cp_unit}" if cp_amount else ""
+    elif compare_price:
+        compare_price = str(compare_price)
+
+    product_id = str(product.get("id") or product.get("productId") or product.get("sku") or name[:20])
+
+    return _make_ica_offer(
+        product_name=name,
+        offer_label=offer_label,
+        offer_price=str(price_str).replace(",", "."),
+        ordinary_price=str(regular_str).replace(",", "."),
+        compare_price=compare_price,
+        volume=volume,
+        category=category if isinstance(category, str) else "",
+        is_membership=is_membership,
+        qty_limit=str(qty_limit) if qty_limit else None,
+        offer_id=product_id,
+        store_id=store_id,
+    )
+
+
+async def _fetch_ica_json_api(store_id: str, client: httpx.AsyncClient) -> dict:
+    """
+    Hämtar kampanjprodukter via ICA:s JSON API.
+    URL: handlaprivatkund.ica.se/{storeId}/api/v5/products
+    Kräver INGEN autentisering.
+    """
+    base_url = f"{ICA_API_BASE}/{store_id}/api/v5/products"
+    all_offers: list[dict] = []
+    offset = 0
+    max_pages = 10  # Säkerhetsgräns
+    total_products = 0
+
+    for page in range(max_pages):
+        try:
+            resp = await client.get(
+                base_url,
+                params={
+                    "limit": ICA_API_PAGE_SIZE,
+                    "offset": offset,
+                },
+                headers={
+                    "Accept": "application/json",
+                    "User-Agent": _HEADERS["User-Agent"],
+                    "Accept-Language": "sv-SE,sv;q=0.9",
+                },
+                timeout=ICA_HTTP_TIMEOUT,
+            )
+
+            if resp.status_code != 200:
+                logger.warning("ICA JSON API: HTTP %d för butik %s (offset %d)",
+                               resp.status_code, store_id, offset)
+                if page == 0:
+                    return {"offers": [], "source": "ica_direct",
+                            "error": f"ICA API svarade med HTTP {resp.status_code}"}
+                break
+
+            data = resp.json()
+
+        except Exception as e:
+            logger.warning("ICA JSON API-fel: %s", e)
+            if page == 0:
+                return {"offers": [], "source": "ica_direct", "error": f"ICA API-fel: {e}"}
+            break
+
+        # Extrahera produkter — hantera olika strukturvarianter
+        products = []
+        if isinstance(data, list):
+            products = data
+        elif isinstance(data, dict):
+            for key in ("items", "products", "results", "data", "content"):
+                if key in data and isinstance(data[key], list):
+                    products = data[key]
+                    break
+            if not products and "totalCount" not in data and "total" not in data:
+                # Kanske är hela objektet en produktlista i dold form
+                products = [data] if "name" in data or "productName" in data else []
+
+        if page == 0:
+            total_count = 0
+            if isinstance(data, dict):
+                total_count = data.get("totalCount") or data.get("total") or data.get("count") or len(products)
+                # Logga toppnivånycklar för debug
+                logger.info("ICA JSON API: toppnivånycklar: %s", list(data.keys())[:15])
+            logger.info("ICA JSON API: butik %s — %d produkter (total: %s), första sidan",
+                        store_id, len(products), total_count or "?")
+
+            # Logga första produktens fullständiga struktur (debug)
+            if products and isinstance(products[0], dict):
+                import json as _json
+                p0 = products[0]
+                logger.info("ICA JSON API: produkt[0] nycklar: %s", list(p0.keys()))
+                # Logga kompakt JSON (max 2000 tecken)
+                try:
+                    p0_json = _json.dumps(p0, ensure_ascii=False, default=str)[:2000]
+                    logger.info("ICA JSON API: produkt[0] JSON: %s", p0_json)
+                except Exception:
+                    pass
+
+        if not products:
+            break
+
+        total_products += len(products)
+
+        for product in products:
+            if not isinstance(product, dict):
+                continue
+            parsed = _parse_ica_api_product(product, store_id)
+            if parsed:
+                all_offers.append(parsed)
+
+        # Paginering
+        if len(products) < ICA_API_PAGE_SIZE:
+            break
+        offset += ICA_API_PAGE_SIZE
+        await asyncio.sleep(0.3)  # Artigt
+
+    logger.info("ICA JSON API: %d kampanjprodukter av %d totalt (butik %s)",
+                len(all_offers), total_products, store_id)
+
+    if not all_offers and total_products > 0:
+        return {
+            "offers": [],
+            "source": "ica_direct",
+            "error": f"Hittade {total_products} produkter men inga kampanjer — "
+                     f"JSON-strukturen kan ha ändrats",
+        }
+
+    return {
+        "offers": all_offers,
+        "source": "ica_direct",
+        "error": None if all_offers else "Inga produkter returnerades",
+    }
+
+
+# ─── Legacy HTML scraper (fallback) ─────────────────────────────────────────
 
 async def _fetch_html(client: httpx.AsyncClient, url: str) -> Optional[str]:
     """Hämtar HTML med retry-logik."""
@@ -168,10 +410,7 @@ async def _fetch_html(client: httpx.AsyncClient, url: str) -> Optional[str]:
 
 
 def _discover_categories(html: str, store_id: str) -> list[tuple[str, str, str]]:
-    """
-    Extraherar (slug, uuid, display_name) ur kategori-HTML.
-    URL-mönster: /stores/{id}/categories/{slug}/{uuid}
-    """
+    """Extraherar (slug, uuid, display_name) ur kategori-HTML."""
     soup = BeautifulSoup(html, "html.parser")
     pattern = re.compile(
         rf"/stores/{store_id}/categories/([^/?#]+)/([a-f0-9-]{{36}})"
@@ -191,135 +430,110 @@ def _discover_categories(html: str, store_id: str) -> list[tuple[str, str, str]]
     return categories
 
 
-def _parse_category_offers(html: str, store_id: str, category_name: str) -> list[dict]:
-    """Parsar erbjudandekort ur en ICA-kategorisida."""
-    soup = BeautifulSoup(html, "html.parser")
-    offer_pattern = re.compile(
-        rf"/stores/{store_id}/offers/([^/?#]+)/([a-f0-9-]{{36}})"
-    )
-    offers: list[dict] = []
-    processed: set[str] = set()
-
-    for a_offer in soup.find_all("a", href=offer_pattern):
-        m = offer_pattern.search(a_offer["href"])
-        if not m:
-            continue
-        offer_uuid = m.group(2)
-        if offer_uuid in processed:
-            continue
-        processed.add(offer_uuid)
-
-        label_raw = a_offer.get_text(" ", strip=True)
-        is_membership = "stammis" in label_raw.lower()
-
-        # Hitta produktens container
-        container = a_offer.find_parent(
-            lambda t: t.name in ("li", "article", "section", "div")
-        )
-        if not container:
-            continue
-
-        # Produktnamn från h3
-        h3 = container.find("h3")
-        if not h3:
-            continue
-        product_name = h3.get_text(" ", strip=True)
-
-        container_text = container.get_text(" ", strip=True)
-
-        # Priser
-        m_ord = re.search(r"Tidigare pris\s*([\d,]+)\s*kr", container_text)
-        ordinary_price = m_ord.group(1).replace(",", ".") if m_ord else ""
-
-        m_pris = re.search(r"Pris(?:Ca)?\s*([\d,]+)\s*kr", container_text)
-        offer_price = m_pris.group(1).replace(",", ".") if m_pris else ""
-
-        compare_price = _parse_compare_price(container_text)
-        volume = _parse_weight_volume(product_name)
-
-        # Kvantitetsbegränsning
-        m_qty = re.search(r"(Max\s+\d+[^,.\n]+)", label_raw, re.IGNORECASE)
-        qty_limit = m_qty.group(1).strip() if m_qty else None
-
-        # Rensa label
-        clean_label = label_raw
-        if qty_limit:
-            clean_label = clean_label.replace(f" -- {qty_limit}", "").strip()
-
-        offers.append(_make_ica_offer(
-            product_name=product_name,
-            offer_label=clean_label,
-            offer_price=offer_price,
-            ordinary_price=ordinary_price,
-            compare_price=compare_price,
-            volume=volume,
-            category=category_name,
-            is_membership=is_membership,
-            qty_limit=qty_limit,
-            offer_id=offer_uuid,
-            store_id=store_id,
-        ))
-
-    return offers
-
-
-async def _fetch_ica_direct(store_id: str, client: httpx.AsyncClient) -> dict:
-    """
-    Hämtar alla erbjudanden direkt från ICA:s webbshop.
-    Returnerar dict med 'offers', 'source', 'error'.
-    """
+async def _fetch_ica_html_scraper(store_id: str, client: httpx.AsyncClient) -> dict:
+    """Legacy HTML-scraper — används som fallback om JSON API inte fungerar."""
     base = f"{ICA_BASE}/stores/{store_id}"
 
-    # Steg 1: Hämta kategorisidan
     html = await _fetch_html(client, f"{base}/categories")
     if not html:
-        return {"offers": [], "source": "ica_direct", "error": "Kunde inte nå ICA:s webbshop"}
+        return {"offers": [], "source": "ica_direct", "error": "Kunde inte nå ICA:s webbshop (HTML)"}
 
     if not _validate_html_structure(html):
-        return {
-            "offers": [],
-            "source": "ica_direct",
-            "error": "ICA:s HTML-struktur verkar ha förändrats – parsern behöver uppdateras",
-        }
+        return {"offers": [], "source": "ica_direct",
+                "error": "ICA:s HTML-struktur har förändrats"}
 
     categories = _discover_categories(html, store_id)
     if not categories:
-        return {"offers": [], "source": "ica_direct", "error": "Inga kategorier hittades"}
+        return {"offers": [], "source": "ica_direct", "error": "Inga kategorier i HTML"}
 
-    logger.info("ICA Direct: Hittade %d kategorier för butik %s", len(categories), store_id)
-
-    # Steg 2: Hämta erbjudanden per kategori
     all_offers: list[dict] = []
     for slug, uuid, display_name in categories:
         url = f"{base}/categories/{slug}/{uuid}?campaigns=true&sortBy=favorite"
         cat_html = await _fetch_html(client, url)
         if not cat_html:
-            logger.warning("ICA Direct: Ingen respons för kategori '%s'", display_name)
             continue
 
-        if not _validate_html_structure(cat_html):
-            return {
-                "offers": all_offers,
-                "source": "ica_direct",
-                "error": f"ICA HTML-struktur förändrad i kategori '{display_name}'",
-            }
+        # Parsa erbjudanden ur kategorisidan
+        soup = BeautifulSoup(cat_html, "html.parser")
+        offer_pattern = re.compile(
+            rf"/stores/{store_id}/offers/([^/?#]+)/([a-f0-9-]{{36}})"
+        )
+        processed: set[str] = set()
 
-        cat_offers = _parse_category_offers(cat_html, store_id, display_name)
-        logger.info("ICA Direct: %d erbjudanden i '%s'", len(cat_offers), display_name)
-        all_offers.extend(cat_offers)
-        await asyncio.sleep(0.5)   # Artigt mot ICA:s server
+        for a_offer in soup.find_all("a", href=offer_pattern):
+            m = offer_pattern.search(a_offer["href"])
+            if not m:
+                continue
+            offer_uuid = m.group(2)
+            if offer_uuid in processed:
+                continue
+            processed.add(offer_uuid)
 
-    if len(all_offers) < ICA_MIN_OFFERS_THRESHOLD:
-        return {
-            "offers": all_offers,
-            "source": "ica_direct",
-            "error": (
-                f"ICA returnerade bara {len(all_offers)} erbjudanden "
-                f"(förväntar minst {ICA_MIN_OFFERS_THRESHOLD})"
-            ),
-        }
+            label_raw = a_offer.get_text(" ", strip=True)
+            is_membership = "stammis" in label_raw.lower()
 
-    return {"offers": all_offers, "source": "ica_direct", "error": None}
+            container = a_offer.find_parent(
+                lambda t: t.name in ("li", "article", "section", "div")
+            )
+            if not container:
+                continue
+
+            h3 = container.find("h3")
+            if not h3:
+                continue
+            product_name = h3.get_text(" ", strip=True)
+            container_text = container.get_text(" ", strip=True)
+
+            m_ord = re.search(r"Tidigare pris\s*([\d,]+)\s*kr", container_text)
+            ordinary_price = m_ord.group(1).replace(",", ".") if m_ord else ""
+
+            m_pris = re.search(r"Pris(?:Ca)?\s*([\d,]+)\s*kr", container_text)
+            offer_price = m_pris.group(1).replace(",", ".") if m_pris else ""
+
+            m_qty = re.search(r"(Max\s+\d+[^,.\n]+)", label_raw, re.IGNORECASE)
+            qty_limit = m_qty.group(1).strip() if m_qty else None
+
+            all_offers.append(_make_ica_offer(
+                product_name=product_name,
+                offer_label=label_raw,
+                offer_price=offer_price,
+                ordinary_price=ordinary_price,
+                compare_price=_parse_compare_price(container_text),
+                volume=_parse_weight_volume(product_name),
+                category=display_name,
+                is_membership=is_membership,
+                qty_limit=qty_limit,
+                offer_id=offer_uuid,
+                store_id=store_id,
+            ))
+
+        await asyncio.sleep(0.5)
+
+    return {
+        "offers": all_offers,
+        "source": "ica_direct",
+        "error": None if len(all_offers) >= ICA_MIN_OFFERS_THRESHOLD else
+                 f"HTML-scraper: bara {len(all_offers)} erbjudanden",
+    }
+
+
+async def _fetch_ica_direct(store_id: str, client: httpx.AsyncClient) -> dict:
+    """
+    Hämtar ICA-kampanjer — JSON API först, HTML-scraper som fallback.
+    """
+    # Primär: JSON API (snabbare, stabilare, immun mot frontend-ändringar)
+    result = await _fetch_ica_json_api(store_id, client)
+    if result.get("offers"):
+        return result
+
+    # Fallback: Legacy HTML scraper
+    logger.info("ICA JSON API returnerade inga erbjudanden, provar HTML-scraper")
+    html_result = await _fetch_ica_html_scraper(store_id, client)
+    if html_result.get("offers"):
+        return html_result
+
+    # Båda misslyckades — returnera JSON-felmeddelandet (mer informativt)
+    return result
 
 
 # ─── Matpriskollen Fallback (återanvänder befintligt API) ─────────────────────
@@ -527,8 +741,43 @@ async def get_ica_categories(store_id: str) -> dict:
 
 
 async def check_ica_health(store_id: str) -> dict:
-    """Kontrollerar om ICA:s direktkälla är tillgänglig och strukturellt intakt."""
+    """Kontrollerar om ICA:s direktkälla är tillgänglig."""
     async with httpx.AsyncClient(follow_redirects=True) as client:
+        # Primär: JSON API
+        try:
+            resp = await client.get(
+                f"{ICA_API_BASE}/{store_id}/api/v5/products",
+                params={"limit": 5, "offset": 0},
+                headers={
+                    "Accept": "application/json",
+                    "User-Agent": _HEADERS["User-Agent"],
+                },
+                timeout=10.0,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                products = []
+                if isinstance(data, list):
+                    products = data
+                elif isinstance(data, dict):
+                    for key in ("items", "products", "results", "data", "content"):
+                        if key in data and isinstance(data[key], list):
+                            products = data[key]
+                            break
+                total = 0
+                if isinstance(data, dict):
+                    total = data.get("totalCount") or data.get("total") or len(products)
+                return {
+                    "status": "ok" if products else "degraded",
+                    "store_id": store_id,
+                    "categories_found": total or len(products),
+                    "api": "json_v5",
+                    "source_url": f"{ICA_API_BASE}/{store_id}/api/v5/products",
+                }
+        except Exception as e:
+            logger.warning("ICA health JSON API-fel: %s", e)
+
+        # Fallback: HTML
         try:
             resp = await client.get(
                 f"{ICA_BASE}/stores/{store_id}/categories",
@@ -537,19 +786,17 @@ async def check_ica_health(store_id: str) -> dict:
             )
             resp.raise_for_status()
             html = resp.text
+            is_valid = _validate_html_structure(html)
+            categories = _discover_categories(html, store_id)
+            return {
+                "status": "ok" if is_valid and categories else "degraded",
+                "store_id": store_id,
+                "categories_found": len(categories),
+                "api": "html_scraper",
+                "source_url": f"{ICA_BASE}/stores/{store_id}/categories",
+            }
         except Exception as e:
             return {"status": "down", "store_id": store_id, "error": str(e)}
-
-    is_valid = _validate_html_structure(html)
-    categories = _discover_categories(html, store_id)
-
-    return {
-        "status": "ok" if is_valid else "degraded",
-        "store_id": store_id,
-        "html_structure_valid": is_valid,
-        "categories_found": len(categories),
-        "source_url": f"{ICA_BASE}/stores/{store_id}/categories",
-    }
 
 
 # ─── Store Discovery ────────────────────────────────────────────────────────

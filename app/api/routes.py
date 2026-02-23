@@ -1025,6 +1025,86 @@ async def campaign_status(
     return result
 
 
+@router.get("/campaigns/ica-debug", tags=["campaigns"])
+async def ica_debug(
+    store_id: str = Query("1004222", description="ICA store ID to test"),
+    user: User | None = Depends(get_optional_user),
+):
+    """Debug: testar ICA JSON API och HTML scraper direkt."""
+    import httpx as _httpx
+    import time as _time
+
+    results: dict = {"store_id": store_id, "tests": {}}
+
+    async with _httpx.AsyncClient(follow_redirects=True, timeout=12.0) as client:
+        # Test 1: JSON API
+        t0 = _time.monotonic()
+        try:
+            api_url = f"https://handlaprivatkund.ica.se/{store_id}/api/v5/products"
+            resp = await client.get(
+                api_url,
+                params={"limit": 5, "offset": 0},
+                headers={
+                    "Accept": "application/json",
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                    "Accept-Language": "sv-SE,sv;q=0.9",
+                },
+            )
+            elapsed = int((_time.monotonic() - t0) * 1000)
+            data = None
+            try:
+                data = resp.json()
+            except Exception:
+                pass
+
+            results["tests"]["json_api"] = {
+                "url": api_url,
+                "status": resp.status_code,
+                "elapsed_ms": elapsed,
+                "content_type": resp.headers.get("content-type", ""),
+                "response_length": len(resp.text),
+                "is_json": data is not None,
+                "top_keys": list(data.keys())[:15] if isinstance(data, dict) else None,
+                "is_list": isinstance(data, list),
+                "list_length": len(data) if isinstance(data, list) else None,
+                "sample": (data[:2] if isinstance(data, list) else
+                          {k: str(v)[:200] for k, v in list(data.items())[:5]} if isinstance(data, dict) else
+                          resp.text[:500]),
+            }
+        except Exception as e:
+            results["tests"]["json_api"] = {"error": str(e), "elapsed_ms": int((_time.monotonic() - t0) * 1000)}
+
+        # Test 2: HTML categories page
+        t0 = _time.monotonic()
+        try:
+            html_url = f"https://handlaprivatkund.ica.se/stores/{store_id}/categories"
+            resp = await client.get(
+                html_url,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                    "Accept": "text/html,*/*",
+                },
+            )
+            elapsed = int((_time.monotonic() - t0) * 1000)
+            html = resp.text
+            has_next_data = "__NEXT_DATA__" in html
+            has_category_links = "/categories/" in html and "/stores/" in html
+
+            results["tests"]["html_categories"] = {
+                "url": html_url,
+                "status": resp.status_code,
+                "elapsed_ms": elapsed,
+                "response_length": len(html),
+                "has_next_data": has_next_data,
+                "has_category_links": has_category_links,
+                "html_snippet": html[:500] if resp.status_code != 200 else "OK (truncated)",
+            }
+        except Exception as e:
+            results["tests"]["html_categories"] = {"error": str(e)}
+
+    return results
+
+
 @router.get("/campaigns/ica-stores", tags=["campaigns"])
 async def discover_ica_stores(
     city: str | None = Query(None),
