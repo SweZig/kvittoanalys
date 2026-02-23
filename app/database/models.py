@@ -49,6 +49,20 @@ class CategorySuggestion(Base):
     """Category change suggestion from non-admin users."""
     __tablename__ = "category_suggestions"
 
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    description = Column(Text, nullable=False)          # product description
+    current_category = Column(String(100), nullable=True)
+    suggested_category = Column(String(100), nullable=False)
+    reason = Column(Text, nullable=True)
+    status = Column(String(20), default="pending")      # pending, approved, rejected
+    reviewed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    reviewed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    user = relationship("User", foreign_keys=[user_id], back_populates="suggestions")
+    reviewer = relationship("User", foreign_keys=[reviewed_by])
+
 
 class CategoryReference(Base):
     """Learned product→category mappings from external sources (matpriskollen, ICA).
@@ -68,20 +82,6 @@ class CategoryReference(Base):
     times_seen = Column(Integer, default=1)                          # how many times seen
     last_seen_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    description = Column(Text, nullable=False)          # product description
-    current_category = Column(String(100), nullable=True)
-    suggested_category = Column(String(100), nullable=False)
-    reason = Column(Text, nullable=True)
-    status = Column(String(20), default="pending")      # pending, approved, rejected
-    reviewed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-    reviewed_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-
-    user = relationship("User", foreign_keys=[user_id], back_populates="suggestions")
-    reviewer = relationship("User", foreign_keys=[reviewed_by])
 
 
 class Vendor(Base):
