@@ -1147,22 +1147,29 @@ async def get_campaigns(
     db: Session = Depends(get_db),
 ):
     """Fetch current campaigns with ICA direct scraping + matpriskollen fallback."""
+    import logging as _logging
+    _log = _logging.getLogger("campaigns")
     t0 = _time.monotonic()
     coords = _resolve_coords(city, lat, lon)
     if not coords:
         raise HTTPException(status_code=400, detail="Ange city eller lat+lon. Orten hittades inte.")
 
     resolved_lat, resolved_lon = coords
+    _log.info("Kampanjer: city=%s, coords=(%s,%s), user=%s",
+              city, resolved_lat, resolved_lon, user.email if user else "anon")
 
     # ── Resolve ICA store IDs: explicit param > user profile (city match) > auto-discover ──
     ica_ids_to_try: list[str] = []
     _ica_store_names: dict[str, str] = {}  # id → name for display
     if ica_store_id:
         ica_ids_to_try = [ica_store_id]
+        _log.info("ICA resolve: explicit store_id=%s", ica_store_id)
     elif user:
         import json as _json
         request_city = (city or "").lower().strip()
         user_city = (user.city or "").lower().strip()
+        _log.info("ICA resolve: request_city='%s', user_city='%s', has_saved=%s",
+                  request_city, user_city, bool(user.ica_store_ids))
 
         # Only use saved stores if they match the requested city
         if user.ica_store_ids and request_city and request_city == user_city:
@@ -1172,14 +1179,21 @@ async def get_campaigns(
                 saved.sort(key=_store_sort_key)
                 ica_ids_to_try = [s["id"] for s in saved if s.get("id")]
                 _ica_store_names = {s["id"]: s.get("name", "") for s in saved if s.get("id")}
+                _log.info("ICA resolve: %d sparade butiker med ID: %s",
+                          len(ica_ids_to_try),
+                          [(s.get("name","?"), s.get("id")) for s in saved[:5]])
 
                 # Re-discover if no Maxi/Kvantum among saved (old discovery missed them)
                 best_prio = min((_store_sort_key(s) for s in saved), default=5)
+                _log.info("ICA resolve: best_prio=%d (0=Maxi, 1=Kvantum, 2=Super, 3=Nära)", best_prio)
                 if best_prio > 1 and request_city:  # > 1 = only Supermarket/Nära
                     try:
+                        _log.info("ICA resolve: re-discovering för Maxi/Kvantum...")
                         fresh = await _discover_ica_stores(
                             resolved_lat, resolved_lon, max_distance_km, city=city,
                         )
+                        _log.info("ICA resolve: fresh discovery → %d butiker: %s",
+                                  len(fresh), [(s.get("name","?"), s.get("id")) for s in fresh[:5]])
                         fresh_ids = [s["id"] for s in fresh if s.get("id") and s["id"] not in set(ica_ids_to_try)]
                         if fresh_ids:
                             ica_ids_to_try = fresh_ids + ica_ids_to_try  # New Maxi first
@@ -1188,22 +1202,33 @@ async def get_campaigns(
                             all_stores = fresh + [s for s in saved if s.get("id") not in {f["id"] for f in fresh}]
                             user.ica_store_ids = _json.dumps(all_stores, ensure_ascii=False)
                             db.commit()
-                    except Exception:
-                        pass
-            except Exception:
-                pass
+                    except Exception as exc:
+                        _log.warning("ICA resolve: re-discovery misslyckades: %s", exc)
+            except Exception as exc:
+                _log.warning("ICA resolve: kunde inte parsa sparade butiker: %s", exc)
+        else:
+            _log.info("ICA resolve: saved stores skip (city_match=%s, has_saved=%s, has_city=%s)",
+                      request_city == user_city, bool(user.ica_store_ids), bool(request_city))
 
         # If no match — auto-discover for this city inline
         if not ica_ids_to_try and request_city:
             try:
+                _log.info("ICA resolve: auto-discovering för city='%s'...", request_city)
                 stores = await _discover_ica_stores(
                     resolved_lat, resolved_lon, max_distance_km, city=city,
                 )
+                _log.info("ICA resolve: discovered %d butiker: %s",
+                          len(stores), [(s.get("name","?"), s.get("id")) for s in stores[:5]])
                 # Already sorted by priority in discover_ica_stores
                 ica_ids_to_try = [s["id"] for s in stores if s.get("id")]
                 _ica_store_names = {s["id"]: s.get("name", "") for s in stores if s.get("id")}
-            except Exception:
-                pass
+            except Exception as exc:
+                _log.warning("ICA resolve: auto-discovery misslyckades: %s", exc)
+    else:
+        _log.info("ICA resolve: ingen user → hoppar över ICA")
+
+    _log.info("ICA resolve RESULTAT: %d store IDs att prova: %s",
+              len(ica_ids_to_try), ica_ids_to_try[:5])
 
     # ── PARALLEL: Matpriskollen + ICA Direct ──
     async def _do_matpriskollen():
@@ -1211,8 +1236,11 @@ async def get_campaigns(
 
     async def _do_ica_direct():
         if not ica_ids_to_try:
+            _log.info("ICA direct: inga store IDs → hoppar över")
             return None
         for sid in ica_ids_to_try[:2]:  # Max 2 attempts (prio-sorted: Maxi first)
+            _log.info("ICA direct: provar butik %s (%s)...",
+                      sid, _ica_store_names.get(sid, "?"))
             try:
                 result = await _fetch_ica_campaigns(
                     store_id=sid,
@@ -1221,13 +1249,17 @@ async def get_campaigns(
                     max_distance_km=max_distance_km,
                     fallback_enabled=False,
                 )
+                _log.info("ICA direct: butik %s → source=%s, offers=%d, error=%s",
+                          sid, result.get("source"), len(result.get("offers", [])),
+                          result.get("error", "None")[:100])
                 if result.get("source") == "ica_direct" and result.get("offers"):
                     result["_store_id"] = sid
                     result["_store_name"] = _ica_store_names.get(sid, f"butik {sid}")
                     return result
             except Exception as e:
-                import logging
-                logging.getLogger(__name__).warning("ICA direct failed for %s: %s", sid, e)
+                _log.warning("ICA direct: butik %s misslyckades: %s", sid, e)
+        _log.info("ICA direct: alla butiker prövade utan resultat")
+        return None
         return None
 
     try:

@@ -310,19 +310,38 @@ async def _fetch_ica_json_api(store_id: str, client: httpx.AsyncClient) -> dict:
     }
 
     # ── Steg 1: Hämta första sidan + ta reda på totalt antal ──
-    try:
-        resp = await client.get(
-            base_url,
-            params={"limit": ICA_API_PAGE_SIZE, "offset": 0},
-            headers=api_headers,
-            timeout=ICA_HTTP_TIMEOUT,
-        )
-        if resp.status_code != 200:
-            return {"offers": [], "source": "ica_direct",
-                    "error": f"ICA API HTTP {resp.status_code}"}
-        data = resp.json()
-    except Exception as e:
-        return {"offers": [], "source": "ica_direct", "error": f"ICA API-fel: {e}"}
+    # Prova BÅDA URL-format (dokumentation inkonsekvent)
+    api_urls = [
+        f"{ICA_API_BASE}/stores/{store_id}/api/v5/products",   # /stores/{id}/api/v5/...
+        f"{ICA_API_BASE}/{store_id}/api/v5/products",          # /{id}/api/v5/...
+    ]
+
+    data = None
+    base_url = None
+    for try_url in api_urls:
+        try:
+            resp = await client.get(
+                try_url,
+                params={"limit": ICA_API_PAGE_SIZE, "offset": 0},
+                headers=api_headers,
+                timeout=ICA_HTTP_TIMEOUT,
+            )
+            logger.info("ICA JSON API: %s → HTTP %d (len=%d, ct=%s)",
+                        try_url, resp.status_code, len(resp.text),
+                        resp.headers.get("content-type", "?"))
+            if resp.status_code == 200:
+                try:
+                    data = resp.json()
+                    base_url = try_url
+                    break
+                except Exception:
+                    logger.warning("ICA JSON API: HTTP 200 men ogiltigt JSON från %s", try_url)
+        except Exception as e:
+            logger.warning("ICA JSON API: %s misslyckades: %s", try_url, e)
+
+    if data is None:
+        return {"offers": [], "source": "ica_direct",
+                "error": f"ICA API svarade inte på varken /stores/{{id}} eller /{{id}} format"}
 
     # Extrahera produktlistan
     def _extract_products(d):
