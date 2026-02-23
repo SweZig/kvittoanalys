@@ -1368,6 +1368,7 @@ async def get_campaigns(
         if not ica_ids_to_try:
             _log.info("ICA direct: inga store IDs → hoppar över")
             return None
+        last_error = None
         for sid in ica_ids_to_try[:4]:  # Max 4 attempts (prio-sorted: Maxi first)
             slug = _ica_store_slugs.get(sid, "")
             # Fallback: bygg slug från butiksnamn
@@ -1387,16 +1388,24 @@ async def get_campaigns(
                     fallback_enabled=False,
                     store_slug=slug,
                 )
-                _log.info("ICA direct: butik %s → source=%s, offers=%d, error=%s",
+                _log.info("ICA direct: butik %s → source=%s, offers=%d, error=%s, keys=%s",
                           sid, result.get("source"), len(result.get("offers", [])),
-                          result.get("error", "None")[:100])
+                          result.get("error", "None")[:100],
+                          list(result.keys()))
                 if result.get("source") == "ica_direct" and result.get("offers"):
                     result["_store_id"] = sid
                     result["_store_name"] = _ica_store_names.get(sid, f"butik {sid}")
+                    _log.info("ICA direct: SUCCÉ! %d erbjudanden från %s",
+                              len(result["offers"]), sid)
                     return result
+                else:
+                    last_error = result.get("error") or result.get("fallback_reason") or f"source={result.get('source')}"
+                    _log.info("ICA direct: butik %s passade inte (source=%s, offers=%d)",
+                              sid, result.get("source"), len(result.get("offers", [])))
             except Exception as e:
-                _log.warning("ICA direct: butik %s misslyckades: %s", sid, e)
-        _log.info("ICA direct: alla butiker prövade utan resultat")
+                last_error = str(e)
+                _log.warning("ICA direct: butik %s EXCEPTION: %s", sid, e, exc_info=True)
+        _log.info("ICA direct: alla butiker prövade utan resultat. Senaste fel: %s", last_error)
         return None
 
     try:
@@ -1419,7 +1428,8 @@ async def get_campaigns(
         "needs_rediscovery": _needs_rediscovery,
         "ica_direct_returned": ica_data is not None,
         "ica_direct_offers": len(ica_data.get("offers", [])) if ica_data else 0,
-        "ica_direct_error": (ica_data.get("error") or ica_data.get("fallback_reason")) if ica_data else "ica_data=None",
+        "ica_direct_error": (ica_data.get("error") or ica_data.get("fallback_reason") or ica_data.get("_last_error")) if ica_data else "ica_data=None",
+        "ica_direct_source": ica_data.get("source") if ica_data else "N/A",
         "user_city": user.city if user else None,
         "request_city": city,
         "user_has_saved_stores": bool(user and user.ica_store_ids),
