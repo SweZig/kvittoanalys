@@ -1028,6 +1028,7 @@ async def campaign_status(
 @router.get("/campaigns/ica-debug", tags=["campaigns"])
 async def ica_debug(
     store_id: str = Query("1004222", description="ICA store ID to test"),
+    slug: str = Query("", description="Store slug for erbjudanden (e.g. maxi-ica-stormarknad-lindhagen-1003418)"),
     user: User | None = Depends(get_optional_user),
 ):
     """Debug: testar ALLA ICA API URL-format och visar exakt vad som returneras."""
@@ -1131,11 +1132,34 @@ async def ica_debug(
             except Exception as e:
                 results["discovery"] = {"error": str(e)}
 
+        # Test: ica.se/erbjudanden/ scraper (om slug finns)
+        erbjudanden_slug = slug
+        if not erbjudanden_slug and results.get("discovery", {}).get("stores"):
+            # Använd första butikens slug
+            first = results["discovery"]["stores"][0]
+            erbjudanden_slug = first.get("slug", "")
+
+        if erbjudanden_slug:
+            from app.services.ica_campaign_service import _fetch_ica_erbjudanden
+            t0 = _time.monotonic()
+            try:
+                erbjudanden_result = await _fetch_ica_erbjudanden(store_id, erbjudanden_slug, client)
+                results["erbjudanden_test"] = {
+                    "url": f"https://www.ica.se/erbjudanden/{erbjudanden_slug}/",
+                    "elapsed_ms": int((_time.monotonic() - t0) * 1000),
+                    "offer_count": len(erbjudanden_result.get("offers", [])),
+                    "error": erbjudanden_result.get("error"),
+                    "sample_offers": erbjudanden_result.get("offers", [])[:3],
+                }
+            except Exception as e:
+                results["erbjudanden_test"] = {"error": str(e), "elapsed_ms": int((_time.monotonic() - t0) * 1000)}
+
         # Test: Kör hela fetch_ica_campaigns-kedjan
         t0 = _time.monotonic()
         try:
             full_result = await _fetch_ica_campaigns(
                 store_id=store_id, lat=59.33, lon=18.07, fallback_enabled=False,
+                store_slug=erbjudanden_slug,
             )
             results["full_test"] = {
                 "elapsed_ms": int((_time.monotonic() - t0) * 1000),
@@ -1273,11 +1297,11 @@ async def get_campaigns(
                     ica_ids_to_try = new_ids + extra_old
                     _ica_store_names = {**_ica_store_names, **new_names}
 
-                    # Save updated stores to profile
+                    # Save updated stores to profile (includes slugs)
                     if user:
                         user.ica_store_ids = _json.dumps(stores, ensure_ascii=False)
                         db.commit()
-                        _log.info("ICA resolve: sparade %d butiker till profil", len(stores))
+                        _log.info("ICA resolve: sparade %d butiker till profil (med slugs)", len(stores))
             except Exception as exc:
                 _log.warning("ICA resolve: discovery misslyckades: %s", exc)
     else:
@@ -1285,6 +1309,15 @@ async def get_campaigns(
 
     _log.info("ICA resolve RESULTAT: %d store IDs att prova: %s",
               len(ica_ids_to_try), ica_ids_to_try[:5])
+
+    # Bygg slug-mapping från sparade/upptäckta butiker
+    _ica_store_slugs: dict[str, str] = {}
+    if user and user.ica_store_ids:
+        try:
+            _saved_for_slugs = _json.loads(user.ica_store_ids)
+            _ica_store_slugs = {s["id"]: s.get("slug", "") for s in _saved_for_slugs if s.get("id")}
+        except Exception:
+            pass
 
     # ── PARALLEL: Matpriskollen + ICA Direct ──
     async def _do_matpriskollen():
@@ -1295,8 +1328,9 @@ async def get_campaigns(
             _log.info("ICA direct: inga store IDs → hoppar över")
             return None
         for sid in ica_ids_to_try[:4]:  # Max 4 attempts (prio-sorted: Maxi first)
-            _log.info("ICA direct: provar butik %s (%s)...",
-                      sid, _ica_store_names.get(sid, "?"))
+            slug = _ica_store_slugs.get(sid, "")
+            _log.info("ICA direct: provar butik %s (%s) slug=%s...",
+                      sid, _ica_store_names.get(sid, "?"), slug or "saknas")
             try:
                 result = await _fetch_ica_campaigns(
                     store_id=sid,
@@ -1304,6 +1338,7 @@ async def get_campaigns(
                     lon=resolved_lon,
                     max_distance_km=max_distance_km,
                     fallback_enabled=False,
+                    store_slug=slug,
                 )
                 _log.info("ICA direct: butik %s → source=%s, offers=%d, error=%s",
                           sid, result.get("source"), len(result.get("offers", [])),

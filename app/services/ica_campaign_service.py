@@ -572,22 +572,176 @@ async def _fetch_ica_html_scraper(store_id: str, client: httpx.AsyncClient) -> d
     }
 
 
-async def _fetch_ica_direct(store_id: str, client: httpx.AsyncClient) -> dict:
+async def _fetch_ica_erbjudanden(store_id: str, store_slug: str, client: httpx.AsyncClient) -> dict:
     """
-    Hämtar ICA-kampanjer — JSON API först, HTML-scraper som fallback.
+    Hämtar erbjudanden från ica.se/erbjudanden/{slug}/.
+    Server-renderad HTML — pålitlig, kräver ingen autentisering.
     """
-    # Primär: JSON API (snabbare, stabilare, immun mot frontend-ändringar)
+    url = f"https://www.ica.se/erbjudanden/{store_slug}/"
+    logger.info("ICA erbjudanden: hämtar %s", url)
+
+    try:
+        resp = await client.get(url, headers={
+            "User-Agent": _HEADERS["User-Agent"],
+            "Accept": "text/html,application/xhtml+xml,*/*",
+            "Accept-Language": "sv-SE,sv;q=0.9",
+        }, timeout=ICA_HTTP_TIMEOUT)
+
+        if resp.status_code != 200:
+            logger.warning("ICA erbjudanden: HTTP %d för %s", resp.status_code, url)
+            return {"offers": [], "source": "ica_direct",
+                    "error": f"ica.se/erbjudanden HTTP {resp.status_code}"}
+    except Exception as e:
+        logger.warning("ICA erbjudanden misslyckades: %s", e)
+        return {"offers": [], "source": "ica_direct", "error": f"ica.se/erbjudanden: {e}"}
+
+    html = resp.text
+    soup = BeautifulSoup(html, "html.parser")
+
+    # Hitta alla produktkort — de har en bild med "Illustration av" i alt-texten
+    # och pris/erbjudandetext
+    all_offers: list[dict] = []
+    seen: set[str] = set()
+
+    # Varje erbjudande har en img med alt="Illustration av {produktnamn}"
+    # Närliggande text innehåller detaljer och pris
+    for img in soup.find_all("img", alt=lambda x: x and x.startswith("Illustration av ")):
+        product_name = img["alt"].replace("Illustration av ", "").strip()
+        if not product_name or product_name in seen:
+            continue
+        seen.add(product_name)
+
+        # Navigera uppåt till det omslutande kortet
+        card = img.find_parent(["div", "li", "article", "section"])
+        if not card:
+            continue
+
+        # Extrahera all text i kortet
+        texts = [t.strip() for t in card.stripped_strings if t.strip()]
+
+        # Bygg offer-data
+        details_text = ""
+        offer_label = ""
+        ordinary_price = ""
+        compare_price = ""
+        volume = ""
+        is_membership = False
+        qty_limit = ""
+
+        for t in texts:
+            if t == product_name or t.startswith("Illustration av") or t in ("Lägg i inköpslista",):
+                continue
+
+            # Pris-etiketter
+            if re.match(r"\d+ för \d+", t):  # "2 för 25 kr"
+                offer_label = t.replace(" kr", "").strip()
+            elif re.match(r"\d+[\s,:]?\d* kr/", t):  # "80 kr/st", "109 kr/kg"
+                offer_label = t.replace(" kr", "").strip()
+            elif re.match(r"\d+[\s,:]?\d*:-", t):  # "25:-"
+                if not offer_label:
+                    offer_label = t
+            elif "%" in t and "rabatt" in t.lower():
+                offer_label = t
+            elif "Köp" in t and "betala" in t:
+                offer_label = t.replace("\n", " ")
+
+            # Detaljer (märke, vikt, priser)
+            if "Ord.pris" in t:
+                m = re.search(r"Ord\.pris\s+([\d:,]+(?:-[\d:,]+)?)\s*kr", t)
+                if m:
+                    ordinary_price = m.group(1).replace(":", ".").replace(",", ".")
+                details_text = t
+            if "Jmfpris" in t:
+                m = re.search(r"Jmfpris\s+([\d:,]+)/(\w+)", t)
+                if m:
+                    compare_price = f"{m.group(1).replace(':', '.')}/{m.group(2)}"
+                if not details_text:
+                    details_text = t
+            if "Max" in t and "köp" in t.lower():
+                m = re.search(r"Max\s+(\d+)\s+köp", t)
+                if m:
+                    qty_limit = m.group(1)
+            if not details_text and (
+                re.search(r"\d+\s*(g|kg|ml|liter|cl|st|pack)", t.lower())
+                or "." in t and len(t) > 10
+            ):
+                details_text = t
+
+            # Medlemskap
+            if "Stammis" in t or "StammisPris" in t:
+                is_membership = True
+
+        # Extrahera volym från detaljer
+        if details_text:
+            m = re.search(r"(\d+(?:[,-]\d+)?)\s*(g|kg|ml|liter|cl|st|pack)\b", details_text, re.IGNORECASE)
+            if m:
+                volume = f"{m.group(1)} {m.group(2)}"
+
+        # Extrahera erbjudandepris
+        offer_price = ""
+        if offer_label:
+            # "2 för 25" → pris = 25
+            m = re.search(r"(\d+)\s+för\s+([\d,]+)", offer_label)
+            if m:
+                offer_price = m.group(2).replace(",", ".")
+            else:
+                # "80 kr/st" eller "109:-/kg"
+                m = re.search(r"([\d,]+(?:\.\d+)?)", offer_label)
+                if m:
+                    offer_price = m.group(1).replace(",", ".")
+
+        if not offer_label:
+            continue  # Inget erbjudande hittades
+
+        all_offers.append(_make_ica_offer(
+            product_name=product_name,
+            offer_label=offer_label,
+            offer_price=offer_price,
+            ordinary_price=ordinary_price,
+            compare_price=compare_price,
+            volume=volume,
+            category="",
+            is_membership=is_membership,
+            qty_limit=qty_limit if qty_limit else None,
+            offer_id=f"ica-erbjudanden-{store_id}-{product_name[:30]}",
+            store_id=store_id,
+        ))
+
+    logger.info("ICA erbjudanden: %d erbjudanden parsade från %s", len(all_offers), url)
+
+    return {
+        "offers": all_offers,
+        "source": "ica_direct",
+        "error": None if all_offers else "Inga erbjudanden hittades på sidan",
+    }
+
+
+async def _fetch_ica_direct(store_id: str, client: httpx.AsyncClient,
+                            store_slug: str = "") -> dict:
+    """
+    Hämtar ICA-kampanjer med tre metoder:
+    1. ica.se/erbjudanden/ (server-renderad HTML — pålitligast)
+    2. JSON API (nedlagd sedan ~feb 2026 men behålls för framtiden)
+    3. handlaprivatkund HTML-scraper (legacy)
+    """
+    # Primär: ica.se/erbjudanden/ (kräver slug)
+    if store_slug:
+        result = await _fetch_ica_erbjudanden(store_id, store_slug, client)
+        if result.get("offers"):
+            return result
+        logger.info("ICA erbjudanden returnerade inga erbjudanden för %s", store_slug)
+
+    # Fallback 1: JSON API
     result = await _fetch_ica_json_api(store_id, client)
     if result.get("offers"):
         return result
 
-    # Fallback: Legacy HTML scraper
+    # Fallback 2: Legacy HTML scraper
     logger.info("ICA JSON API returnerade inga erbjudanden, provar HTML-scraper")
     html_result = await _fetch_ica_html_scraper(store_id, client)
     if html_result.get("offers"):
         return html_result
 
-    # Båda misslyckades — returnera JSON-felmeddelandet (mer informativt)
     return result
 
 
@@ -675,6 +829,7 @@ async def fetch_ica_campaigns(
     lon: float,
     max_distance_km: float = 5.0,
     fallback_enabled: bool = True,
+    store_slug: str = "",
 ) -> dict:
     """
     Hämtar ICA-kampanjer med automatisk fallback.
@@ -684,6 +839,7 @@ async def fetch_ica_campaigns(
         lat / lon:         Koordinater för fallback-sökning på matpriskollen
         max_distance_km:   Max avstånd för matpriskollen-fallback
         fallback_enabled:  Om False används aldrig matpriskollen som källa
+        store_slug:        URL-slug för ica.se/erbjudanden/ (t.ex. "maxi-ica-stormarknad-lindhagen-1003418")
 
     Returns:
         {
@@ -699,8 +855,8 @@ async def fetch_ica_campaigns(
     async with httpx.AsyncClient(follow_redirects=True) as client:
 
         # ── Primär: ICA Direct ──
-        logger.info("ICA: Försöker direkthämtning för butik %s", store_id)
-        direct = await _fetch_ica_direct(store_id, client)
+        logger.info("ICA: Försöker direkthämtning för butik %s (slug=%s)", store_id, store_slug or "saknas")
+        direct = await _fetch_ica_direct(store_id, client, store_slug=store_slug)
 
         if direct["error"] is None:
             # Framgång – returnera direkt
@@ -987,7 +1143,10 @@ async def _discover_from_ica_se(
             # "maxi-ica-stormarknad-lindhagen" → "Maxi ICA Stormarknad Lindhagen"
             name = store_slug.replace("-", " ").title()
 
-        id_to_info[store_id] = {"name": name, "type": store_type}
+        # Konstruera erbjudanden-slug: "{store_slug}-{store_id}"
+        erbjudanden_slug = f"{store_slug}-{store_id}"
+
+        id_to_info[store_id] = {"name": name, "type": store_type, "slug": erbjudanden_slug}
 
     # ── Steg 2: Hitta alla handlaprivatkund-butiks-IDs ──
     store_pattern = re.compile(r"handlaprivatkund\.ica\.se/stores/(\d{5,8})")
@@ -1007,11 +1166,13 @@ async def _discover_from_ica_se(
         info = id_to_info.get(sid, {})
         name = info.get("name", f"ICA (butik {sid})")
         store_type = info.get("type", "unknown")
+        slug = info.get("slug", "")
 
         stores.append({
             "id": sid,
             "name": name,
             "type": store_type,
+            "slug": slug,   # t.ex. "maxi-ica-stormarknad-lindhagen"
             "source": "ica_se",
         })
 
