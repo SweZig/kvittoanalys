@@ -1437,51 +1437,74 @@ async def get_campaigns(
     }
 
     # ── Merge ICA direct offers with matpriskollen ──
-    # Strategi: Behåll matpriskollens ICA-erbjudanden, LÄGG TILL unika direkterbjudanden
+    # Strategi: Lägg till direkterbjudanden i rätt ICA-underkedja (Maxi/Kvantum/etc)
     if ica_data and ica_data.get("offers"):
         direct_offers = ica_data["offers"]
         store_name = ica_data.get("_store_name", f"butik {ica_data.get('_store_id', '?')}")
 
-        # Hitta befintliga ICA-erbjudanden från matpriskollen
-        ica_chain_idx = None
+        # Bestäm ICA-underkedja från butiksnamnet
+        store_lower = store_name.lower()
+        if "maxi" in store_lower:
+            direct_chain_name = "ICA Maxi"
+        elif "kvantum" in store_lower:
+            direct_chain_name = "ICA Kvantum"
+        elif "supermarket" in store_lower:
+            direct_chain_name = "ICA Supermarket"
+        elif "nära" in store_lower or "nara" in store_lower:
+            direct_chain_name = "ICA Nära"
+        else:
+            direct_chain_name = "ICA"
+
+        # Samla befintliga produktnamn från ALLA ICA-kedjor
         existing_names: set[str] = set()
+        target_chain_idx = None
         for idx, c in enumerate(data.get("chains", [])):
             if "ica" in c.get("chain", "").lower():
-                ica_chain_idx = idx
                 for offer in c.get("offers", []):
                     name = offer.get("product", {}).get("name", "").lower().strip()
                     if name:
                         existing_names.add(name)
-                break
+                # Matcha rätt underkedja
+                if c.get("chain", "") == direct_chain_name:
+                    target_chain_idx = idx
 
-        # Filtrera ut unika direkterbjudanden (inte redan i matpriskollen)
+        # Filtrera ut unika direkterbjudanden
         unique_direct = []
         for offer in direct_offers:
             name = offer.get("product", {}).get("name", "").lower().strip()
             if name and name not in existing_names:
                 unique_direct.append(offer)
 
-        _log.info("ICA merge: %d direkterbjudanden, %d redan i matpriskollen, %d unika tillagda",
-                  len(direct_offers), len(direct_offers) - len(unique_direct), len(unique_direct))
+        _log.info("ICA merge: %d direkterbjudanden → %s, %d redan finns, %d unika tillagda",
+                  len(direct_offers), direct_chain_name,
+                  len(direct_offers) - len(unique_direct), len(unique_direct))
 
-        if unique_direct and ica_chain_idx is not None:
-            # Lägg till unika erbjudanden i befintlig ICA-kedja
-            data["chains"][ica_chain_idx]["offers"].extend(unique_direct)
-            data["chains"][ica_chain_idx]["total_offers"] = len(data["chains"][ica_chain_idx]["offers"])
-            data["chains"][ica_chain_idx]["source"] = "matpriskollen+ica_direct"
-            data["chains"][ica_chain_idx]["stores"] = list(set(
-                data["chains"][ica_chain_idx].get("stores", []) + [store_name]
+        if unique_direct and target_chain_idx is not None:
+            # Lägg till i befintlig kedja
+            data["chains"][target_chain_idx]["offers"].extend(unique_direct)
+            data["chains"][target_chain_idx]["total_offers"] = len(data["chains"][target_chain_idx]["offers"])
+            data["chains"][target_chain_idx]["source"] = "matpriskollen+ica_direct"
+            data["chains"][target_chain_idx]["stores"] = list(set(
+                data["chains"][target_chain_idx].get("stores", []) + [store_name]
             ))
         elif unique_direct:
-            # Ingen ICA-kedja från matpriskollen — skapa ny
-            ica_chain = {
-                "chain": "ICA",
+            # Skapa ny kedja (t.ex. "ICA Maxi" om den inte finns från matpriskollen)
+            new_chain = {
+                "chain": direct_chain_name,
                 "stores": [store_name],
                 "total_offers": len(unique_direct),
                 "offers": unique_direct,
                 "source": "ica_direct",
             }
-            data["chains"] = [ica_chain] + data.get("chains", [])
+            # Infoga bland ICA-kedjorna (hitta sista ICA-kedjan)
+            last_ica = -1
+            for idx, c in enumerate(data.get("chains", [])):
+                if "ica" in c.get("chain", "").lower():
+                    last_ica = idx
+            if last_ica >= 0:
+                data["chains"].insert(last_ica + 1, new_chain)
+            else:
+                data["chains"].insert(0, new_chain)
 
         data["total_offers"] = sum(c.get("total_offers", len(c.get("offers", []))) for c in data.get("chains", []))
         data["ica_source"] = "matpriskollen+ica_direct" if unique_direct else "matpriskollen"

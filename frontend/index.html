@@ -687,7 +687,9 @@
       </div>
       <div id="campaign-status-panel" style="margin-bottom:1.2rem;padding:0.8rem;background:var(--bg-secondary);border-radius:var(--radius);border:1px solid var(--border);display:none">
         <div style="font-size:0.78rem;font-weight:600;color:var(--text-secondary);margin-bottom:0.5rem">Kampanjkällor</div>
-        <div style="display:flex;gap:1.5rem;flex-wrap:wrap" id="campaign-rag-indicators"></div>
+        <div style="display:flex;gap:1.5rem;flex-wrap:wrap;align-items:center" id="campaign-rag-indicators"></div>
+        <div style="margin-top:0.5rem"><button class="btn btn-ghost" style="font-size:0.72rem;padding:2px 8px" onclick="_loadIcaDebug()">🔍 Testa ICA</button></div>
+        <div id="ica-debug-panel" style="margin-top:0.8rem;padding-top:0.6rem;border-top:1px solid var(--border);font-size:0.75rem;color:var(--text-muted);display:none"></div>
       </div>
       <div id="users-tab">
         <div style="display:flex;justify-content:flex-end;margin-bottom:1rem">
@@ -1108,6 +1110,41 @@ async function _loadCampaignStatus(){
       </div>
     `;
   }catch(e){panel.style.display='none';}
+}
+
+async function _loadIcaDebug(){
+  const el=document.getElementById('ica-debug-panel');
+  el.style.display='block';
+  el.innerHTML='<em>Hämtar ICA debug-info…</em>';
+  try{
+    const r=await authFetch(`${API}/campaigns/ica-debug`);
+    if(!r.ok){el.innerHTML='<span style="color:var(--accent-rose)">Kunde inte hämta debug-info</span>';return}
+    const d=await r.json();
+    const disc=d.discovery_test||{};
+    const erbjTest=d.erbjudanden_test||{};
+    const chain=d.chain_test||{};
+    let html='<strong>🔍 ICA Debug</strong><br>';
+    html+=`Stad: ${esc(d.city||'?')} · Butiker: ${(d.store_ids||[]).length} st`;
+    if(d.store_names){
+      html+='<br>Butiker: '+Object.entries(d.store_names).map(([id,name])=>`${esc(name)} (${id})`).join(', ');
+    }
+    if(d.store_slugs){
+      const slugs=Object.entries(d.store_slugs).filter(([k,v])=>v);
+      html+=`<br>Slugs: ${slugs.length>0?slugs.map(([id,s])=>`${id}=${esc(s)}`).join(', '):'✗ inga'}`;
+    }
+    if(erbjTest.url){
+      html+=`<br>Erbjudanden: <a href="${esc(erbjTest.url)}" target="_blank">${esc(erbjTest.url)}</a>`;
+      html+=` · ${erbjTest.offers_count||0} offers · ${erbjTest.elapsed_ms||'?'}ms`;
+      if(erbjTest.sample_offers?.length){
+        html+='<br>Exempel: '+erbjTest.sample_offers.slice(0,5).map(o=>esc(o.product?.name||'?')).join(', ');
+      }
+    }
+    if(chain.elapsed_ms){
+      html+=`<br>Kedje-test: ${chain.total_offers||0} offers · ${chain.elapsed_ms}ms`;
+      if(chain.error)html+=` · <span style="color:var(--accent-rose)">${esc(chain.error)}</span>`;
+    }
+    el.innerHTML=html;
+  }catch(e){el.innerHTML='<span style="color:var(--accent-rose)">Fel: '+esc(e.message)+'</span>';}
 }
 
 async function approveUser(id){
@@ -2339,21 +2376,6 @@ function renderCampaigns(){
   else if(_campData.ica_source==='matpriskollen+ica_direct')info+=` · 🟢 ICA Matpriskollen + ${_campData.ica_direct_count||0} direkt (${_campData.ica_store_name||'?'})`;
   else if(_campData.ica_source==='matpriskollen')info+=` · 🔵 ICA via Matpriskollen`;
   if(_campData.timing_ms)info+=` · ⏱️ ${(_campData.timing_ms/1000).toFixed(1)}s`;
-  if(_campData._debug){
-    const d=_campData._debug;
-    let dbg=`\n🔍 Debug: IDs=[${(d.ica_ids_resolved||[]).join(',')}]`;
-    dbg+=` | butiker: ${JSON.stringify(d.ica_store_names||{})}`;
-    const slugs=d.ica_store_slugs||{};
-    const hasSlug=Object.values(slugs).some(s=>s);
-    dbg+=` | slugs=${hasSlug?'✓':'✗'}`;
-    if(hasSlug){const first=Object.entries(slugs).find(([k,v])=>v);if(first)dbg+=`(${first[1].substring(0,30)})`;}
-    dbg+=` | rediscovery=${d.needs_rediscovery}`;
-    dbg+=` | direct=${d.ica_direct_returned?'✓':'✗'}(${d.ica_direct_offers} offers)`;
-    if(d.ica_direct_error)dbg+=` | fel: ${d.ica_direct_error}`;
-    dbg+=` | user_city=${d.user_city||'null'} req_city=${d.request_city||'null'}`;
-    dbg+=` | sparade=${d.user_has_saved_stores}`;
-    info+=dbg;
-  }
   document.getElementById('camp-summary').textContent=info;
 }
 
