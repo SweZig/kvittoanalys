@@ -688,7 +688,7 @@
       <div id="campaign-status-panel" style="margin-bottom:1.2rem;padding:0.8rem;background:var(--bg-secondary);border-radius:var(--radius);border:1px solid var(--border);display:none">
         <div style="font-size:0.78rem;font-weight:600;color:var(--text-secondary);margin-bottom:0.5rem">Kampanjkällor</div>
         <div style="display:flex;gap:1.5rem;flex-wrap:wrap;align-items:center" id="campaign-rag-indicators"></div>
-        <div style="margin-top:0.5rem"><button class="btn btn-ghost" style="font-size:0.72rem;padding:2px 8px" onclick="_loadIcaDebug()">🔍 Testa ICA</button></div>
+        <div style="margin-top:0.5rem"><button class="btn btn-ghost" style="font-size:0.72rem;padding:2px 8px" onclick="_loadIcaDebug()">🔍 Testa ICA</button> <button class="btn btn-ghost" style="font-size:0.72rem;padding:2px 8px" onclick="_testMatpriskollen()">🔍 Testa Matpriskollen</button></div>
         <div id="ica-debug-panel" style="margin-top:0.8rem;padding-top:0.6rem;border-top:1px solid var(--border);font-size:0.75rem;color:var(--text-muted);display:none"></div>
       </div>
       <div id="category-learning-panel" style="margin-bottom:1.2rem;padding:0.8rem;background:var(--bg-secondary);border-radius:var(--radius);border:1px solid var(--border)">
@@ -1154,6 +1154,30 @@ async function _loadIcaDebug(){
       html+=`<br>Kedje-test: ${chain.total_offers||0} offers · ${chain.elapsed_ms}ms`;
       if(chain.error)html+=` · <span style="color:var(--accent-rose)">${esc(chain.error)}</span>`;
     }
+    el.innerHTML=html;
+  }catch(e){el.innerHTML='<span style="color:var(--accent-rose)">Fel: '+esc(e.message)+'</span>';}
+}
+
+async function _testMatpriskollen(){
+  const el=document.getElementById('ica-debug-panel');
+  el.style.display='block';
+  el.innerHTML='<em>Testar Matpriskollen API…</em>';
+  try{
+    const t0=performance.now();
+    const r=await authFetch(`${API}/campaigns/status`);
+    const elapsed=Math.round(performance.now()-t0);
+    if(!r.ok){el.innerHTML=`<span style="color:var(--accent-rose)">HTTP ${r.status}</span> · ${elapsed}ms`;return}
+    const d=await r.json();
+    const mpk=d.matpriskollen||{};
+    let html='<strong>🔍 Matpriskollen</strong><br>';
+    if(mpk.status==='green'){
+      html+=`<span style="color:var(--accent-green)">✓ Online</span> · ${mpk.stores_found||0} butiker hittade · ${mpk.response_ms||elapsed}ms`;
+    }else if(mpk.status==='red'){
+      html+=`<span style="color:var(--accent-rose)">✗ Nere</span> · ${esc(mpk.error||'Okänt fel')} · ${elapsed}ms`;
+    }else{
+      html+=`<span style="color:var(--accent-amber)">? ${mpk.status||'okänd'}</span> · ${elapsed}ms`;
+    }
+    html+=`<br>Stad: ${esc(d.city||'?')}`;
     el.innerHTML=html;
   }catch(e){el.innerHTML='<span style="color:var(--accent-rose)">Fel: '+esc(e.message)+'</span>';}
 }
