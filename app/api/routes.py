@@ -1168,11 +1168,28 @@ async def get_campaigns(
         if user.ica_store_ids and request_city and request_city == user_city:
             try:
                 saved = _json.loads(user.ica_store_ids)
-                # Sort: Maxi first, Nära last (Maxi has most campaigns)
                 from app.services.ica_campaign_service import _store_sort_key
                 saved.sort(key=_store_sort_key)
                 ica_ids_to_try = [s["id"] for s in saved if s.get("id")]
                 _ica_store_names = {s["id"]: s.get("name", "") for s in saved if s.get("id")}
+
+                # Re-discover if no Maxi/Kvantum among saved (old discovery missed them)
+                best_prio = min((_store_sort_key(s) for s in saved), default=5)
+                if best_prio > 1 and request_city:  # > 1 = only Supermarket/Nära
+                    try:
+                        fresh = await _discover_ica_stores(
+                            resolved_lat, resolved_lon, max_distance_km, city=city,
+                        )
+                        fresh_ids = [s["id"] for s in fresh if s.get("id") and s["id"] not in set(ica_ids_to_try)]
+                        if fresh_ids:
+                            ica_ids_to_try = fresh_ids + ica_ids_to_try  # New Maxi first
+                            _ica_store_names.update({s["id"]: s.get("name", "") for s in fresh if s.get("id")})
+                            # Update user profile in background
+                            all_stores = fresh + [s for s in saved if s.get("id") not in {f["id"] for f in fresh}]
+                            user.ica_store_ids = _json.dumps(all_stores, ensure_ascii=False)
+                            db.commit()
+                    except Exception:
+                        pass
             except Exception:
                 pass
 
