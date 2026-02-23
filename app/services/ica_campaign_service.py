@@ -154,7 +154,26 @@ def _make_ica_offer(
 #
 
 ICA_API_BASE = "https://handlaprivatkund.ica.se"
-ICA_API_PAGE_SIZE = 100
+ICA_API_PAGE_SIZE = 200  # Maximera per request
+
+# Butikstyp-prioritet: Maxi har flest kampanjer
+_ICA_STORE_PRIORITY = {
+    "maxi": 0,
+    "stormarknad": 0,
+    "kvantum": 1,
+    "supermarket": 2,
+    "nära": 3,
+    "nara": 3,
+}
+
+
+def _store_sort_key(store: dict) -> int:
+    """Sorterar butiker: Maxi först, Nära sist."""
+    name = (store.get("name") or "").lower()
+    for keyword, prio in _ICA_STORE_PRIORITY.items():
+        if keyword in name:
+            return prio
+    return 5
 
 
 def _parse_ica_api_product(product: dict, store_id: str) -> Optional[dict]:
@@ -280,106 +299,123 @@ async def _fetch_ica_json_api(store_id: str, client: httpx.AsyncClient) -> dict:
     Hämtar kampanjprodukter via ICA:s JSON API.
     URL: handlaprivatkund.ica.se/{storeId}/api/v5/products
     Kräver INGEN autentisering.
+
+    Optimerat med parallell paginering.
     """
     base_url = f"{ICA_API_BASE}/{store_id}/api/v5/products"
-    all_offers: list[dict] = []
-    offset = 0
-    max_pages = 10  # Säkerhetsgräns
-    total_products = 0
+    api_headers = {
+        "Accept": "application/json",
+        "User-Agent": _HEADERS["User-Agent"],
+        "Accept-Language": "sv-SE,sv;q=0.9",
+    }
 
-    for page in range(max_pages):
-        try:
-            resp = await client.get(
-                base_url,
-                params={
-                    "limit": ICA_API_PAGE_SIZE,
-                    "offset": offset,
-                },
-                headers={
-                    "Accept": "application/json",
-                    "User-Agent": _HEADERS["User-Agent"],
-                    "Accept-Language": "sv-SE,sv;q=0.9",
-                },
-                timeout=ICA_HTTP_TIMEOUT,
-            )
+    # ── Steg 1: Hämta första sidan + ta reda på totalt antal ──
+    try:
+        resp = await client.get(
+            base_url,
+            params={"limit": ICA_API_PAGE_SIZE, "offset": 0},
+            headers=api_headers,
+            timeout=ICA_HTTP_TIMEOUT,
+        )
+        if resp.status_code != 200:
+            return {"offers": [], "source": "ica_direct",
+                    "error": f"ICA API HTTP {resp.status_code}"}
+        data = resp.json()
+    except Exception as e:
+        return {"offers": [], "source": "ica_direct", "error": f"ICA API-fel: {e}"}
 
-            if resp.status_code != 200:
-                logger.warning("ICA JSON API: HTTP %d för butik %s (offset %d)",
-                               resp.status_code, store_id, offset)
-                if page == 0:
-                    return {"offers": [], "source": "ica_direct",
-                            "error": f"ICA API svarade med HTTP {resp.status_code}"}
-                break
-
-            data = resp.json()
-
-        except Exception as e:
-            logger.warning("ICA JSON API-fel: %s", e)
-            if page == 0:
-                return {"offers": [], "source": "ica_direct", "error": f"ICA API-fel: {e}"}
-            break
-
-        # Extrahera produkter — hantera olika strukturvarianter
-        products = []
-        if isinstance(data, list):
-            products = data
-        elif isinstance(data, dict):
+    # Extrahera produktlistan
+    def _extract_products(d):
+        if isinstance(d, list):
+            return d
+        if isinstance(d, dict):
             for key in ("items", "products", "results", "data", "content"):
-                if key in data and isinstance(data[key], list):
-                    products = data[key]
-                    break
-            if not products and "totalCount" not in data and "total" not in data:
-                # Kanske är hela objektet en produktlista i dold form
-                products = [data] if "name" in data or "productName" in data else []
+                if key in d and isinstance(d[key], list):
+                    return d[key]
+        return []
 
-        if page == 0:
-            total_count = 0
-            if isinstance(data, dict):
-                total_count = data.get("totalCount") or data.get("total") or data.get("count") or len(products)
-                # Logga toppnivånycklar för debug
-                logger.info("ICA JSON API: toppnivånycklar: %s", list(data.keys())[:15])
-            logger.info("ICA JSON API: butik %s — %d produkter (total: %s), första sidan",
-                        store_id, len(products), total_count or "?")
+    first_products = _extract_products(data)
+    total_count = 0
+    if isinstance(data, dict):
+        total_count = data.get("totalCount") or data.get("total") or data.get("count") or 0
+        logger.info("ICA JSON API: toppnivånycklar: %s", list(data.keys())[:15])
 
-            # Logga första produktens fullständiga struktur (debug)
-            if products and isinstance(products[0], dict):
-                import json as _json
-                p0 = products[0]
-                logger.info("ICA JSON API: produkt[0] nycklar: %s", list(p0.keys()))
-                # Logga kompakt JSON (max 2000 tecken)
-                try:
-                    p0_json = _json.dumps(p0, ensure_ascii=False, default=str)[:2000]
-                    logger.info("ICA JSON API: produkt[0] JSON: %s", p0_json)
-                except Exception:
-                    pass
+    logger.info("ICA JSON API: butik %s — %d produkter på sida 1 (total: %s)",
+                store_id, len(first_products), total_count or "?")
 
-        if not products:
-            break
+    # Debug: logga första produktens struktur
+    if first_products and isinstance(first_products[0], dict):
+        import json as _json
+        p0 = first_products[0]
+        logger.info("ICA JSON API: produkt[0] nycklar: %s", list(p0.keys()))
+        try:
+            logger.info("ICA JSON API: produkt[0] JSON: %s",
+                        _json.dumps(p0, ensure_ascii=False, default=str)[:2000])
+        except Exception:
+            pass
 
-        total_products += len(products)
+    if not first_products:
+        return {"offers": [], "source": "ica_direct", "error": "Inga produkter i svaret"}
 
-        for product in products:
-            if not isinstance(product, dict):
-                continue
-            parsed = _parse_ica_api_product(product, store_id)
-            if parsed:
-                all_offers.append(parsed)
+    # ── Steg 2: Parallellhämta resterande sidor ──
+    remaining_pages_data: list[list] = []
 
-        # Paginering
-        if len(products) < ICA_API_PAGE_SIZE:
-            break
-        offset += ICA_API_PAGE_SIZE
-        await asyncio.sleep(0.3)  # Artigt
+    if len(first_products) >= ICA_API_PAGE_SIZE and total_count > ICA_API_PAGE_SIZE:
+        # Beräkna hur många fler sidor vi behöver
+        remaining = (total_count or ICA_API_PAGE_SIZE * 10) - ICA_API_PAGE_SIZE
+        num_extra_pages = min((remaining + ICA_API_PAGE_SIZE - 1) // ICA_API_PAGE_SIZE, 8)  # Max 8 extra
 
-    logger.info("ICA JSON API: %d kampanjprodukter av %d totalt (butik %s)",
-                len(all_offers), total_products, store_id)
+        async def _fetch_page(offset: int) -> list:
+            try:
+                r = await client.get(
+                    base_url,
+                    params={"limit": ICA_API_PAGE_SIZE, "offset": offset},
+                    headers=api_headers,
+                    timeout=ICA_HTTP_TIMEOUT,
+                )
+                if r.status_code != 200:
+                    return []
+                return _extract_products(r.json())
+            except Exception:
+                return []
 
-    if not all_offers and total_products > 0:
+        offsets = [ICA_API_PAGE_SIZE * (i + 1) for i in range(num_extra_pages)]
+
+        # Hämta 3 sidor åt gången (artigt men snabbt)
+        for batch_start in range(0, len(offsets), 3):
+            batch = offsets[batch_start:batch_start + 3]
+            results = await asyncio.gather(*[_fetch_page(o) for o in batch])
+            for page_products in results:
+                if page_products:
+                    remaining_pages_data.append(page_products)
+                else:
+                    break  # Tom sida = slut
+            if any(len(p) < ICA_API_PAGE_SIZE for p in results):
+                break  # Sista sidan nådd
+            await asyncio.sleep(0.15)  # Kort paus mellan batchar
+
+    # ── Steg 3: Parsa alla produkter ──
+    all_products = first_products
+    for page_products in remaining_pages_data:
+        all_products.extend(page_products)
+
+    all_offers: list[dict] = []
+    for product in all_products:
+        if not isinstance(product, dict):
+            continue
+        parsed = _parse_ica_api_product(product, store_id)
+        if parsed:
+            all_offers.append(parsed)
+
+    logger.info("ICA JSON API: %d kampanjprodukter av %d totalt (butik %s, %d sidor)",
+                len(all_offers), len(all_products), store_id,
+                1 + len(remaining_pages_data))
+
+    if not all_offers and all_products:
         return {
             "offers": [],
             "source": "ica_direct",
-            "error": f"Hittade {total_products} produkter men inga kampanjer — "
-                     f"JSON-strukturen kan ha ändrats",
+            "error": f"Hittade {len(all_products)} produkter men inga kampanjer",
         }
 
     return {
@@ -935,7 +971,10 @@ async def _discover_from_ica_se(
         found_ids[sid] = name
 
     stores = [{"id": sid, "name": name, "source": "ica_se"} for sid, name in found_ids.items()]
-    logger.info("ica.se: Hittade %d ICA Handla-butiker i %s", len(stores), city)
+    # Prioritera: Maxi > Kvantum > Supermarket > Nära (Maxi har flest kampanjer)
+    stores.sort(key=_store_sort_key)
+    logger.info("ica.se: Hittade %d ICA Handla-butiker i %s: %s",
+                len(stores), city, [s["name"] for s in stores[:6]])
     return stores[:max_stores]
 
 

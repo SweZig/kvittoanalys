@@ -1156,6 +1156,7 @@ async def get_campaigns(
 
     # ── Resolve ICA store IDs: explicit param > user profile (city match) > auto-discover ──
     ica_ids_to_try: list[str] = []
+    _ica_store_names: dict[str, str] = {}  # id → name for display
     if ica_store_id:
         ica_ids_to_try = [ica_store_id]
     elif user:
@@ -1167,17 +1168,23 @@ async def get_campaigns(
         if user.ica_store_ids and request_city and request_city == user_city:
             try:
                 saved = _json.loads(user.ica_store_ids)
+                # Sort: Maxi first, Nära last (Maxi has most campaigns)
+                from app.services.ica_campaign_service import _store_sort_key
+                saved.sort(key=_store_sort_key)
                 ica_ids_to_try = [s["id"] for s in saved if s.get("id")]
+                _ica_store_names = {s["id"]: s.get("name", "") for s in saved if s.get("id")}
             except Exception:
                 pass
 
-        # If no match — auto-discover for this city inline (fast: ~1 request to ica.se)
+        # If no match — auto-discover for this city inline
         if not ica_ids_to_try and request_city:
             try:
                 stores = await _discover_ica_stores(
                     resolved_lat, resolved_lon, max_distance_km, city=city,
                 )
+                # Already sorted by priority in discover_ica_stores
                 ica_ids_to_try = [s["id"] for s in stores if s.get("id")]
+                _ica_store_names = {s["id"]: s.get("name", "") for s in stores if s.get("id")}
             except Exception:
                 pass
 
@@ -1188,17 +1195,18 @@ async def get_campaigns(
     async def _do_ica_direct():
         if not ica_ids_to_try:
             return None
-        for sid in ica_ids_to_try[:2]:  # Max 2 attempts
+        for sid in ica_ids_to_try[:2]:  # Max 2 attempts (prio-sorted: Maxi first)
             try:
                 result = await _fetch_ica_campaigns(
                     store_id=sid,
                     lat=resolved_lat,
                     lon=resolved_lon,
                     max_distance_km=max_distance_km,
-                    fallback_enabled=False,  # Skip redundant matpriskollen fallback
+                    fallback_enabled=False,
                 )
                 if result.get("source") == "ica_direct" and result.get("offers"):
                     result["_store_id"] = sid
+                    result["_store_name"] = _ica_store_names.get(sid, f"butik {sid}")
                     return result
             except Exception as e:
                 import logging
@@ -1220,9 +1228,10 @@ async def get_campaigns(
     # ── Merge ICA direct data if available ──
     if ica_data and ica_data.get("offers"):
         non_ica_chains = [c for c in data.get("chains", []) if "ica" not in c["chain"].lower()]
+        store_name = ica_data.get("_store_name", f"butik {ica_data.get('_store_id', '?')}")
         ica_chain = {
             "chain": "ICA",
-            "stores": [f"ICA (butik {ica_data.get('_store_id', '?')})"],
+            "stores": [store_name],
             "total_offers": len(ica_data["offers"]),
             "offers": ica_data["offers"],
             "source": "ica_direct",
@@ -1231,6 +1240,7 @@ async def get_campaigns(
         data["total_offers"] = sum(c.get("total_offers", len(c.get("offers", []))) for c in data["chains"])
         data["ica_source"] = "ica_direct"
         data["ica_store_id"] = ica_data.get("_store_id")
+        data["ica_store_name"] = store_name
     elif ica_ids_to_try:
         data["ica_source"] = "matpriskollen"
     
