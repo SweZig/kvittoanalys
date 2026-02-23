@@ -1134,7 +1134,59 @@ _CITY_SLUGS: dict[str, str] = {
     "sandviken": "sandviken",
     "ockelbo": "ockelbo",
     "hofors": "hofors",
-    "gävle": "gavle",
+}
+
+# Förortsstäder → närmaste ort som ICA har en handla-online-sida för
+# ICA använder ofta kommunnamn istället för stadsdelsnamn
+_CITY_ALIASES: dict[str, str] = {
+    # Stockholms förorter
+    "barkarby": "jarfalla",
+    "jakobsberg": "jarfalla",
+    "kista": "stockholm",
+    "bromma": "stockholm",
+    "spånga": "stockholm",
+    "hässelby": "stockholm",
+    "vällingby": "stockholm",
+    "enskede": "stockholm",
+    "farsta": "stockholm",
+    "hägersten": "stockholm",
+    "bandhagen": "stockholm",
+    "älvsjö": "stockholm",
+    "skärholmen": "stockholm",
+    "danderyd": "stockholm",
+    "djursholm": "stockholm",
+    "upplands väsby": "stockholm",
+    "märsta": "stockholm",
+    "sigtuna": "stockholm",
+    "vaxholm": "stockholm",
+    "nynäshamn": "stockholm",
+    "haninge": "stockholm",
+    "vallentuna": "stockholm",
+    "rosersberg": "stockholm",
+    "rotebro": "stockholm",
+    "akalla": "stockholm",
+    "fruängen": "stockholm",
+    "kungens kurva": "stockholm",
+    "häggvik": "sollentuna",
+    "tureberg": "sollentuna",
+    # Göteborgs förorter
+    "mölndal": "goteborg",
+    "partille": "goteborg",
+    "kungsbacka": "goteborg",
+    "lerum": "goteborg",
+    "kungälv": "goteborg",
+    "angered": "goteborg",
+    "frölunda": "goteborg",
+    "backa": "goteborg",
+    "högsbo": "goteborg",
+    "sisjön": "goteborg",
+    # Malmö-förorter
+    "limhamn": "malmo",
+    "arlöv": "malmo",
+    "burlöv": "malmo",
+    "staffanstorp": "malmo",
+    "lomma": "malmo",
+    "oxie": "malmo",
 }
 
 
@@ -1143,6 +1195,9 @@ def _city_to_slug(city: str) -> str:
     city_lower = city.lower().strip()
     if city_lower in _CITY_SLUGS:
         return _CITY_SLUGS[city_lower]
+    # Kolla alias: förort → närmaste ICA-stad
+    if city_lower in _CITY_ALIASES:
+        return _CITY_ALIASES[city_lower]
     # Generisk: byt åäö → aao, ta bort specialtecken
     slug = city_lower
     for src, dst in [("å", "a"), ("ä", "a"), ("ö", "o"), ("é", "e"), ("ü", "u")]:
