@@ -2338,6 +2338,16 @@ function renderCampaigns(){
   if(_campData.ica_source==='ica_direct')info+=` · 🟢 ICA direkt (${_campData.ica_store_name||'butik '+(_campData.ica_store_id||'?')})`;
   else if(_campData.ica_source==='matpriskollen')info+=` · 🔵 ICA via Matpriskollen`;
   if(_campData.timing_ms)info+=` · ⏱️ ${(_campData.timing_ms/1000).toFixed(1)}s`;
+  if(_campData._debug){
+    const d=_campData._debug;
+    let dbg=`\n🔍 Debug: IDs=[${(d.ica_ids_resolved||[]).join(',')}]`;
+    dbg+=` | butiker: ${JSON.stringify(d.ica_store_names||{})}`;
+    dbg+=` | direct=${d.ica_direct_returned?'✓':'✗'}(${d.ica_direct_offers} offers)`;
+    if(d.ica_direct_error)dbg+=` | fel: ${d.ica_direct_error}`;
+    dbg+=` | user_city=${d.user_city||'null'} req_city=${d.request_city||'null'}`;
+    dbg+=` | sparade=${d.user_has_saved_stores}`;
+    info+=dbg;
+  }
   document.getElementById('camp-summary').textContent=info;
 }
 

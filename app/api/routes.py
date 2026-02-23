@@ -1260,7 +1260,6 @@ async def get_campaigns(
                 _log.warning("ICA direct: butik %s misslyckades: %s", sid, e)
         _log.info("ICA direct: alla butiker prövade utan resultat")
         return None
-        return None
 
     try:
         mpk_data, ica_data = await _asyncio.gather(
@@ -1273,6 +1272,18 @@ async def get_campaigns(
 
     data = mpk_data
     data["city"] = city.capitalize() if city else f"{resolved_lat},{resolved_lon}"
+
+    # ── Diagnostik — lägg till debug-info i svaret ──
+    data["_debug"] = {
+        "ica_ids_resolved": ica_ids_to_try[:5],
+        "ica_store_names": {k: v for k, v in list(_ica_store_names.items())[:5]},
+        "ica_direct_returned": ica_data is not None,
+        "ica_direct_offers": len(ica_data.get("offers", [])) if ica_data else 0,
+        "ica_direct_error": (ica_data.get("error") or ica_data.get("fallback_reason")) if ica_data else "ica_data=None",
+        "user_city": user.city if user else None,
+        "request_city": city,
+        "user_has_saved_stores": bool(user and user.ica_store_ids),
+    }
 
     # ── Merge ICA direct data if available ──
     if ica_data and ica_data.get("offers"):
