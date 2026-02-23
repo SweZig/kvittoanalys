@@ -450,6 +450,51 @@ async def migrate_categories(
     return {"status": "success", **result}
 
 
+@router.get("/categories/learning/stats", tags=["categories"])
+async def get_learning_stats(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin")),
+):
+    """Get statistics about learned category references from campaign data."""
+    from app.services.category_learning import get_learning_stats
+    return get_learning_stats(db)
+
+
+@router.post("/categories/recategorize", tags=["categories"])
+async def recategorize(
+    force: bool = Query(False, description="Re-evaluate ALL items, not just uncategorized"),
+    update_rules: bool = Query(True, description="Also update auto-generated rules"),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin")),
+):
+    """Re-categorize line items using learned references + rules.
+    
+    - force=false (default): only uncategorized and 'övrigt' items
+    - force=true: re-evaluate everything (manual rules still preserved)
+    - update_rules=true: also improve auto-generated category rules
+    """
+    from app.services.category_learning import recategorize_line_items, apply_rule_improvements
+    
+    result = recategorize_line_items(db, force=force)
+    
+    if update_rules:
+        rule_result = apply_rule_improvements(db)
+        result["rules_improved"] = rule_result
+    
+    return {"status": "success", **result}
+
+
+@router.get("/categories/learning/suggestions", tags=["categories"])
+async def get_rule_suggestions(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin")),
+):
+    """Get suggestions for improving category rules based on learned data."""
+    from app.services.category_learning import suggest_rule_improvements
+    suggestions = suggest_rule_improvements(db)
+    return {"total": len(suggestions), "suggestions": suggestions}
+
+
 @router.put("/line-items/{line_item_id}", tags=["database"])
 async def update_line_item(
     line_item_id: int, data: LineItemUpdate, db: Session = Depends(get_db),
@@ -1593,6 +1638,15 @@ async def get_campaigns(
                     offer["user_median_price"] = round(median_prices[matched_desc], 2)
 
     data["timing_ms"] = int((_time.monotonic() - t0) * 1000)
+
+    # ── Learn categories from campaign data (non-blocking) ──
+    try:
+        from app.services.category_learning import learn_from_campaigns
+        learn_stats = learn_from_campaigns(db, data)
+        data["_learn_stats"] = learn_stats
+    except Exception as e:
+        _log.warning("Category learning failed (non-fatal): %s", e)
+
     return data
 
 

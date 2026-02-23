@@ -407,12 +407,13 @@ def _fuzzy_match(query: str, foods: list[dict[str, str]], threshold: float = 0.5
 
 # ── Main categorization function ────────────────────────────────────
 
-def categorize_product(description: str) -> str | None:
+def categorize_product(description: str, db=None) -> str | None:
     """Categorize a single product description.
 
     Returns a category string or None if not categorizable.
 
     Strategy:
+    0. Check learned category references (from campaign data) — if db provided
     1. Check non-food keywords first (hygiene, health, office, etc.)
     2. Check food keyword categories (ost, chark, glass, färdigmat, etc.)
     3. Try Livsmedelsverket fuzzy match
@@ -422,6 +423,16 @@ def categorize_product(description: str) -> str | None:
         return None
 
     desc_lower = description.lower().strip()
+
+    # ── Step 0: Learned category references (from matpriskollen/ICA) ──
+    if db is not None:
+        try:
+            from app.services.category_learning import lookup_learned_category
+            ref_cat = lookup_learned_category(description, db)
+            if ref_cat:
+                return ref_cat
+        except Exception:
+            pass  # Non-fatal — continue with other methods
 
     # ── Step 1: Non-food keyword matching ──
     for category, keywords in NON_FOOD_CATEGORIES.items():
@@ -449,7 +460,7 @@ def categorize_product(description: str) -> str | None:
     return None
 
 
-def categorize_products_batch(descriptions: list[str]) -> list[str | None]:
+def categorize_products_batch(descriptions: list[str], db=None) -> list[str | None]:
     """Categorize multiple product descriptions efficiently.
 
     Pre-loads the database once, then matches all items.
@@ -458,6 +469,15 @@ def categorize_products_batch(descriptions: list[str]) -> list[str | None]:
     # Pre-load database
     foods = _load_food_database()
 
+    # Pre-build learned reference lookup if db available
+    ref_lookup = None
+    if db is not None:
+        try:
+            from app.services.category_learning import build_reference_lookup, match_from_lookup
+            ref_lookup = build_reference_lookup(db)
+        except Exception:
+            pass
+
     results = []
     for desc in descriptions:
         if not desc or len(desc.strip()) < 2:
@@ -465,6 +485,16 @@ def categorize_products_batch(descriptions: list[str]) -> list[str | None]:
             continue
 
         desc_lower = desc.lower().strip()
+
+        # Learned references first (fast in-memory lookup)
+        if ref_lookup:
+            try:
+                ref_cat = match_from_lookup(desc, ref_lookup)
+                if ref_cat:
+                    results.append(ref_cat)
+                    continue
+            except Exception:
+                pass
 
         # Non-food keywords first
         matched = False

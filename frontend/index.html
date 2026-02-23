@@ -691,6 +691,16 @@
         <div style="margin-top:0.5rem"><button class="btn btn-ghost" style="font-size:0.72rem;padding:2px 8px" onclick="_loadIcaDebug()">🔍 Testa ICA</button></div>
         <div id="ica-debug-panel" style="margin-top:0.8rem;padding-top:0.6rem;border-top:1px solid var(--border);font-size:0.75rem;color:var(--text-muted);display:none"></div>
       </div>
+      <div id="category-learning-panel" style="margin-bottom:1.2rem;padding:0.8rem;background:var(--bg-secondary);border-radius:var(--radius);border:1px solid var(--border)">
+        <div style="font-size:0.78rem;font-weight:600;color:var(--text-secondary);margin-bottom:0.5rem">📚 Kategori-inlärning</div>
+        <div id="cat-learn-stats" style="font-size:0.8rem;color:var(--text-muted)">Laddar...</div>
+        <div style="display:flex;gap:6px;margin-top:0.6rem;flex-wrap:wrap">
+          <button class="btn btn-ghost" style="font-size:0.72rem;padding:2px 8px" onclick="_recategorize(false)">🔄 Kategorisera okategoriserade</button>
+          <button class="btn btn-ghost" style="font-size:0.72rem;padding:2px 8px" onclick="_recategorize(true)">🔄 Omvärdera alla</button>
+          <button class="btn btn-ghost" style="font-size:0.72rem;padding:2px 8px" onclick="_showRuleSuggestions()">💡 Regelförslag</button>
+        </div>
+        <div id="cat-learn-result" style="margin-top:0.5rem;font-size:0.75rem;display:none"></div>
+      </div>
       <div id="users-tab">
         <div style="display:flex;justify-content:flex-end;margin-bottom:1rem">
           <button class="btn btn-danger" style="font-size:0.78rem" onclick="deleteAllDocuments()">🗑️ Radera alla dokument</button>
@@ -1071,6 +1081,7 @@ async function loadUsers(){
 
     // Load RAG status in background
     _loadCampaignStatus();
+    _loadLearningStats();
   }catch(e){console.error('loadUsers',e);}
 }
 
@@ -1145,6 +1156,67 @@ async function _loadIcaDebug(){
     }
     el.innerHTML=html;
   }catch(e){el.innerHTML='<span style="color:var(--accent-rose)">Fel: '+esc(e.message)+'</span>';}
+}
+
+async function _loadLearningStats(){
+  const el=document.getElementById('cat-learn-stats');
+  try{
+    const r=await authFetch(`${API}/categories/learning/stats`);
+    if(!r.ok){el.textContent='Kunde inte hämta statistik';return}
+    const d=await r.json();
+    let html=`<strong>${d.total_references}</strong> inlärda produktreferenser`;
+    if(d.by_source){
+      const src=Object.entries(d.by_source).map(([k,v])=>`${k}: ${v}`).join(', ');
+      html+=` (${src})`;
+    }
+    html+=`<br>Kategoriserade: <strong>${d.categorized_pct}%</strong> av ${d.total_items} rader`;
+    if(d.uncategorized_items>0)html+=` · <span style="color:var(--accent-amber)">${d.uncategorized_items} okategoriserade</span>`;
+    if(d.by_category){
+      const top=Object.entries(d.by_category).slice(0,8).map(([k,v])=>`${k}(${v})`).join(', ');
+      html+=`<br><span style="font-size:0.72rem">Topp: ${top}</span>`;
+    }
+    el.innerHTML=html;
+  }catch(e){el.textContent='Fel: '+e.message;}
+}
+
+async function _recategorize(force){
+  const el=document.getElementById('cat-learn-result');
+  el.style.display='block';
+  el.innerHTML='<em>Kör omkategorisering...</em>';
+  try{
+    const r=await authFetch(`${API}/categories/recategorize?force=${force}&update_rules=true`,{method:'POST'});
+    if(!r.ok){el.innerHTML='<span style="color:var(--accent-rose)">Fel: '+r.status+'</span>';return}
+    const d=await r.json();
+    let html=`<strong>Klart!</strong> ${d.total_checked} rader kontrollerade<br>`;
+    if(d.updated_from_references)html+=`📚 ${d.updated_from_references} uppdaterade från kampanjdata<br>`;
+    if(d.updated_from_categorizer)html+=`🔄 ${d.updated_from_categorizer} uppdaterade från kategoriseraren<br>`;
+    if(d.new_rules_created)html+=`📝 ${d.new_rules_created} nya auto-regler skapade<br>`;
+    if(d.rules_updated)html+=`✏️ ${d.rules_updated} regler uppdaterade<br>`;
+    if(d.rules_improved)html+=`💡 ${d.rules_improved.updated||0} regler förbättrade`;
+    html+=`<br>${d.manual_rules_preserved} manuella regler bevarade · ${d.already_correct} redan korrekta`;
+    el.innerHTML=html;
+    _loadLearningStats();
+  }catch(e){el.innerHTML='<span style="color:var(--accent-rose)">Fel: '+esc(e.message)+'</span>';}
+}
+
+async function _showRuleSuggestions(){
+  const el=document.getElementById('cat-learn-result');
+  el.style.display='block';
+  el.innerHTML='<em>Hämtar förslag...</em>';
+  try{
+    const r=await authFetch(`${API}/categories/learning/suggestions`);
+    if(!r.ok){el.innerHTML='Fel';return}
+    const d=await r.json();
+    if(!d.total){el.innerHTML='<em>Inga regelförslag just nu — kampanjdata matchar befintliga regler.</em>';return}
+    let html=`<strong>${d.total} förslag:</strong><br>`;
+    for(const s of d.suggestions.slice(0,10)){
+      html+=`<span style="color:var(--text-muted)">${esc(s.product.substring(0,30))}</span>: `;
+      html+=`<span style="color:var(--accent-rose)">${esc(s.current_category)}</span> → `;
+      html+=`<span style="color:var(--accent-green)">${esc(s.suggested_category)}</span> `;
+      html+=`<span style="font-size:0.7rem">(${s.reference_count} ref, ${s.auto_generated?'auto':'manuell'})</span><br>`;
+    }
+    el.innerHTML=html;
+  }catch(e){el.innerHTML='Fel: '+esc(e.message);}
 }
 
 async function approveUser(id){

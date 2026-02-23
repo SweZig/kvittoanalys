@@ -49,6 +49,26 @@ class CategorySuggestion(Base):
     """Category change suggestion from non-admin users."""
     __tablename__ = "category_suggestions"
 
+
+class CategoryReference(Base):
+    """Learned product→category mappings from external sources (matpriskollen, ICA).
+    
+    Used to improve categorization of receipt line items by building
+    a reference database from campaign/offer data.
+    """
+    __tablename__ = "category_references"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    product_name = Column(String(255), nullable=False, index=True)  # normalized, lowercased
+    brand = Column(String(100), nullable=True)                       # brand from source
+    category = Column(String(100), nullable=False)                   # our harmonized category
+    source_category = Column(String(100), nullable=True)             # original category from source
+    source = Column(String(50), nullable=False)                      # "matpriskollen", "ica_direct"
+    confidence = Column(Float, default=0.8)                          # 0.0-1.0
+    times_seen = Column(Integer, default=1)                          # how many times seen
+    last_seen_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     description = Column(Text, nullable=False)          # product description
