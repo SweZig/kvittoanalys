@@ -649,20 +649,11 @@ async def _fetch_ica_erbjudanden(store_id: str, store_slug: str, client: httpx.A
                     is_membership = True
                 continue
 
-            # Detaljrad: innehåller Ord.pris, Jmfpris, eller mått
-            if "Ord.pris" in line or "Jmfpris" in line:
+            # Detaljrad: innehåller prisinformation
+            is_detail = ("Ord.pris" in line or "Jmfpris" in line
+                         or "30dgr.pris" in line or "köp/hushåll" in line.lower())
+            if is_detail:
                 details_line = line
-                # Produktnamn = föregående icke-tomma rad
-                for j in range(i - 1, -1, -1):
-                    candidate = lines[j].strip()
-                    if (candidate and len(candidate) > 1
-                        and not candidate.startswith(("http", "Illustration", "/"))
-                        and "Logga in" not in candidate
-                        and "reklamblad" not in candidate.lower()
-                        and "Bläddra" not in candidate
-                        and candidate not in ("Stammis", "StammisPris", "MaxiKlipp")):
-                        product_name = candidate
-                        break
                 continue
 
             # Pris-etiketter
@@ -691,17 +682,45 @@ async def _fetch_ica_erbjudanden(store_id: str, store_slug: str, client: httpx.A
             if "Stammis" in line or "StammisPris" in line:
                 is_membership = True
 
-        # Om vi inte hittade namn via detaljer, ta första meningsfulla raden
-        if not product_name:
-            for line in lines:
-                if (len(line) > 2 and not line.startswith(("http", "!", "[", "#", "Illustration"))
-                    and line not in ("Stammis", "StammisPris", "MaxiKlipp", "Logga in")
-                    and "reklamblad" not in line.lower()
-                    and "Bläddra" not in line
-                    and "erbjudanden" not in line.lower()
-                    and not re.match(r"^\d", line)):
-                    product_name = line
-                    break
+        # ── Hitta produktnamnet ──
+        # Strategi: hitta första raden som INTE ser ut som:
+        # - metadata (Stammis, navigation, etc.)
+        # - detalj-fragment (vikt, pris, märke med mått)
+        # - prisinformation
+        def _is_product_name(line: str) -> bool:
+            """Avgör om en rad troligen är ett produktnamn."""
+            if len(line) < 2 or len(line) > 60:
+                return False
+            if line.startswith(("http", "Illustration", "/", "!", "[", "#")):
+                return False
+            if line in ("Stammis", "StammisPris", "MaxiKlipp", "Logga in",
+                        "Handla online", "Bläddra i bladet", "Visa veckans reklamfilm"):
+                return False
+            # Skippa navigations/rubrik-rader
+            if any(kw in line.lower() for kw in (
+                "logga in", "reklamblad", "bläddra", "erbjudanden",
+                "icas reklamfilmer", "genvägar", "sidfot", "kundservice",
+                "få erbjudanden", "butik", "veckans",
+            )):
+                return False
+            # Skippa rader som börjar med siffra (priser, mått)
+            if re.match(r"^\d", line):
+                return False
+            # Skippa detalj-fragment: text med mått/pris-info
+            if any(kw in line for kw in ("Ord.pris", "Jmfpris", "30dgr.pris", "köp/hushåll")):
+                return False
+            # Skippa brand+mått fragment: "Gevalia. 425-450 g." "Arla. Ca 1,1-2,2 kg."
+            if re.search(r"\d+\s*(-\s*\d+)?\s*(g|kg|ml|cl|liter|dl|pack)\b", line, re.I):
+                return False
+            # Skippa storlekar: "Stl 86/92-134/140"
+            if re.match(r"^Stl\b", line, re.I):
+                return False
+            return True
+
+        for line in lines:
+            if _is_product_name(line):
+                product_name = line
+                break
 
         if not product_name or product_name in seen:
             continue

@@ -1343,10 +1343,22 @@ async def get_campaigns(
             import json as _jsn
             _saved_for_slugs = _jsn.loads(user.ica_store_ids)
             _ica_store_slugs = {s["id"]: s.get("slug", "") for s in _saved_for_slugs if s.get("id")}
-            _log.info("ICA slugs: %d butiker med slug av %d totalt",
-                      sum(1 for v in _ica_store_slugs.values() if v), len(_ica_store_slugs))
+            _log.info("ICA slugs: %s",
+                      {s["id"]: s.get("slug", "")[:40] for s in _saved_for_slugs[:5] if s.get("id")})
         except Exception as exc:
             _log.warning("ICA slugs: parse error: %s", exc)
+
+    def _build_slug_from_name(store_name: str, store_id: str) -> str:
+        """Bygg erbjudanden-slug från butiksnamn + ID."""
+        if not store_name or store_name.startswith("ICA (butik"):
+            return ""
+        # "Maxi Ica Stormarknad Lindhagen" → "maxi-ica-stormarknad-lindhagen-1003418"
+        import re as _re_slug
+        slug = store_name.lower().strip()
+        for src, dst in [("å", "a"), ("ä", "a"), ("ö", "o"), ("é", "e")]:
+            slug = slug.replace(src, dst)
+        slug = _re_slug.sub(r"[^a-z0-9]+", "-", slug).strip("-")
+        return f"{slug}-{store_id}" if slug else ""
 
     # ── PARALLEL: Matpriskollen + ICA Direct ──
     async def _do_matpriskollen():
@@ -1358,8 +1370,14 @@ async def get_campaigns(
             return None
         for sid in ica_ids_to_try[:4]:  # Max 4 attempts (prio-sorted: Maxi first)
             slug = _ica_store_slugs.get(sid, "")
-            _log.info("ICA direct: provar butik %s (%s) slug=%s...",
-                      sid, _ica_store_names.get(sid, "?"), slug or "saknas")
+            # Fallback: bygg slug från butiksnamn
+            if not slug:
+                name = _ica_store_names.get(sid, "")
+                slug = _build_slug_from_name(name, sid)
+                if slug:
+                    _log.info("ICA direct: byggde slug från namn: %s → %s", name, slug)
+            _log.info("ICA direct: provar butik %s (%s) slug='%s'",
+                      sid, _ica_store_names.get(sid, "?"), slug or "SAKNAS")
             try:
                 result = await _fetch_ica_campaigns(
                     store_id=sid,
