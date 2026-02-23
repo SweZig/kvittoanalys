@@ -576,6 +576,9 @@ async def _fetch_ica_erbjudanden(store_id: str, store_slug: str, client: httpx.A
     """
     Hämtar erbjudanden från ica.se/erbjudanden/{slug}/.
     Server-renderad HTML — pålitlig, kräver ingen autentisering.
+
+    Parsern är text-baserad (inte beroende av HTML-struktur):
+    splittar sidans text vid "Lägg i inköpslista" och parsear varje block.
     """
     url = f"https://www.ica.se/erbjudanden/{store_slug}/"
     logger.info("ICA erbjudanden: hämtar %s", url)
@@ -598,29 +601,25 @@ async def _fetch_ica_erbjudanden(store_id: str, store_slug: str, client: httpx.A
     html = resp.text
     soup = BeautifulSoup(html, "html.parser")
 
-    # Hitta alla produktkort — de har en bild med "Illustration av" i alt-texten
-    # och pris/erbjudandetext
+    # ── Text-baserad parsing ──
+    # Hämta all synlig text och splitta vid "Lägg i inköpslista"
+    # Varje segment = ett erbjudande
+    full_text = soup.get_text(separator="\n")
+    blocks = full_text.split("Lägg i inköpslista")
+
     all_offers: list[dict] = []
     seen: set[str] = set()
 
-    # Varje erbjudande har en img med alt="Illustration av {produktnamn}"
-    # Närliggande text innehåller detaljer och pris
-    for img in soup.find_all("img", alt=lambda x: x and x.startswith("Illustration av ")):
-        product_name = img["alt"].replace("Illustration av ", "").strip()
-        if not product_name or product_name in seen:
-            continue
-        seen.add(product_name)
-
-        # Navigera uppåt till det omslutande kortet
-        card = img.find_parent(["div", "li", "article", "section"])
-        if not card:
+    # Skippa första blocket (header/navigation)
+    for block in blocks[:-1]:  # sista blocket = footer
+        lines = [l.strip() for l in block.split("\n") if l.strip()]
+        if len(lines) < 2:
             continue
 
-        # Extrahera all text i kortet
-        texts = [t.strip() for t in card.stripped_strings if t.strip()]
-
-        # Bygg offer-data
-        details_text = ""
+        # Hitta produktnamnet — det är raden som kommer precis före/efter
+        # detaljraden (som innehåller "Ord.pris" eller mått/vikt)
+        product_name = ""
+        details_line = ""
         offer_label = ""
         ordinary_price = ""
         compare_price = ""
@@ -628,70 +627,105 @@ async def _fetch_ica_erbjudanden(store_id: str, store_slug: str, client: httpx.A
         is_membership = False
         qty_limit = ""
 
-        for t in texts:
-            if t == product_name or t.startswith("Illustration av") or t in ("Lägg i inköpslista",):
+        for i, line in enumerate(lines):
+            # Skippa kända icke-produkt-rader
+            if line in ("Stammis", "StammisPris", "MaxiKlipp") or line.startswith("Illustration av"):
+                if "Stammis" in line:
+                    is_membership = True
+                continue
+
+            # Detaljrad: innehåller Ord.pris, Jmfpris, eller mått
+            if "Ord.pris" in line or "Jmfpris" in line:
+                details_line = line
+                # Produktnamn = föregående icke-tomma rad
+                for j in range(i - 1, -1, -1):
+                    candidate = lines[j].strip()
+                    if (candidate and len(candidate) > 1
+                        and not candidate.startswith(("http", "Illustration", "/"))
+                        and "Logga in" not in candidate
+                        and "reklamblad" not in candidate.lower()
+                        and "Bläddra" not in candidate
+                        and candidate not in ("Stammis", "StammisPris", "MaxiKlipp")):
+                        product_name = candidate
+                        break
                 continue
 
             # Pris-etiketter
-            if re.match(r"\d+ för \d+", t):  # "2 för 25 kr"
-                offer_label = t.replace(" kr", "").strip()
-            elif re.match(r"\d+[\s,:]?\d* kr/", t):  # "80 kr/st", "109 kr/kg"
-                offer_label = t.replace(" kr", "").strip()
-            elif re.match(r"\d+[\s,:]?\d*:-", t):  # "25:-"
+            if re.match(r"^\d+ för \d+", line):
+                offer_label = line.replace(" kr", "").strip()
+            elif re.match(r"^\d+[,:.]?\d*\s*kr/", line):
+                offer_label = line.strip()
+            elif re.match(r"^\d+[,:]\d*:-$", line):
                 if not offer_label:
-                    offer_label = t
-            elif "%" in t and "rabatt" in t.lower():
-                offer_label = t
-            elif "Köp" in t and "betala" in t:
-                offer_label = t.replace("\n", " ")
+                    offer_label = line
+            elif re.match(r"^\d+:-$", line):
+                if not offer_label:
+                    offer_label = line
+            elif re.match(r"^\d+%$", line):
+                offer_label = f"{line} rabatt"
+            elif "Köp" in line and "betala" in line:
+                offer_label = line.replace("\n", " ").strip()
+            elif line == "/st" and offer_label:
+                if not offer_label.endswith("/st"):
+                    offer_label = offer_label.rstrip(":-").strip() + " kr/st"
+            elif line == "/kg" and offer_label:
+                if not offer_label.endswith("/kg"):
+                    offer_label = offer_label.rstrip(":-").strip() + " kr/kg"
 
-            # Detaljer (märke, vikt, priser)
-            if "Ord.pris" in t:
-                m = re.search(r"Ord\.pris\s+([\d:,]+(?:-[\d:,]+)?)\s*kr", t)
-                if m:
-                    ordinary_price = m.group(1).replace(":", ".").replace(",", ".")
-                details_text = t
-            if "Jmfpris" in t:
-                m = re.search(r"Jmfpris\s+([\d:,]+)/(\w+)", t)
-                if m:
-                    compare_price = f"{m.group(1).replace(':', '.')}/{m.group(2)}"
-                if not details_text:
-                    details_text = t
-            if "Max" in t and "köp" in t.lower():
-                m = re.search(r"Max\s+(\d+)\s+köp", t)
-                if m:
-                    qty_limit = m.group(1)
-            if not details_text and (
-                re.search(r"\d+\s*(g|kg|ml|liter|cl|st|pack)", t.lower())
-                or "." in t and len(t) > 10
-            ):
-                details_text = t
-
-            # Medlemskap
-            if "Stammis" in t or "StammisPris" in t:
+            # Stammis-check
+            if "Stammis" in line or "StammisPris" in line:
                 is_membership = True
 
-        # Extrahera volym från detaljer
-        if details_text:
-            m = re.search(r"(\d+(?:[,-]\d+)?)\s*(g|kg|ml|liter|cl|st|pack)\b", details_text, re.IGNORECASE)
+        # Om vi inte hittade namn via detaljer, ta första meningsfulla raden
+        if not product_name:
+            for line in lines:
+                if (len(line) > 2 and not line.startswith(("http", "!", "[", "#", "Illustration"))
+                    and line not in ("Stammis", "StammisPris", "MaxiKlipp", "Logga in")
+                    and "reklamblad" not in line.lower()
+                    and "Bläddra" not in line
+                    and "erbjudanden" not in line.lower()
+                    and not re.match(r"^\d", line)):
+                    product_name = line
+                    break
+
+        if not product_name or product_name in seen:
+            continue
+        if not offer_label and not details_line:
+            continue
+
+        seen.add(product_name)
+
+        # Extrahera data från detaljraden
+        if details_line:
+            m = re.search(r"Ord\.pris\s+([\d:,]+(?:\s*-\s*[\d:,]+)?)\s*kr", details_line)
+            if m:
+                ordinary_price = m.group(1).replace(":", ".").replace(",", ".").replace(" ", "")
+
+            m = re.search(r"Jmfpris\s+([\d:,]+)/(\w+)", details_line)
+            if m:
+                compare_price = f"{m.group(1).replace(':', '.')}/{m.group(2)}"
+
+            m = re.search(r"Max\s+(\d+)\s+köp", details_line)
+            if m:
+                qty_limit = m.group(1)
+
+            m = re.search(r"(\d+(?:[,-]\d+)?)\s*(g|kg|ml|liter|cl|st|pack)\b", details_line, re.IGNORECASE)
             if m:
                 volume = f"{m.group(1)} {m.group(2)}"
 
         # Extrahera erbjudandepris
         offer_price = ""
         if offer_label:
-            # "2 för 25" → pris = 25
             m = re.search(r"(\d+)\s+för\s+([\d,]+)", offer_label)
             if m:
                 offer_price = m.group(2).replace(",", ".")
             else:
-                # "80 kr/st" eller "109:-/kg"
                 m = re.search(r"([\d,]+(?:\.\d+)?)", offer_label)
                 if m:
                     offer_price = m.group(1).replace(",", ".")
 
         if not offer_label:
-            continue  # Inget erbjudande hittades
+            continue
 
         all_offers.append(_make_ica_offer(
             product_name=product_name,
@@ -707,12 +741,13 @@ async def _fetch_ica_erbjudanden(store_id: str, store_slug: str, client: httpx.A
             store_id=store_id,
         ))
 
-    logger.info("ICA erbjudanden: %d erbjudanden parsade från %s", len(all_offers), url)
+    logger.info("ICA erbjudanden: %d erbjudanden parsade från %s (av %d block)",
+                len(all_offers), url, len(blocks) - 1)
 
     return {
         "offers": all_offers,
         "source": "ica_direct",
-        "error": None if all_offers else "Inga erbjudanden hittades på sidan",
+        "error": None if all_offers else "Inga erbjudanden parsade",
     }
 
 

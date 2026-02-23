@@ -1231,6 +1231,8 @@ async def get_campaigns(
     # ── Resolve ICA store IDs: explicit param > user profile (city match) > auto-discover ──
     ica_ids_to_try: list[str] = []
     _ica_store_names: dict[str, str] = {}  # id → name for display
+    _ica_store_slugs: dict[str, str] = {}  # id → slug for erbjudanden URLs
+    _needs_rediscovery = False
     if ica_store_id:
         ica_ids_to_try = [ica_store_id]
         _log.info("ICA resolve: explicit store_id=%s", ica_store_id)
@@ -1242,7 +1244,6 @@ async def get_campaigns(
                   request_city, user_city, bool(user.ica_store_ids))
 
         # Only use saved stores if they match the requested city
-        _needs_rediscovery = False
         if user.ica_store_ids and request_city and request_city == user_city:
             try:
                 saved = _json.loads(user.ica_store_ids)
@@ -1316,13 +1317,15 @@ async def get_campaigns(
               len(ica_ids_to_try), ica_ids_to_try[:5])
 
     # Bygg slug-mapping från sparade/upptäckta butiker
-    _ica_store_slugs: dict[str, str] = {}
     if user and user.ica_store_ids:
         try:
-            _saved_for_slugs = _json.loads(user.ica_store_ids)
+            import json as _jsn
+            _saved_for_slugs = _jsn.loads(user.ica_store_ids)
             _ica_store_slugs = {s["id"]: s.get("slug", "") for s in _saved_for_slugs if s.get("id")}
-        except Exception:
-            pass
+            _log.info("ICA slugs: %d butiker med slug av %d totalt",
+                      sum(1 for v in _ica_store_slugs.values() if v), len(_ica_store_slugs))
+        except Exception as exc:
+            _log.warning("ICA slugs: parse error: %s", exc)
 
     # ── PARALLEL: Matpriskollen + ICA Direct ──
     async def _do_matpriskollen():
@@ -1373,6 +1376,8 @@ async def get_campaigns(
     data["_debug"] = {
         "ica_ids_resolved": ica_ids_to_try[:5],
         "ica_store_names": {k: v for k, v in list(_ica_store_names.items())[:5]},
+        "ica_store_slugs": {k: v for k, v in list(_ica_store_slugs.items())[:5]},
+        "needs_rediscovery": _needs_rediscovery,
         "ica_direct_returned": ica_data is not None,
         "ica_direct_offers": len(ica_data.get("offers", [])) if ica_data else 0,
         "ica_direct_error": (ica_data.get("error") or ica_data.get("fallback_reason")) if ica_data else "ica_data=None",

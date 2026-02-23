@@ -2342,6 +2342,11 @@ function renderCampaigns(){
     const d=_campData._debug;
     let dbg=`\n🔍 Debug: IDs=[${(d.ica_ids_resolved||[]).join(',')}]`;
     dbg+=` | butiker: ${JSON.stringify(d.ica_store_names||{})}`;
+    const slugs=d.ica_store_slugs||{};
+    const hasSlug=Object.values(slugs).some(s=>s);
+    dbg+=` | slugs=${hasSlug?'✓':'✗'}`;
+    if(hasSlug){const first=Object.entries(slugs).find(([k,v])=>v);if(first)dbg+=`(${first[1].substring(0,30)})`;}
+    dbg+=` | rediscovery=${d.needs_rediscovery}`;
     dbg+=` | direct=${d.ica_direct_returned?'✓':'✗'}(${d.ica_direct_offers} offers)`;
     if(d.ica_direct_error)dbg+=` | fel: ${d.ica_direct_error}`;
     dbg+=` | user_city=${d.user_city||'null'} req_city=${d.request_city||'null'}`;
