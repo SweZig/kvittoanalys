@@ -2375,6 +2375,7 @@ function renderCampaigns(){
   if(_campData.ica_source==='ica_direct')info+=` · 🟢 ICA direkt (${_campData.ica_store_name||'butik '+(_campData.ica_store_id||'?')})`;
   else if(_campData.ica_source==='matpriskollen+ica_direct')info+=` · 🟢 ICA Matpriskollen + ${_campData.ica_direct_count||0} direkt (${_campData.ica_store_name||'?'})`;
   else if(_campData.ica_source==='matpriskollen')info+=` · 🔵 ICA via Matpriskollen`;
+  if(_campData.mpk_error)info+=` · 🟠 Matpriskollen tillfälligt nere`;
   if(_campData.timing_ms)info+=` · ⏱️ ${(_campData.timing_ms/1000).toFixed(1)}s`;
   document.getElementById('camp-summary').textContent=info;
 }

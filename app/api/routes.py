@@ -1409,17 +1409,32 @@ async def get_campaigns(
         _log.info("ICA erbjudanden: inga erbjudanden hittades")
         return None
 
-    try:
-        mpk_data, ica_data = await _asyncio.gather(
-            _do_matpriskollen(),
-            _do_ica_direct(),
-            return_exceptions=False,
-        )
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Kunde inte hämta kampanjer: {e}")
+    mpk_result, ica_result = await _asyncio.gather(
+        _do_matpriskollen(),
+        _do_ica_direct(),
+        return_exceptions=True,
+    )
+
+    # Hantera matpriskollen-resultat (kan vara Exception)
+    mpk_error = None
+    if isinstance(mpk_result, Exception):
+        mpk_error = str(mpk_result)[:200]
+        _log.warning("Matpriskollen misslyckades: %s", mpk_error)
+        mpk_data = {"chains": [], "total_offers": 0, "stores_used": 0}
+    else:
+        mpk_data = mpk_result
+
+    # Hantera ICA direct-resultat (kan vara Exception)
+    if isinstance(ica_result, Exception):
+        _log.warning("ICA direct misslyckades: %s", ica_result)
+        ica_data = None
+    else:
+        ica_data = ica_result
 
     data = mpk_data
     data["city"] = city.capitalize() if city else f"{resolved_lat},{resolved_lon}"
+    if mpk_error:
+        data["mpk_error"] = mpk_error
 
     # ── Diagnostik — lägg till debug-info i svaret ──
     data["_debug"] = {
@@ -1507,7 +1522,13 @@ async def get_campaigns(
                 data["chains"].insert(0, new_chain)
 
         data["total_offers"] = sum(c.get("total_offers", len(c.get("offers", []))) for c in data.get("chains", []))
-        data["ica_source"] = "matpriskollen+ica_direct" if unique_direct else "matpriskollen"
+        has_mpk = not mpk_error and any(c.get("source") != "ica_direct" for c in data.get("chains", []) if "ica" in c.get("chain", "").lower())
+        if unique_direct and has_mpk:
+            data["ica_source"] = "matpriskollen+ica_direct"
+        elif unique_direct or direct_offers:
+            data["ica_source"] = "ica_direct"
+        else:
+            data["ica_source"] = "matpriskollen"
         data["ica_store_id"] = ica_data.get("_store_id")
         data["ica_store_name"] = store_name
         data["ica_direct_count"] = len(unique_direct)
